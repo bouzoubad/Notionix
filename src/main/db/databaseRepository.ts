@@ -1,6 +1,7 @@
 import type { DatabaseData, NewRow, PageId, PageSummary, RowData } from '../../shared/types'
 import {
   convertProperty,
+  isComputed,
   defaultSchema,
   normalizeValue,
   parseRowProperties,
@@ -11,6 +12,7 @@ import {
   type PropertyValue
 } from '../../shared/database'
 import type { PageRepository } from './pageRepository'
+import { computeDatabase, type DatabaseSource } from '../../shared/computed'
 
 interface RowRecord {
   id: string
@@ -52,7 +54,22 @@ export class DatabaseRepository {
     return row ? parseSchema(row.db_schema) : null
   }
 
+  /** Schema and rows with formulas and rollups computed. */
   get(id: PageId): DatabaseData | null {
+    const stored = this.stored(id)
+    if (!stored) return null
+    const titles = this.titles()
+    const rows = computeDatabase(
+      id,
+      stored,
+      (other) => this.stored(other),
+      (pid) => titles.get(pid)
+    )
+    return { id, schema: stored.schema, rows }
+  }
+
+  /** Schema and stored rows, without computed values. */
+  private stored(id: PageId): DatabaseSource | null {
     const schema = this.schemaOf(id)
     if (!schema) return null
     const records = this.db
@@ -60,7 +77,7 @@ export class DatabaseRepository {
         `SELECT ${ROW_COLUMNS} FROM pages WHERE parent_id = ? AND trashed_at IS NULL ORDER BY position`
       )
       .all(id) as unknown as RowRecord[]
-    return { id, schema, rows: records.map((r) => toRow(r, schema)) }
+    return { schema, rows: records.map((r) => toRow(r, schema)) }
   }
 
   getRow(rowId: PageId): RowData | null {
@@ -68,7 +85,9 @@ export class DatabaseRepository {
       { parent_id: string | null } | undefined
     const schema = parent?.parent_id ? this.schemaOf(parent.parent_id) : null
     if (!parent?.parent_id || !schema) return null
-    return { databaseId: parent.parent_id, schema, row: this.row(rowId, schema) }
+    const data = this.get(parent.parent_id)
+    const row = data?.rows.find((r) => r.id === rowId) ?? this.row(rowId, schema)
+    return { databaseId: parent.parent_id, schema, row }
   }
 
   updateSchema(id: PageId, raw: unknown): DatabaseSchema {
@@ -102,7 +121,7 @@ export class DatabaseRepository {
       }
       values = { ...values, ...normalizeAll(schema, init.properties ?? {}) }
       this.write(page.id, title, values)
-      return this.row(page.id, schema)
+      return this.getRow(page.id)!.row
     })
   }
 
@@ -113,14 +132,15 @@ export class DatabaseRepository {
     const merged: Record<string, PropertyValue> = { ...data.row.properties }
     for (const [key, value] of Object.entries(values)) {
       const prop = data.schema.properties.find((p) => p.id === key)
-      if (!prop || prop.type === 'title') continue
+      if (!prop || prop.type === 'title' || isComputed(prop.type)) continue
       const v = normalizeValue(prop, value)
       if (v === null) delete merged[key]
       else merged[key] = v
     }
     const title = typeof values.title === 'string' ? values.title : data.row.title
-    this.write(rowId, title, merged)
-    return this.row(rowId, data.schema)
+    // The row read above carries computed values: only stored ones are written.
+    this.write(rowId, title, normalizeAll(data.schema, merged))
+    return this.getRow(rowId)!.row
   }
 
   setTemplate(rowId: PageId, isTemplate: boolean): void {
@@ -151,7 +171,7 @@ export class DatabaseRepository {
         const v = values.get(row.id) ?? null
         if (v === null) delete next[propertyId]
         else next[propertyId] = v
-        this.write(row.id, row.title, next, false)
+        this.write(row.id, row.title, normalizeAll(schema, next), false)
       }
       return schema
     })

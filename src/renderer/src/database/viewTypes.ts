@@ -22,7 +22,9 @@ export const TYPE_ICONS: Record<PropertyType, string> = {
   phone: '☎',
   relation: '↗',
   created_time: '🕒',
-  last_edited_time: '🕒'
+  last_edited_time: '🕒',
+  formula: 'ƒ',
+  rollup: 'Σ'
 }
 
 export interface ViewProps {

@@ -19,6 +19,8 @@ export type PropertyType =
   | 'relation'
   | 'created_time'
   | 'last_edited_time'
+  | 'formula'
+  | 'rollup'
 
 export const OPTION_COLORS = [
   'gray',
@@ -47,6 +49,57 @@ export interface PropertyDef {
   options?: SelectOption[]
   /** relation: the database whose rows can be linked */
   relationDatabaseId?: string | null
+  /** formula: expression, e.g. prop("Prix") * 1.2 */
+  formula?: string
+  /** rollup: aggregates a property of the rows linked by a relation */
+  rollup?: RollupConfig
+}
+
+export type RollupAggregate =
+  | 'show_original'
+  | 'count'
+  | 'count_values'
+  | 'count_unique'
+  | 'count_empty'
+  | 'sum'
+  | 'average'
+  | 'median'
+  | 'min'
+  | 'max'
+  | 'range'
+  | 'percent_checked'
+  | 'percent_empty'
+  | 'earliest'
+  | 'latest'
+
+export interface RollupConfig {
+  relationPropertyId: string | null
+  /** property of the linked rows; null counts the rows themselves */
+  targetPropertyId: string | null
+  aggregate: RollupAggregate
+}
+
+export const ROLLUP_LABELS: Record<RollupAggregate, string> = {
+  show_original: 'Afficher les valeurs',
+  count: 'Nombre de lignes',
+  count_values: 'Nombre de valeurs',
+  count_unique: 'Nombre de valeurs uniques',
+  count_empty: 'Nombre de vides',
+  sum: 'Somme',
+  average: 'Moyenne',
+  median: 'Médiane',
+  min: 'Minimum',
+  max: 'Maximum',
+  range: 'Écart (max − min)',
+  percent_checked: 'Pourcentage coché',
+  percent_empty: 'Pourcentage vide',
+  earliest: 'Date la plus ancienne',
+  latest: 'Date la plus récente'
+}
+
+/** Result of a formula or rollup that could not be computed. */
+export interface ComputedError {
+  error: string
 }
 
 /** `start`/`end` are 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm' (local time). */
@@ -55,7 +108,13 @@ export interface DateValue {
   end?: string | null
 }
 
-export type PropertyValue = string | number | boolean | string[] | DateValue | null
+export type PropertyValue = string | number | boolean | string[] | DateValue | ComputedError | null
+
+export const isComputedError = (v: PropertyValue | undefined): v is ComputedError =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && 'error' in v
+
+/** Formulas and rollups are computed when read, never stored. */
+export const isComputed = (type: PropertyType): boolean => type === 'formula' || type === 'rollup'
 
 export type ViewType = 'table' | 'board' | 'list' | 'gallery' | 'calendar'
 
@@ -135,7 +194,9 @@ export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   phone: 'Téléphone',
   relation: 'Relation',
   created_time: 'Date de création',
-  last_edited_time: 'Dernière modification'
+  last_edited_time: 'Dernière modification',
+  formula: 'Formule',
+  rollup: 'Rollup'
 }
 
 export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
@@ -148,7 +209,13 @@ export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
 
 const PROPERTY_TYPES = new Set(Object.keys(PROPERTY_TYPE_LABELS))
 const VIEW_TYPES = new Set(Object.keys(VIEW_TYPE_LABELS))
-const COMPUTED: ReadonlySet<PropertyType> = new Set(['title', 'created_time', 'last_edited_time'])
+const COMPUTED: ReadonlySet<PropertyType> = new Set([
+  'title',
+  'created_time',
+  'last_edited_time',
+  'formula',
+  'rollup'
+])
 
 export const newId = (): string => globalThis.crypto.randomUUID().slice(0, 8)
 
@@ -191,6 +258,17 @@ export function parseSchema(raw: unknown): DatabaseSchema {
     const def: PropertyDef = { id, name: str(p.name, 'Sans nom'), type }
     if (type === 'select' || type === 'multi_select') def.options = parseOptions(p.options)
     if (type === 'relation') def.relationDatabaseId = str(p.relationDatabaseId) || null
+    if (type === 'formula') def.formula = str(p.formula)
+    if (type === 'rollup') {
+      const r = isRecord(p.rollup) ? p.rollup : {}
+      def.rollup = {
+        relationPropertyId: str(r.relationPropertyId) || null,
+        targetPropertyId: str(r.targetPropertyId) || null,
+        aggregate: (str(r.aggregate) in ROLLUP_LABELS
+          ? str(r.aggregate)
+          : 'count') as RollupAggregate
+      }
+    }
     properties.push(def)
   }
   if (!properties.some((p) => p.type === 'title')) {
@@ -242,7 +320,7 @@ export function parseSchema(raw: unknown): DatabaseSchema {
             ]
           : []
       ),
-      groupBy: byType(v.groupBy, ['select']),
+      groupBy: byType(v.groupBy, ['select', 'checkbox']),
       dateProperty: byType(v.dateProperty, ['date', 'created_time', 'last_edited_time']),
       hidden: (Array.isArray(v.hidden) ? v.hidden : []).filter(
         (h): h is string => typeof h === 'string' && ids.has(h) && h !== TITLE_PROPERTY_ID
@@ -368,7 +446,68 @@ export function localDateTime(ms: number): string {
 }
 
 export const isEmpty = (value: PropertyValue): boolean =>
-  value === null || value === '' || value === false || (Array.isArray(value) && value.length === 0)
+  value === null ||
+  value === '' ||
+  value === false ||
+  (Array.isArray(value) && value.length === 0) ||
+  isComputedError(value)
+
+const isDateValue = (v: PropertyValue): v is DateValue =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && 'start' in v
+
+/** Display of a computed value, whose type depends on the formula or rollup. */
+function displayComputed(value: PropertyValue): string {
+  if (value === null) return ''
+  if (isComputedError(value)) return `⚠ ${value.error}`
+  if (typeof value === 'boolean') return value ? 'Oui' : 'Non'
+  if (typeof value === 'number') return String(Math.round(value * 1e10) / 1e10)
+  if (Array.isArray(value)) return value.join(', ')
+  if (isDateValue(value))
+    return value.end
+      ? `${value.start.replace('T', ' ')} → ${value.end.replace('T', ' ')}`
+      : value.start.replace('T', ' ')
+  return value
+}
+
+/** Filters on computed values follow the type of each value. */
+function matchesComputed(value: PropertyValue, filter: Filter): boolean {
+  const target = filter.value
+  if (target === null || target === undefined || target === '') return true
+  const op = filter.operator
+  if (typeof value === 'number') {
+    const n = typeof target === 'number' ? target : Number(String(target).replace(',', '.'))
+    if (Number.isFinite(n)) {
+      if (op === 'equals') return value === n
+      if (op === 'not_equals') return value !== n
+      if (op === 'gt') return value > n
+      if (op === 'lt') return value < n
+      if (op === 'gte') return value >= n
+      if (op === 'lte') return value <= n
+    }
+  }
+  if (isDateValue(value) && ['before', 'after', 'equals'].includes(op)) {
+    const t = String(target).slice(0, 10)
+    const day = value.start.slice(0, 10)
+    return op === 'before' ? day < t : op === 'after' ? day > t : day === t
+  }
+  const text = fold(displayComputed(value))
+  const wanted = fold(String(target))
+  if (op === 'contains') return text.includes(wanted)
+  if (op === 'not_contains') return !text.includes(wanted)
+  if (op === 'equals') return text === wanted
+  if (op === 'not_equals') return text !== wanted
+  return false
+}
+
+function compareComputed(a: PropertyValue, b: PropertyValue): number {
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  if (typeof a === 'boolean' && typeof b === 'boolean') return Number(a) - Number(b)
+  if (isDateValue(a) && isDateValue(b)) return a.start.localeCompare(b.start)
+  return displayComputed(a).localeCompare(displayComputed(b), undefined, {
+    numeric: true,
+    sensitivity: 'base'
+  })
+}
 
 const optionName = (prop: PropertyDef, id: string): string =>
   prop.options?.find((o) => o.id === id)?.name ?? ''
@@ -384,6 +523,7 @@ export function displayValue(
   value: PropertyValue,
   relationTitle: (id: string) => string | undefined = () => undefined
 ): string {
+  if (isComputed(prop.type)) return displayComputed(value)
   if (value === null) return ''
   switch (prop.type) {
     case 'checkbox':
@@ -426,6 +566,21 @@ export function operatorsFor(type: PropertyType): { op: FilterOperator; label: s
     { op: 'is_empty' as const, label: 'est vide' },
     { op: 'is_not_empty' as const, label: 'n’est pas vide' }
   ]
+  if (isComputed(type)) {
+    return [
+      { op: 'equals', label: '= / est' },
+      { op: 'not_equals', label: '≠ / n’est pas' },
+      { op: 'contains', label: 'contient' },
+      { op: 'not_contains', label: 'ne contient pas' },
+      { op: 'gt', label: '>' },
+      { op: 'lt', label: '<' },
+      { op: 'gte', label: '≥' },
+      { op: 'lte', label: '≤' },
+      { op: 'before', label: 'est avant' },
+      { op: 'after', label: 'est après' },
+      ...empty
+    ]
+  }
   switch (type) {
     case 'number':
       return [
@@ -485,6 +640,7 @@ export function matchesFilter(prop: PropertyDef, value: PropertyValue, filter: F
   if (op === 'is_not_empty') return !isEmpty(value)
   if (op === 'is_checked') return value === true
   if (op === 'is_not_checked') return value !== true
+  if (isComputed(prop.type)) return matchesComputed(value, filter)
   const target = filter.value
   if (target === null || target === undefined || target === '') return true
   switch (prop.type) {
@@ -535,6 +691,7 @@ export function compareValues(prop: PropertyDef, a: PropertyValue, b: PropertyVa
   const ea = isEmpty(a) && prop.type !== 'checkbox'
   const eb = isEmpty(b) && prop.type !== 'checkbox'
   if (ea || eb) return ea === eb ? 0 : ea ? 1 : -1
+  if (isComputed(prop.type)) return compareComputed(a, b)
   switch (prop.type) {
     case 'number':
       return (a as number) - (b as number)
@@ -595,22 +752,41 @@ export function applyView(
 }
 
 export interface RowGroup {
-  /** option id, or null for rows without a value */
+  /** option id ('true'/'false' for a checkbox), or null for rows without a value */
   key: string | null
   option: SelectOption | null
+  label: string
+  /** value a row takes when moved into this group */
+  value: PropertyValue
   rows: DatabaseRow[]
 }
 
-/** Board columns: one per option of the select property, plus "no value" first. */
+/**
+ * Groups of a board or of a grouped table/list: one per option of a select
+ * property ("no value" first), or checked / not checked for a checkbox.
+ */
 export function groupRows(rows: DatabaseRow[], prop: PropertyDef): RowGroup[] {
-  const groups: RowGroup[] = [
-    { key: null, option: null, rows: [] },
-    ...(prop.options ?? []).map((option) => ({ key: option.id, option, rows: [] as DatabaseRow[] }))
-  ]
+  const groups: RowGroup[] =
+    prop.type === 'checkbox'
+      ? [
+          { key: 'true', option: null, label: `${prop.name} : oui`, value: true, rows: [] },
+          { key: 'false', option: null, label: `${prop.name} : non`, value: false, rows: [] }
+        ]
+      : [
+          { key: null, option: null, label: `Sans ${prop.name}`, value: null, rows: [] },
+          ...(prop.options ?? []).map((option) => ({
+            key: option.id as string | null,
+            option,
+            label: option.name,
+            value: option.id as PropertyValue,
+            rows: [] as DatabaseRow[]
+          }))
+        ]
   const byKey = new Map(groups.map((g) => [g.key, g]))
   for (const row of rows) {
     const v = row.properties[prop.id]
-    ;(byKey.get(typeof v === 'string' ? v : null) ?? groups[0]).rows.push(row)
+    const key = prop.type === 'checkbox' ? String(v === true) : typeof v === 'string' ? v : null
+    ;(byKey.get(key) ?? groups[0]).rows.push(row)
   }
   return groups
 }
@@ -796,6 +972,13 @@ export function convertProperty(
     return { property, values }
   }
   if (type === 'relation') property.relationDatabaseId = prop.relationDatabaseId ?? null
+  if (type === 'formula') property.formula = prop.formula ?? ''
+  if (type === 'rollup')
+    property.rollup = prop.rollup ?? {
+      relationPropertyId: null,
+      targetPropertyId: null,
+      aggregate: 'count'
+    }
   for (const row of rows) {
     const text = texts.get(row.id) ?? ''
     let value: PropertyValue = null

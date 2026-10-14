@@ -34,6 +34,29 @@ export interface SearchHit {
   snippet: string
 }
 
+export interface ImportSummary {
+  /** Pages created by this import */
+  created: number
+  /** Pages already imported earlier (same Notion id), left untouched */
+  skipped: number
+  /** Page that groups the newly imported top-level pages */
+  containerId: PageId | null
+  /** Notion databases turned into plain pages (properties and views are not kept) */
+  databases: number
+  linksResolved: number
+  linksUnresolved: number
+  tablesFlattened: number
+  imagesIgnored: number
+  /** Files of the export that are not Markdown or CSV (images, PDFs…) */
+  attachmentsIgnored: number
+  warnings: string[]
+}
+
+export interface ExportSummary {
+  path: string
+  pages: number
+}
+
 export interface NotionixApi {
   pages: {
     list(): Promise<PageSummary[]>
@@ -46,5 +69,11 @@ export interface NotionixApi {
     deleteForever(id: PageId): Promise<void>
     duplicate(id: PageId): Promise<Page>
     search(query: string): Promise<SearchHit[]>
+  }
+  transfer: {
+    /** Asks for a Notion export (.zip or extracted folder) and imports it; null if cancelled */
+    importNotion(): Promise<ImportSummary | null>
+    /** Exports a page and its sub-pages, or every page when `pageId` is null; null if cancelled */
+    exportMarkdown(pageId: PageId | null): Promise<ExportSummary | null>
   }
 }

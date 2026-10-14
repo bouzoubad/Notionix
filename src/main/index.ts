@@ -1,10 +1,10 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { openDatabase } from './db/database'
 import { PageRepository } from './db/pageRepository'
-import { registerPageHandlers } from './ipc'
+import { registerPageHandlers, registerTransferHandlers } from './ipc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -42,7 +42,12 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock?.setIcon(icon)
 
   const db = openDatabase()
-  registerPageHandlers(ipcMain, new PageRepository(db))
+  const repo = new PageRepository(db)
+  registerPageHandlers(ipcMain, repo)
+  registerTransferHandlers(ipcMain, repo, {
+    dialog,
+    getWindow: () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
+  })
   app.on('before-quit', () => db.close())
 
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))

@@ -6,7 +6,9 @@ Clone local de Notion, réimplémentation originale (ne jamais copier de code ou
 
 - `src/shared/types.ts` : contrat `NotionixApi` partagé main/preload/renderer.
 - `src/main/db/` : `database.ts` (migrations via `PRAGMA user_version`), `pageRepository.ts` (toute la logique pages/arbre/corbeille/recherche), `text.ts` (texte pour FTS).
-- `src/main/ipc.ts` + `src/preload/index.ts` : canaux `pages:*`, sandbox + contextIsolation.
+- `src/main/transfer/` : import d'export Notion (`sources.ts` zip/dossier/zips imbriqués, `notionImport.ts` plan d'arbre + insertion, `markdownToDoc.ts` markdown-it vers JSON ProseMirror, `canonicalDoc.ts` validation contre le schéma réel) et export (`docToMarkdown.ts`, `markdownExport.ts`).
+- `src/shared/editorExtensions.ts` : schéma de document partagé éditeur/importeur (imports TipTap nommés : les imports par défaut cassent le build main).
+- `src/main/ipc.ts` + `src/preload/index.ts` : canaux `pages:*` et `transfer:*` (dialogues natifs côté main), sandbox + contextIsolation.
 - `src/renderer/src/` : `store.ts` (Zustand), `components/`, `editor/` (TipTap + menu `/`).
 - Persistance : `node:sqlite` (pas de module natif). Tests unitaires sous Node 24 (`.nvmrc`), e2e Electron dans `tests/e2e/smoke.mjs`.
 
@@ -18,4 +20,6 @@ Logos générés par `scripts/build-logos.py` depuis `branding/notionix-brand-sh
 
 - Ajouter une migration = nouvelle entrée dans `MIGRATIONS` ; ne jamais modifier les anciennes.
 - Toute écriture incrémente `version` et `updated_at` (prépare la sync).
-- Vérifier avant commit : `npm run typecheck && npm run lint && npm test && npm run test:e2e`.
+- Vérifier avant commit : `npm run typecheck && npm run lint && npm test && npm run test:e2e` (l'e2e attrape les problèmes de bundling main que vitest ne voit pas).
+- Pages importées : colonne `source` unique (`notion:<id>`, `notion-folder:<chemin>`) ; ne jamais écraser une page déjà importée.
+- Commits de ce repo : auteur `bouzoubad` (config git locale), sans ligne Co-Authored-By.

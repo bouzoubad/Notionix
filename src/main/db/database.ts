@@ -18,7 +18,10 @@ const MIGRATIONS: string[] = [
      version INTEGER NOT NULL DEFAULT 1
    );
    CREATE INDEX pages_parent ON pages(parent_id, position);
-   CREATE VIRTUAL TABLE page_fts USING fts5(id UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2');`
+   CREATE VIRTUAL TABLE page_fts USING fts5(id UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2');`,
+  // Provenance of imported pages (e.g. 'notion:<32 hex id>'), so a re-import skips them.
+  `ALTER TABLE pages ADD COLUMN source TEXT;
+   CREATE UNIQUE INDEX pages_source ON pages(source) WHERE source IS NOT NULL;`
 ]
 
 export function openDatabase(file = join(app.getPath('userData'), 'notionix.db')): DatabaseSync {

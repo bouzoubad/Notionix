@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 import type { Page } from '../../../shared/types'
+import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editorExtensions'
 import { ancestorsOf, useStore } from '../store'
 import { SlashCommands } from './slashCommands'
 
@@ -53,16 +50,24 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false, link: { openOnClick: false, autolink: true } }),
-      CodeBlockLowlight.configure({ lowlight }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
+      ...createDocumentExtensions(lowlight),
       Placeholder.configure({
         placeholder: ({ node }) =>
           node.type.name === 'heading' ? 'Titre' : "Tapez '/' pour insérer un bloc"
       }),
       SlashCommands
     ],
+    editorProps: {
+      handleClick: (_view, _pos, event) => {
+        const anchor = (event.target as HTMLElement).closest('a')
+        const href = anchor?.getAttribute('href')
+        if (!href) return false
+        const target = pageIdFromHref(href)
+        if (target) open(target)
+        else window.open(href)
+        return true
+      }
+    },
     content: JSON.parse(page.content),
     onUpdate: ({ editor }) => schedule({ content: JSON.stringify(editor.getJSON()) })
   })

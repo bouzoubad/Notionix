@@ -7,6 +7,8 @@ interface State {
   expanded: Record<PageId, boolean>
   searchOpen: boolean
   trashOpen: boolean
+  transferOpen: boolean
+  notice: string | null
   load: () => Promise<void>
   open: (id: PageId | null) => void
   toggle: (id: PageId) => void
@@ -19,9 +21,18 @@ interface State {
   duplicate: (id: PageId) => Promise<void>
   setSearchOpen: (open: boolean) => void
   setTrashOpen: (open: boolean) => void
+  setTransferOpen: (open: boolean) => void
+  exportPage: (id: PageId | null) => Promise<void>
 }
 
 const api = window.api.pages
+
+let noticeTimer: number | undefined
+function notify(set: (partial: Partial<State>) => void, message: string): void {
+  window.clearTimeout(noticeTimer)
+  set({ notice: message })
+  noticeTimer = window.setTimeout(() => set({ notice: null }), 6000)
+}
 
 export const useStore = create<State>((set, get) => ({
   pages: [],
@@ -29,6 +40,8 @@ export const useStore = create<State>((set, get) => ({
   expanded: JSON.parse(localStorage.getItem('expanded') ?? '{}'),
   searchOpen: false,
   trashOpen: false,
+  transferOpen: false,
+  notice: null,
 
   load: async () => {
     const pages = await api.list()
@@ -82,7 +95,16 @@ export const useStore = create<State>((set, get) => ({
     get().open(copy.id)
   },
   setSearchOpen: (searchOpen) => set({ searchOpen }),
-  setTrashOpen: (trashOpen) => set({ trashOpen })
+  setTrashOpen: (trashOpen) => set({ trashOpen }),
+  setTransferOpen: (transferOpen) => set({ transferOpen }),
+  exportPage: async (id) => {
+    try {
+      const result = await window.api.transfer.exportMarkdown(id)
+      if (result) notify(set, `${result.pages} page(s) exportée(s) : ${result.path}`)
+    } catch (e) {
+      notify(set, `Export impossible : ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
 }))
 
 export const childrenOf = (pages: PageSummary[], parentId: PageId | null): PageSummary[] =>

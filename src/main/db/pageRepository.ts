@@ -21,6 +21,21 @@ interface Row {
 const SUMMARY_COLUMNS =
   'id, parent_id, title, icon, cover, position, favorite, trashed_at, created_at, updated_at, version'
 
+const EMPTY_DOC = '{"type":"doc","content":[{"type":"paragraph"}]}'
+
+export interface ImportNode {
+  id: PageId
+  /** Parent page id, or null for a top-level node */
+  parentId: PageId | null
+  title: string
+  /** Serialised ProseMirror document */
+  content: string
+  /** Provenance such as 'notion:<id>'; unique across pages */
+  source: string | null
+  /** Already imported earlier: nothing is written */
+  existing: boolean
+}
+
 const toSummary = (r: Omit<Row, 'content'>): PageSummary => ({
   id: r.id,
   parentId: r.parent_id,
@@ -184,6 +199,71 @@ export class PageRepository {
       )
       .all(match, limit) as unknown as SearchHit[]
     return rows
+  }
+
+  /** Id of the page previously imported from `source`, trashed or not. */
+  findIdBySource(source: string): PageId | undefined {
+    const row = this.db.prepare('SELECT id FROM pages WHERE source = ?').get(source) as
+      { id: string } | undefined
+    return row?.id
+  }
+
+  /**
+   * Inserts imported pages in one transaction. Nodes must list a parent before
+   * its children. Top-level nodes (no parent) go under a new container page
+   * titled `containerTitle`, created only when at least one node is new.
+   */
+  importNodes(
+    nodes: ImportNode[],
+    containerTitle: string
+  ): { created: number; containerId: PageId | null } {
+    return this.inTransaction(() => {
+      let created = 0
+      let containerId: PageId | null = null
+      const insert = this.db.prepare(
+        `INSERT INTO pages (id, parent_id, title, content, position, created_at, updated_at, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      const nextPosition = new Map<PageId | null, number>()
+      const position = (parent: PageId | null): number => {
+        let next = nextPosition.get(parent)
+        if (next === undefined) {
+          const last = this.db
+            .prepare('SELECT MAX(position) AS p FROM pages WHERE parent_id IS ?')
+            .get(parent) as { p: number | null }
+          next = (last.p ?? 0) + 1
+        }
+        nextPosition.set(parent, next + 1)
+        return next
+      }
+      const t = this.now()
+      for (const node of nodes) {
+        if (node.existing) continue
+        let parentId = node.parentId
+        if (parentId === null) {
+          if (containerId === null) {
+            containerId = randomUUID()
+            insert.run(containerId, null, containerTitle, EMPTY_DOC, position(null), t, t, null)
+            this.reindex(containerId)
+            created += 1
+          }
+          parentId = containerId
+        }
+        insert.run(
+          node.id,
+          parentId,
+          node.title,
+          node.content,
+          position(parentId),
+          t,
+          t,
+          node.source
+        )
+        this.reindex(node.id)
+        created += 1
+      }
+      return { created, containerId }
+    })
   }
 
   private cloneTree(src: Page, parentId: PageId | null, title: string): Page {

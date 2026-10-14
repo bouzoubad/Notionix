@@ -99,8 +99,7 @@ kbd {
   flex-direction: column;
   padding: 0 6px 8px;
 }
-.sidebar-actions button,
-.trash-btn {
+.sidebar-actions button {
   display: flex;
   align-items: center;
   text-align: left;
@@ -116,10 +115,6 @@ kbd {
 .tree {
   flex: 1;
   padding-bottom: 12px;
-}
-.trash-btn {
-  margin: 6px;
-  flex: none;
 }
 .row {
   position: relative;
@@ -525,4 +520,80 @@ main {
 .blank p {
   margin: 0 0 8px;
   letter-spacing: 0.04em;
+}
+
+/* Import / export */
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  padding: 6px;
+}
+.sidebar-footer button {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 5px 10px;
+  color: var(--text-muted);
+}
+.dialog.transfer {
+  width: 640px;
+}
+.transfer-section {
+  padding: 6px 12px 14px;
+}
+.transfer-section + .transfer-section {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.transfer-section h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.transfer-section p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.transfer-section button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+}
+.transfer-section button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.transfer-section button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.transfer-section .error {
+  color: #d44c47;
+}
+.import-report {
+  margin-top: 12px;
+  font-size: 14px;
+}
+.import-report ul {
+  margin: 4px 0 10px;
+  padding-left: 20px;
+  color: var(--text-muted);
+}
+.import-report .warn {
+  color: #cb912f;
+}
+.notice {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: 80vw;
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  box-shadow: var(--shadow);
 }

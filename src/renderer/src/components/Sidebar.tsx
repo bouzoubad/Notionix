@@ -10,6 +10,7 @@ export function Sidebar(): React.JSX.Element {
   const createPage = useStore((s) => s.createPage)
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const setTrashOpen = useStore((s) => s.setTrashOpen)
+  const setTransferOpen = useStore((s) => s.setTransferOpen)
   const [drag, setDrag] = useState<string | null>(null)
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
@@ -74,9 +75,10 @@ export function Sidebar(): React.JSX.Element {
         ))}
         {roots.length === 0 && <p className="empty">Aucune page. Créez-en une.</p>}
       </section>
-      <button className="trash-btn" onClick={() => setTrashOpen(true)}>
-        Corbeille
-      </button>
+      <div className="sidebar-footer">
+        <button onClick={() => setTransferOpen(true)}>Importer / Exporter</button>
+        <button onClick={() => setTrashOpen(true)}>Corbeille</button>
+      </div>
     </aside>
   )
 }
@@ -103,6 +105,7 @@ function Row(props: RowProps): React.JSX.Element {
   const patch = useStore((s) => s.patch)
   const trash = useStore((s) => s.trash)
   const duplicate = useStore((s) => s.duplicate)
+  const exportPage = useStore((s) => s.exportPage)
   const [menu, setMenu] = useState(false)
   const kids = flat ? [] : childrenOf(pages, page.id)
 
@@ -173,6 +176,9 @@ function Row(props: RowProps): React.JSX.Element {
               {page.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
             </button>
             <button onClick={() => (setMenu(false), void duplicate(page.id))}>Dupliquer</button>
+            <button onClick={() => (setMenu(false), void exportPage(page.id))}>
+              Exporter en Markdown
+            </button>
             <button onClick={() => (setMenu(false), void trash(page.id))}>
               Mettre à la corbeille
             </button>

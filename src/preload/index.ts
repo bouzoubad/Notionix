@@ -16,6 +16,10 @@ const api: NotionixApi = {
     deleteForever: (id) => call('pages:deleteForever', id),
     duplicate: (id) => call('pages:duplicate', id),
     search: (q) => call('pages:search', q)
+  },
+  transfer: {
+    importNotion: () => call('transfer:importNotion'),
+    exportMarkdown: (pageId) => call('transfer:exportMarkdown', pageId)
   }
 }
 

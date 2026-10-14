@@ -19,7 +19,7 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "test": "vitest run",
-    "test:e2e": "npm run build && node tests/e2e/smoke.mjs"
+    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -35,8 +35,11 @@
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
     "@tiptap/suggestion": "^3.32.0",
+    "fflate": "^0.8.3",
     "lowlight": "^3.3.0",
+    "markdown-it": "^15.0.2",
     "uuid": "^14.0.3",
+    "yauzl": "^3.4.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -46,6 +49,7 @@
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/yauzl": "^3.4.0",
     "@vitejs/plugin-react": "^5.1.1",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",

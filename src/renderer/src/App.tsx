@@ -3,6 +3,7 @@ import { useStore } from './store'
 import { Sidebar } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
 import { TrashDialog } from './components/TrashDialog'
+import { TransferDialog } from './components/TransferDialog'
 import { PageEditor } from './editor/PageEditor'
 import { Logo } from './components/Logo'
 
@@ -11,6 +12,8 @@ export default function App(): React.JSX.Element {
   const currentId = useStore((s) => s.currentId)
   const searchOpen = useStore((s) => s.searchOpen)
   const trashOpen = useStore((s) => s.trashOpen)
+  const transferOpen = useStore((s) => s.transferOpen)
+  const notice = useStore((s) => s.notice)
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const createPage = useStore((s) => s.createPage)
 
@@ -42,6 +45,8 @@ export default function App(): React.JSX.Element {
       </main>
       {searchOpen && <SearchDialog />}
       {trashOpen && <TrashDialog />}
+      {transferOpen && <TransferDialog />}
+      {notice && <div className="notice">{notice}</div>}
     </div>
   )
 }

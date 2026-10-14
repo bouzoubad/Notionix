@@ -201,17 +201,19 @@ class Converter {
     const trimmed = html.trimStart()
     if (/^<aside\b/i.test(trimmed)) {
       const inner = html.replace(/^\s*<aside[^>]*>/i, '')
-      if (/<\/aside>/i.test(inner)) {
-        // The whole callout is in this block.
-        pushInlineText(out, inner.replace(/<\/aside>\s*$/i, ''), this)
+      const closing = /<\/aside>/i.exec(inner)
+      if (closing) {
+        // The whole callout is in this block (no blank line before the closing tag).
+        const quote = this.htmlParagraph(inner.slice(0, closing.index))
+        out.push({ type: 'blockquote', content: quote.length ? quote : [emptyParagraph()] })
+        out.push(...this.htmlParagraph(inner.slice(closing.index + closing[0].length)))
         return index + 1
       }
-      pushInlineText(out, inner, this)
       const [children, end] = this.blocks(
         index + 1,
         (t) => t.type === 'html_block' && /<\/aside>/i.test(t.content)
       )
-      const quote = [...out.splice(out.length - (inner.trim() ? 1 : 0)), ...children]
+      const quote = [...this.htmlParagraph(inner), ...children]
       out.push({ type: 'blockquote', content: quote.length ? quote : [emptyParagraph()] })
       return end + 1
     }
@@ -222,8 +224,16 @@ class Converter {
       const content = this.inlineTokens(inline)
       if (content.length) out.push(paragraph(content.map(bolden)))
     }
-    pushInlineText(out, html.replace(/<summary[^>]*>[\s\S]*?<\/summary>/gi, ''), this)
+    out.push(...this.htmlParagraph(html.replace(/<summary[^>]*>[\s\S]*?<\/summary>/gi, '')))
     return index + 1
+  }
+
+  /** The text of an HTML fragment, tags removed, as zero or one paragraph. */
+  private htmlParagraph(html: string): JsonNode[] {
+    const plain = html.replace(/<[^>]+>/g, '').trim()
+    if (!plain) return []
+    const content = this.inlineTokens(md.parseInline(plain, {})[0]?.children ?? [])
+    return content.length ? [paragraph(content)] : []
   }
 
   inline(token: Token | undefined): JsonNode[] {
@@ -301,15 +311,6 @@ class Converter {
 
 const bolden = (node: JsonNode): JsonNode =>
   node.type === 'text' ? { ...node, marks: [...(node.marks ?? []), { type: 'bold' }] } : node
-
-/** Appends the plain text of an HTML fragment, with its tags removed, as a paragraph. */
-function pushInlineText(out: JsonNode[], html: string, converter: Converter): void {
-  const plain = html.replace(/<[^>]+>/g, '').trim()
-  if (!plain) return
-  const inline = md.parseInline(plain, {})[0]?.children ?? []
-  const content = converter.inlineTokens(inline)
-  if (content.length) out.push(paragraph(content))
-}
 
 const TASK_MARKER = /^\[([ xX])\]\s+/
 

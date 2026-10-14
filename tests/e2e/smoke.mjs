@@ -22,6 +22,19 @@ await win.keyboard.type('Un grand titre')
 await win.waitForTimeout(700)
 assert.equal(await win.locator('.editor h1').innerText(), 'Un grand titre')
 
+// the slash menu closes on Escape and when the editor loses focus
+await win.keyboard.press('Enter')
+await win.keyboard.type('/')
+await win.locator('.slash-menu').waitFor()
+await win.keyboard.press('Escape')
+await win.locator('.slash-menu').waitFor({ state: 'detached' })
+await win.keyboard.press('Backspace')
+await win.keyboard.type('/')
+await win.locator('.slash-menu').waitFor()
+await win.locator('.sidebar-actions button', { hasText: 'Rechercher' }).click()
+await win.locator('.slash-menu').waitFor({ state: 'detached' })
+await win.keyboard.press('Escape')
+
 // sub page + search + persistence across restart
 await win.locator('.row', { hasText: 'Ma première page' }).hover()
 await win.locator('.row-actions button[title="Sous-page"]').click()

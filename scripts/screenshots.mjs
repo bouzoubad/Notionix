@@ -1,6 +1,7 @@
 // Regenerate docs/screenshots/*.png from the built app: npm run build && node scripts/screenshots.mjs
 import { _electron as electron } from 'playwright-core'
-import { mkdtempSync } from 'fs'
+import { strToU8, zipSync } from 'fflate'
+import { mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -110,4 +111,76 @@ await win.locator('.slash-menu').waitFor()
 await win.waitForTimeout(200)
 await win.screenshot({ path: join(out, 'slash-menu.png') })
 await app.close()
+
+// Notion import, on a fresh profile so only imported pages show: a small, realistic "Markdown & CSV" export built on the fly.
+const id = (c) => c.repeat(32)
+const notionExport = {
+  [`Roadmap produit ${id('a')}.md`]: `# Roadmap produit
+
+Notre plan pour les prochains mois. Détails des chantiers : [Idées](Roadmap%20produit%20${id('a')}/Id%C3%A9es%20${id('b')}.md).
+
+## Cette semaine
+
+- [x] Exporter l'espace de travail depuis Notion
+- [x] Importer l'export dans Notionix
+- [ ] Vérifier les liens entre pages
+
+<aside>
+💡 Les images et les bases de données seront reprises avec la phase 2.
+</aside>
+
+<details>
+<summary>Pourquoi un outil local ?</summary>
+
+Les données restent sur l'ordinateur, sans compte ni connexion.
+
+</details>
+
+| Chantier | Statut |
+| --- | --- |
+| Import Notion | Terminé |
+| Bases de données | À venir |
+
+![capture](Roadmap%20produit%20${id('a')}/capture.png)
+`,
+  [`Roadmap produit ${id('a')}/Idées ${id('b')}.md`]:
+    '# Idées\n\n- Vues table et board\n- Templates de pages\n- Synchronisation\n',
+  [`Roadmap produit ${id('a')}/Notes de réunion ${id('c')}.md`]:
+    '# Notes de réunion\n\nOrdre du jour : migration depuis Notion.\n',
+  [`Roadmap produit ${id('a')}/capture.png`]: 'PNG',
+  [`Tâches ${id('d')}_all.csv`]: 'Nom,Statut\nÉcrire la doc,En cours\n',
+  [`Tâches ${id('d')}/Écrire la doc ${id('e')}.md`]:
+    '# Écrire la doc\n\nStatut: En cours\n\nRédiger le guide de migration.\n',
+  [`Tâches ${id('d')}/Corriger le bug ${id('f')}.md`]: '# Corriger le bug\n\nStatut: Terminé\n'
+}
+const exportZip = join(tmpdir(), `nx-notion-export-${Date.now()}.zip`)
+writeFileSync(
+  exportZip,
+  zipSync(Object.fromEntries(Object.entries(notionExport).map(([k, v]) => [k, strToU8(v)])))
+)
+const importApp = await electron.launch({
+  cwd: root,
+  args: ['.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'nx-shots-import-'))}`]
+})
+const importWin = await importApp.firstWindow()
+await importWin.waitForSelector('.blank')
+await importApp.evaluate(({ dialog }, zip) => {
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [zip] })
+}, exportZip)
+
+await importWin.emulateMedia({ colorScheme: 'light' })
+await importWin.getByRole('button', { name: 'Importer / Exporter' }).click()
+await importWin.getByRole('button', { name: 'Choisir un export Notion…' }).click()
+await importWin.locator('.import-report').waitFor()
+await importWin.waitForTimeout(200)
+await importWin.screenshot({ path: join(out, 'import-notion.png') })
+
+await importWin.getByRole('button', { name: 'Ouvrir les pages importées' }).click()
+await importWin.locator('.row', { hasText: 'Importé de Notion' }).locator('.chevron').click()
+await importWin.locator('.row', { hasText: 'Roadmap produit' }).locator('.chevron').click()
+await importWin.locator('.row', { hasText: 'Roadmap produit' }).click()
+await importWin.locator('.editor blockquote').first().waitFor()
+await importWin.waitForTimeout(300)
+await importWin.screenshot({ path: join(out, 'imported-notion.png') })
+await importApp.close()
 console.log('screenshots written to', out)

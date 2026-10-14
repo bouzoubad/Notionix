@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { Extension, type Editor, type Range } from '@tiptap/core'
-import Suggestion, { type SuggestionProps } from '@tiptap/suggestion'
+import Suggestion, { exitSuggestion, type SuggestionProps } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 
 export interface SlashItem {
@@ -149,8 +149,13 @@ function createMenuController(): ReturnType<
     el.style.top = `${fitsBelow ? below : Math.max(gap, rect.top - gap - el.offsetHeight)}px`
     el.style.zIndex = '50'
   }
+  /** Leaving the editor (dialog, sidebar click…) ends the suggestion instead of leaving the menu floating. */
+  const dismiss = (): void => {
+    if (latest) exitSuggestion(latest.editor.view)
+  }
   const close = (): void => {
     window.removeEventListener('scroll', place, true)
+    latest?.editor.off('blur', dismiss)
     component?.element.remove()
     component?.destroy()
     component = null
@@ -167,6 +172,7 @@ function createMenuController(): ReturnType<
       })
       document.body.appendChild(component.element)
       window.addEventListener('scroll', place, true)
+      props.editor.on('blur', dismiss)
       draw()
     },
     onUpdate: (props) => {
@@ -192,7 +198,7 @@ function createMenuController(): ReturnType<
         return true
       }
       if (event.key === 'Escape') {
-        close()
+        dismiss()
         return true
       }
       return false

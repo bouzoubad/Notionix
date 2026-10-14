@@ -95,6 +95,9 @@ describe('markdownToDoc', () => {
     expect(callout.type).toBe('blockquote')
     expect(flat(callout)).toContain('💡 Astuce')
     expect(flat(callout)).toContain('Suite')
+    const compact = convert('<aside>\n💡 Sur un seul bloc\n</aside>\n').doc.content![0]
+    expect(compact.type).toBe('blockquote')
+    expect(flat(compact)).toContain('💡 Sur un seul bloc')
     const toggle = convert(
       '<details>\n<summary>Plus</summary>\n\nCorps du toggle\n\n</details>\n'
     ).doc

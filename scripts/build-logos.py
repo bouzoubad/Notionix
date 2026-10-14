@@ -3,6 +3,7 @@
 Outputs:
   src/renderer/src/assets/logo-wordmark-{light,dark}.png  transparent banner (dark text / white text)
   src/renderer/src/assets/logo-tile-{light,dark}.png      app tile, white (left) and dark (second)
+  docs/brand/notionix-{light,dark}.png                    copies of the banners for the README
   build/icon.png, resources/icon.png                      app icon (dark tile)
 Then `iconutil`/PIL produce build/icon.icns and build/icon.ico.
 
@@ -90,6 +91,12 @@ def square(img: Image.Image, size: int) -> Image.Image:
 ASSETS.mkdir(parents=True, exist_ok=True)
 trimmed(wordmark(NAVY), 8).save(ASSETS / 'logo-wordmark-light.png', optimize=True)
 trimmed(wordmark(WHITE_INK), 8).save(ASSETS / 'logo-wordmark-dark.png', optimize=True)
+
+# Copies for the README header (GitHub serves them next to the docs).
+brand = ROOT / 'docs' / 'brand'
+brand.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(ASSETS / 'logo-wordmark-light.png', brand / 'notionix-light.png')
+shutil.copyfile(ASSETS / 'logo-wordmark-dark.png', brand / 'notionix-dark.png')
 
 tile_light = tile(TILE_LIGHT_BOX)
 tile_dark = tile(TILE_DARK_BOX)

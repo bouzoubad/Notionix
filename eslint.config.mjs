@@ -25,7 +25,9 @@ export default defineConfig(
     },
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
-      ...eslintPluginReactRefresh.configs.vite.rules
+      ...eslintPluginReactRefresh.configs.vite.rules,
+      // Props are typed with TypeScript; runtime prop-types add nothing.
+      'react/prop-types': 'off'
     }
   },
   eslintConfigPrettier

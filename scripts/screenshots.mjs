@@ -127,6 +127,83 @@ await win.emulateMedia({ colorScheme: 'dark' })
 await win.waitForTimeout(300)
 await win.screenshot({ path: join(out, 'editor-dark.png') })
 
+// A database with a table and a board view.
+const dbId = await win.evaluate(async () => {
+  const api = window.api.databases
+  const db = await api.create(null)
+  await window.api.pages.update(db.id, { title: 'Projets clients', icon: '🗂️' })
+  const base = (await api.get(db.id)).schema
+  const schema = await api.updateSchema(db.id, {
+    properties: [
+      ...base.properties,
+      {
+        id: 'status',
+        name: 'Statut',
+        type: 'select',
+        options: [
+          { id: 'todo', name: 'À faire', color: 'gray' },
+          { id: 'doing', name: 'En cours', color: 'blue' },
+          { id: 'review', name: 'En revue', color: 'orange' },
+          { id: 'done', name: 'Terminé', color: 'green' }
+        ]
+      },
+      { id: 'owner', name: 'Responsable', type: 'text' },
+      { id: 'budget', name: 'Budget (k€)', type: 'number' },
+      { id: 'due', name: 'Échéance', type: 'date' },
+      {
+        id: 'tags',
+        name: 'Tags',
+        type: 'multi_select',
+        options: [
+          { id: 'web', name: 'Web', color: 'purple' },
+          { id: 'mobile', name: 'Mobile', color: 'pink' },
+          { id: 'data', name: 'Data', color: 'yellow' }
+        ]
+      }
+    ],
+    views: [
+      base.views[0],
+      {
+        id: 'board',
+        name: 'Board',
+        type: 'board',
+        filters: [],
+        filterMode: 'and',
+        sorts: [],
+        hidden: [],
+        groupBy: 'status'
+      }
+    ]
+  })
+  const rows = [
+    ['Refonte du site', 'doing', 'Camille', 42, '2026-11-15', ['web']],
+    ['Application mobile', 'todo', 'Lucas', 120, '2026-12-20', ['mobile']],
+    ['Tableau de bord ventes', 'review', 'Inès', 18, '2026-10-30', ['data', 'web']],
+    ['Migration CRM', 'done', 'Hugo', 35, '2026-10-02', ['data']],
+    ['Portail partenaires', 'doing', 'Sarah', 60, '2026-11-28', ['web']]
+  ]
+  for (const [title, status, owner, budget, due, tags] of rows) {
+    await api.createRow(db.id, {
+      title,
+      properties: { status, owner, budget, due: { start: due }, tags }
+    })
+  }
+  return { id: db.id, board: schema.views[1].id }
+})
+await win.evaluate((id) => localStorage.setItem('currentId', id), dbId.id)
+await win.reload()
+await win.locator('.db-table').waitFor()
+await win.emulateMedia({ colorScheme: 'light' })
+await win.waitForTimeout(300)
+await win.screenshot({ path: join(out, 'database-table.png') })
+await win.getByRole('tab', { name: 'Board' }).click()
+await win.locator('.board-card').first().waitFor()
+await win.waitForTimeout(300)
+await win.screenshot({ path: join(out, 'database-board.png') })
+await win.evaluate((id) => localStorage.setItem('currentId', id), ids.home)
+await win.reload()
+await win.waitForSelector('.editor h2')
+
 await win.emulateMedia({ colorScheme: 'light' })
 await win.keyboard.press('Meta+k')
 await win.locator('.dialog input').fill('callout')

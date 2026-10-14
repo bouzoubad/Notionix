@@ -81,7 +81,7 @@ function ImportReport({
     notes.push(`${summary.skipped} page(s) déjà importées, laissées telles quelles.`)
   if (summary.databases)
     notes.push(
-      `${summary.databases} base(s) de données importée(s) comme pages simples (propriétés et vues non reprises).`
+      `${summary.databases} base(s) de données importée(s), types de propriétés déduits des CSV (formules, rollups et vues Notion non repris).`
     )
   if (summary.linksResolved || summary.linksUnresolved)
     notes.push(

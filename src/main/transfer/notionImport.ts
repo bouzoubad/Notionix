@@ -15,6 +15,9 @@ import {
   splitPath
 } from './notionNames'
 import { openSource, type SourceFile } from './sources'
+import { parseCsv } from './csv'
+import { inferDatabase } from './notionDatabase'
+import type { PropertyValue } from '../../shared/database'
 import type { AssetStore } from '../assets'
 
 const MAX_MARKDOWN_BYTES = 20 * 1024 * 1024
@@ -34,6 +37,10 @@ interface PlanNode {
   id: PageId
   existing: boolean
   content: string
+  /** database: inferred schema (JSON) */
+  dbSchema: string | null
+  /** database row: typed values (JSON) */
+  properties: string | null
 }
 
 export interface ImportPlan {
@@ -102,7 +109,9 @@ export async function planNotionImport(
       file,
       id: existingId ?? newId(),
       existing: existingId !== undefined,
-      content: EMPTY_DOC
+      content: EMPTY_DOC,
+      dbSchema: null,
+      properties: null
     }
     nodes.set(key, node)
     for (const p of extraPath ?? []) pathToId.set(p, node.id)
@@ -122,9 +131,13 @@ export async function planNotionImport(
       attachments.add(file.path)
     }
   }
+  const csvByDatabase = new Map<string, SourceFile>()
   for (const [key, paths] of csvFiles) {
     if (nodes.has(key)) continue // a page of the same name already stands for it
     make(key, 'database', splitPath(key).base, null, paths)
+    // "<name>_all.csv" holds every property; "<name>.csv" only the columns of the default view.
+    const best = paths.find((p) => /_all\.csv$/i.test(p)) ?? paths[0]
+    csvByDatabase.set(key, fileByPath.get(best)!)
   }
 
   // Parents: the page (or database) owning the folder a file sits in, else a container for that folder.
@@ -211,24 +224,29 @@ export async function planNotionImport(
       a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
   )
 
+  /** CSV rows of each new database, matched to row pages by title as they are read. */
+  const csvRows = new Map<
+    string,
+    { title: string; values: Record<string, PropertyValue>; used: boolean }[]
+  >()
+
   for (const node of ordered) {
     if (node.existing) continue
     if (node.kind === 'database') {
-      node.content = JSON.stringify({
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: 'Base de données Notion : propriétés et vues non reprises. Chaque ligne est importée comme sous-page.',
-                marks: [{ type: 'italic' }]
-              }
-            ]
-          }
-        ]
-      })
+      const csv = csvByDatabase.get(node.key)
+      const inferred =
+        csv && csv.size <= MAX_MARKDOWN_BYTES
+          ? inferDatabase(parseCsv(stripBom((await csv.read()).toString('utf8'))))
+          : null
+      if (!inferred) {
+        warnings.push(`${node.title} : CSV illisible ou vide, base créée sans propriétés.`)
+        continue
+      }
+      node.dbSchema = JSON.stringify(inferred.schema)
+      csvRows.set(
+        node.key,
+        inferred.rows.map((r) => ({ ...r, used: false }))
+      )
       continue
     }
     if (node.kind === 'container' || !node.file) continue
@@ -240,8 +258,19 @@ export async function planNotionImport(
     }
     const raw = stripBom((await node.file.read()).toString('utf8')).replace(/\r\n?/g, '\n')
     const parent = node.parentKey ? nodes.get(node.parentKey) : undefined
-    const page = splitFrontMatter(raw, parent?.kind === 'database')
+    const rowsOfParent = parent ? csvRows.get(parent.key) : undefined
+    const page = splitFrontMatter(
+      raw,
+      parent?.kind !== 'database' ? 'none' : rowsOfParent ? 'drop' : 'text'
+    )
     if (page.title) node.title = page.title
+    if (rowsOfParent) {
+      const match = rowsOfParent.find((r) => !r.used && r.title === node.title)
+      if (match) {
+        match.used = true
+        node.properties = JSON.stringify(match.values)
+      }
+    }
     const dir = splitPath(node.file.path).dir
     const doc = markdownToDoc(page.body, resolveHref(dir), stats)
     await resolveImages(doc, dir)
@@ -252,6 +281,25 @@ export async function planNotionImport(
       )
     }
     node.content = JSON.stringify(canonical ?? plainTextDoc(page.body))
+  }
+
+  // CSV rows without a page of their own become empty row pages.
+  for (const [key, rows] of csvRows) {
+    for (const r of rows.filter((x) => !x.used)) {
+      ordered.push({
+        key: `${key}/#csv-${ordered.length}`,
+        kind: 'page',
+        title: r.title,
+        source: null,
+        parentKey: key,
+        file: null,
+        id: newId(),
+        existing: false,
+        content: EMPTY_DOC,
+        dbSchema: null,
+        properties: JSON.stringify(r.values)
+      })
+    }
   }
 
   return {
@@ -288,7 +336,8 @@ const PROPERTY_LINE = /^([^:\n]{1,80}):(?:\s(.*))?$/
  */
 export function splitFrontMatter(
   markdown: string,
-  isDatabaseRow: boolean
+  /** 'text': database row without CSV, properties kept as bold lines; 'drop': values come from the CSV */
+  rowProperties: 'none' | 'text' | 'drop'
 ): { title: string | null; body: string } {
   const lines = markdown.split('\n')
   let i = 0
@@ -300,7 +349,7 @@ export function splitFrontMatter(
     i += 1
   }
   const rest = lines.slice(i)
-  if (isDatabaseRow) {
+  if (rowProperties !== 'none') {
     let j = 0
     while (j < rest.length && !rest[j].trim()) j += 1
     const props: string[] = []
@@ -309,6 +358,7 @@ export function splitFrontMatter(
       props.push(`**${key.trim()} :** ${(value ?? '').trim()}`.trimEnd())
       j += 1
     }
+    if (props.length && rowProperties === 'drop') return { title, body: rest.slice(j).join('\n') }
     if (props.length)
       return { title, body: [...props.flatMap((p) => [p, '']), ...rest.slice(j)].join('\n') }
   }
@@ -334,6 +384,9 @@ export async function importNotionExport(
       parentId: n.parentKey ? (keyToId.get(n.parentKey) ?? null) : null,
       title: n.title,
       content: n.content,
+      kind: n.kind === 'database' ? 'database' : 'page',
+      dbSchema: n.dbSchema,
+      properties: n.properties,
       source: n.source,
       existing: n.existing
     }))

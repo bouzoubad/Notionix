@@ -159,14 +159,14 @@ describe('markdownToDoc', () => {
 describe('splitFrontMatter', () => {
   it('extracts the title and database properties', () => {
     expect(
-      splitFrontMatter('# Ma ligne\n\nStatut: En cours\nURL: https://x.y\n\nCorps\n', true)
+      splitFrontMatter('# Ma ligne\n\nStatut: En cours\nURL: https://x.y\n\nCorps\n', 'text')
     ).toEqual({
       title: 'Ma ligne',
       body: '**Statut :** En cours\n\n**URL :** https://x.y\n\n\nCorps\n'
     })
   })
   it('leaves normal pages alone', () => {
-    expect(splitFrontMatter('# T\n\nNote: texte\n', false).body).toContain('Note: texte')
+    expect(splitFrontMatter('# T\n\nNote: texte\n', 'none').body).toContain('Note: texte')
   })
 })
 
@@ -229,8 +229,13 @@ describe('planNotionImport', () => {
     const index = new Map(plan.nodes.map((n, i) => [n.key, i]))
     for (const n of plan.nodes)
       if (n.parentKey) expect(index.get(n.parentKey)!).toBeLessThan(index.get(n.key)!)
+    // with a CSV, row values become typed properties instead of text in the page
     const row = JSON.parse(byTitle['Row'].content) as JsonNode
-    expect(flat(row)).toContain('Status :')
+    expect(flat(row)).toBe('Contenu de la ligne')
+    const schema = JSON.parse(byTitle['Projets'].dbSchema!)
+    const status = schema.properties.find((p: { name: string }) => p.name === 'Status')
+    expect(status.type).toBe('select')
+    expect(JSON.parse(byTitle['Row'].properties!)[status.id]).toBe(status.options[0].id)
   })
 })
 

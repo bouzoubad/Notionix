@@ -68,9 +68,10 @@ app.whenReady().then(() => {
       : new Response('Not found', { status: 404 })
   })
   registerPageHandlers(ipcMain, repo)
-  registerDatabaseHandlers(ipcMain, new DatabaseRepository(repo))
+  const dbs = new DatabaseRepository(repo)
+  registerDatabaseHandlers(ipcMain, dbs)
   registerAssetHandlers(ipcMain, assets)
-  registerTransferHandlers(ipcMain, repo, assets, {
+  registerTransferHandlers(ipcMain, repo, dbs, assets, {
     dialog,
     getWindow: () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
   })

@@ -53,6 +53,7 @@ export function registerAssetHandlers(ipc: IpcMain, assets: AssetStore): void {
 export function registerTransferHandlers(
   ipc: IpcMain,
   repo: PageRepository,
+  dbs: DatabaseRepository,
   assets: AssetStore,
   deps: TransferDeps
 ): void {
@@ -77,7 +78,8 @@ export function registerTransferHandlers(
         repo.list(),
         (id) => repo.get(id),
         (src) => assets.read(src),
-        pageId
+        pageId,
+        (id) => dbs.get(id)
       )
       if (files.length === 0) throw new Error('Aucune page à exporter.')
       const single = files.length === 1 && attachments.length === 0

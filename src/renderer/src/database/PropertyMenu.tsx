@@ -11,6 +11,7 @@ import {
 } from '../../../shared/database'
 import { useStore } from '../store'
 import { Popover } from './Popover'
+import { FormulaEditor, RollupEditor } from './ComputedEditors'
 
 const CHANGEABLE_TYPES = (Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[]).filter(
   (t) => t !== 'title'
@@ -90,6 +91,12 @@ export function PropertyMenu({
             ))}
           </select>
         </label>
+      )}
+      {prop.type === 'formula' && (
+        <FormulaEditor prop={prop} schema={schema} onSave={(formula) => patchProp({ formula })} />
+      )}
+      {prop.type === 'rollup' && (
+        <RollupEditor prop={prop} schema={schema} onChange={(rollup) => patchProp({ rollup })} />
       )}
       {prop.type === 'relation' && (
         <label className="menu-row">

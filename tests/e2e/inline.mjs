@@ -27,12 +27,12 @@ await block.locator('.db-table').waitFor()
 
 // editing inside the block stays in the database, not in the page text
 await block.getByRole('button', { name: '+ Nouvelle ligne' }).click()
-await block.locator('tbody tr td').first().locator('.cell').click()
+await block.locator('tbody tr td.title-col .cell').first().click()
 await win.keyboard.type('Envoyer le compte rendu')
 await win.keyboard.press('Enter')
 await win.waitForTimeout(500)
 assert.equal(
-  await block.locator('tbody tr td').first().locator('.cell').innerText(),
+  await block.locator('tbody tr td.title-col .cell').first().innerText(),
   'Envoyer le compte rendu'
 )
 assert.ok(
@@ -81,7 +81,7 @@ await win.locator('.row', { hasText: 'Importé de Notion' }).locator('.chevron')
 await win.locator('.row', { hasText: 'Sprint' }).click()
 await win.locator('.inline-database .db-table tbody tr').nth(2).waitFor()
 assert.deepEqual(
-  await win.locator('.inline-database tbody tr td:first-child .cell').allInnerTexts(),
+  await win.locator('.inline-database tbody tr td.title-col .cell').allInnerTexts(),
   ['Maquettes', 'Tests', 'Déploiement']
 )
 assert.equal(await win.locator('.inline-database .inline-database-title').innerText(), '🗃️ Tâches')

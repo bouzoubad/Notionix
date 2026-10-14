@@ -28,7 +28,9 @@ await addProperty('Sélection', 'Statut')
 await addProperty('Nombre', 'Points')
 
 const rows = () => win.locator('.db-table tbody tr')
-const cell = (row, col) => rows().nth(row).locator('td').nth(col).locator('.cell').first()
+// Data columns, after the drag-handle column.
+const cell = (row, col) =>
+  rows().nth(row).locator('td:not(.drag-col)').nth(col).locator('.cell').first()
 const typeIn = async (row, col, text) => {
   await cell(row, col).click()
   await win.keyboard.type(text)
@@ -47,12 +49,12 @@ for (const [i, [title, status, points]] of [
   await typeIn(i, 2, points)
 }
 await win.waitForTimeout(300)
-assert.deepEqual(await rows().locator('td:nth-child(2) .tag').allInnerTexts(), [
+assert.deepEqual(await rows().locator('td:nth-child(3) .tag').allInnerTexts(), [
   'En cours',
   'Terminé',
   'En cours'
 ])
-assert.deepEqual(await rows().locator('td:nth-child(3)').allInnerTexts(), ['3', '1', '8'])
+assert.deepEqual(await rows().locator('td:nth-child(4) .cell').allInnerTexts(), ['3', '1', '8'])
 
 // filter Points ≥ 3, then sort by Points descending
 await win.getByRole('button', { name: /^Filtrer/ }).click()
@@ -69,7 +71,7 @@ await win.locator('.filter-row select').first().selectOption({ label: 'Points' }
 await win.locator('.filter-row select').nth(1).selectOption({ label: 'Décroissant' })
 await win.keyboard.press('Escape')
 await win.waitForTimeout(200)
-assert.deepEqual(await rows().locator('td:first-child .cell').allInnerTexts(), [
+assert.deepEqual(await rows().locator('td.title-col .cell').allInnerTexts(), [
   'Planifier',
   'Écrire la doc'
 ])
@@ -90,7 +92,7 @@ await win.keyboard.press('Enter')
 await win.waitForTimeout(200)
 await win.locator('.breadcrumbs button', { hasText: 'Tâches' }).click()
 await win.locator('.db-table').waitFor()
-assert.deepEqual(await rows().locator('td:nth-child(3)').allInnerTexts(), ['13', '3'])
+assert.deepEqual(await rows().locator('td:nth-child(4) .cell').allInnerTexts(), ['13', '3'])
 
 // change Points to text: values are converted
 await win.locator('.col-head', { hasText: 'Points' }).click()
@@ -100,7 +102,7 @@ await win.keyboard.press('Escape')
 // the "Points ≥ 3" filter no longer applies to a text property and is removed
 await win.waitForTimeout(300)
 assert.equal(await win.getByRole('button', { name: /^Filtrer/ }).innerText(), 'Filtrer')
-assert.deepEqual(await rows().locator('td:nth-child(3)').allInnerTexts(), ['13', '3', '1'])
+assert.deepEqual(await rows().locator('td:nth-child(4) .cell').allInnerTexts(), ['13', '3', '1'])
 await win.screenshot({ path: join(tmp, 'table.png') })
 await app.close()
 

@@ -71,6 +71,19 @@ export function DatabaseViewer({
     await db.addRow({ properties: values, templateId })
   }
 
+  /** Manual order: the row takes the place of `beforeRowId` among all rows of the database. */
+  const moveRow = async (
+    rowId: string,
+    beforeRowId: string | null,
+    values?: Record<string, PropertyValue>
+  ): Promise<void> => {
+    const siblings = [...rows].sort((a, b) => a.position - b.position).filter((r) => r.id !== rowId)
+    const found = beforeRowId ? siblings.findIndex((r) => r.id === beforeRowId) : -1
+    if (values) await db.updateRow(rowId, values)
+    await window.api.pages.move(rowId, databaseId, found < 0 ? siblings.length : found)
+    await db.reload()
+  }
+
   const viewProps: ViewProps = {
     databaseId,
     schema,
@@ -81,7 +94,8 @@ export function DatabaseViewer({
     onUpdateRow: (rowId, values) => void db.updateRow(rowId, values),
     onAddRow: (values) => void addRow(values),
     onOpenRow: (rowId) => open(rowId),
-    onCreateOption: createOption
+    onCreateOption: createOption,
+    onMoveRow: (rowId, beforeRowId, values) => void moveRow(rowId, beforeRowId, values)
   }
   const ViewComponent = VIEW_COMPONENTS[view.type] ?? TableView
 
@@ -177,7 +191,7 @@ function ViewSettings({
   view: ViewDef
   onPatch: (next: Partial<ViewDef>) => void
 }): React.JSX.Element | null {
-  if (view.type === 'board') {
+  if (view.type === 'board' || view.type === 'table' || view.type === 'list') {
     return (
       <label className="menu-row">
         Grouper par
@@ -185,9 +199,9 @@ function ViewSettings({
           value={view.groupBy ?? ''}
           onChange={(e) => onPatch({ groupBy: e.target.value || null })}
         >
-          <option value="">Choisir…</option>
+          <option value="">{view.type === 'board' ? 'Choisir…' : 'Aucun groupe'}</option>
           {schema.properties
-            .filter((p) => p.type === 'select')
+            .filter((p) => p.type === 'select' || p.type === 'checkbox')
             .map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}

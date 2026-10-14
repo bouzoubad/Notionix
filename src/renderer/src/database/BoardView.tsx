@@ -1,10 +1,14 @@
-import { useState } from 'react'
-import { groupRows } from '../../../shared/database'
+import { groupRows, type PropertyValue } from '../../../shared/database'
 import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
-import type { ViewProps } from './viewTypes'
+import { useRowDrag } from './rowDrag'
+import { canReorder, type ViewProps } from './viewTypes'
 
-/** Kanban columns, one per option of the grouping select property; cards move by drag and drop. */
+/**
+ * Kanban columns, one per option of the grouping property (select or
+ * checkbox). Moving a card to another column changes its value; within a
+ * column, cards keep the manual order unless the view is sorted.
+ */
 export function BoardView({
   schema,
   view,
@@ -12,16 +16,27 @@ export function BoardView({
   onUpdateRow,
   onAddRow,
   onOpenRow,
-  onSchema
+  onSchema,
+  onMoveRow
 }: ViewProps): React.JSX.Element {
-  const [dragging, setDragging] = useState<string | null>(null)
-  const [over, setOver] = useState<string | null | undefined>(undefined)
-  const prop = schema.properties.find((p) => p.id === view.groupBy && p.type === 'select')
+  const reorder = canReorder(view)
+  const move = (
+    rowId: string,
+    beforeRowId: string | null,
+    values?: Record<string, PropertyValue>
+  ): void => {
+    if (reorder) onMoveRow(rowId, beforeRowId, values)
+    else if (values) onUpdateRow(rowId, values)
+  }
+  const drag = useRowDrag(true, move)
+  const prop = schema.properties.find(
+    (p) => p.id === view.groupBy && (p.type === 'select' || p.type === 'checkbox')
+  )
   if (!prop) {
-    const selects = schema.properties.filter((p) => p.type === 'select')
+    const choices = schema.properties.filter((p) => p.type === 'select' || p.type === 'checkbox')
     return (
       <div className="view-empty">
-        {selects.length ? (
+        {choices.length ? (
           <label>
             Grouper le board par{' '}
             <select
@@ -37,7 +52,7 @@ export function BoardView({
               }
             >
               <option value="">Choisir une propriété…</option>
-              {selects.map((p) => (
+              {choices.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
@@ -45,66 +60,52 @@ export function BoardView({
             </select>
           </label>
         ) : (
-          'Ajoutez une propriété « Sélection » pour organiser ce board en colonnes.'
+          'Ajoutez une propriété « Sélection » ou « Case à cocher » pour organiser ce board en colonnes.'
         )}
       </div>
     )
   }
-  const groups = groupRows(rows, prop)
   return (
     <div className="board">
-      {groups.map((g) => (
-        <div
-          key={g.key ?? 'none'}
-          className={`board-column ${over === g.key && dragging ? 'drop-target' : ''}`}
-          data-group={g.option?.name ?? ''}
-          onDragOver={(e) => {
-            if (!dragging) return
-            e.preventDefault()
-            setOver(g.key)
-          }}
-          onDragLeave={() => setOver(undefined)}
-          onDrop={(e) => {
-            e.preventDefault()
-            if (dragging) onUpdateRow(dragging, { [prop.id]: g.key })
-            setDragging(null)
-            setOver(undefined)
-          }}
-        >
-          <div className="board-column-head">
-            {g.option ? (
-              <OptionTag option={g.option} />
-            ) : (
-              <span className="muted">Sans {prop.name}</span>
-            )}
-            <span className="muted">{g.rows.length}</span>
-          </div>
-          {g.rows.map((row) => (
-            <div
-              key={row.id}
-              className="board-card"
-              data-row-id={row.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = 'move'
-                e.dataTransfer.setData('text/plain', row.title)
-                setDragging(row.id)
-              }}
-              onDragEnd={() => setDragging(null)}
-              onClick={() => onOpenRow(row.id)}
-            >
-              <div className="card-title">
-                {row.icon ? `${row.icon} ` : ''}
-                {row.title || <span className="muted">Sans titre</span>}
-              </div>
-              <RowSummary schema={schema} view={view} row={row} skip={[prop.id]} />
+      {groupRows(rows, prop).map((g) => {
+        const values = { [prop.id]: g.value }
+        return (
+          <div
+            key={g.key ?? 'none'}
+            className="board-column"
+            data-group={g.label}
+            {...drag.end(values)}
+          >
+            <div className="board-column-head">
+              {g.option ? (
+                <OptionTag option={g.option} />
+              ) : (
+                <span className="muted">{g.label}</span>
+              )}
+              <span className="muted">{g.rows.length}</span>
             </div>
-          ))}
-          <button className="board-add" onClick={() => onAddRow({ [prop.id]: g.key })}>
-            + Nouveau
-          </button>
-        </div>
-      ))}
+            {g.rows.map((row) => (
+              <div
+                key={row.id}
+                className={`board-card ${drag.dropClass(row.id)}`}
+                data-row-id={row.id}
+                {...drag.handle(row.id)}
+                {...drag.target(row, g.rows, values)}
+                onClick={() => onOpenRow(row.id)}
+              >
+                <div className="card-title">
+                  {row.icon ? `${row.icon} ` : ''}
+                  {row.title || <span className="muted">Sans titre</span>}
+                </div>
+                <RowSummary schema={schema} view={view} row={row} skip={[prop.id]} />
+              </div>
+            ))}
+            <button className="board-add" onClick={() => onAddRow(values)}>
+              + Nouveau
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

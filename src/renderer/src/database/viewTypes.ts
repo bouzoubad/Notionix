@@ -38,7 +38,22 @@ export interface ViewProps {
   onAddRow: (values?: Record<string, PropertyValue>) => void
   onOpenRow: (rowId: string) => void
   onCreateOption: (prop: PropertyDef, option: SelectOption) => Promise<void>
+  /** Places a row before another one (null: last), optionally changing its group values */
+  onMoveRow: (
+    rowId: string,
+    beforeRowId: string | null,
+    values?: Record<string, PropertyValue>
+  ) => void
 }
+
+/** Rows keep the manual order only when the view has no sort. */
+export const canReorder = (view: ViewDef): boolean => view.sorts.length === 0
+
+/** Property a table or list view is grouped by (select or checkbox), if any. */
+export const groupProperty = (schema: DatabaseSchema, view: ViewDef): PropertyDef | undefined =>
+  schema.properties.find(
+    (p) => p.id === view.groupBy && (p.type === 'select' || p.type === 'checkbox')
+  )
 
 export const visibleProperties = (schema: DatabaseSchema, view: ViewDef): PropertyDef[] => [
   schema.properties.find((p) => p.id === TITLE_PROPERTY_ID)!,

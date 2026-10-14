@@ -26,6 +26,8 @@ Logos générés par `scripts/build-logos.py` depuis `branding/notionix-brand-sh
 - Import Notion : tester tout changement sur un vrai export avec `npm run build && node scripts/import-check.mjs export.zip` (profil jetable, rapport, arborescence, schémas). Formats réels observés : dossiers de sous-pages sans identifiant, liens encodés (`%20` avant l'id), modèles de base = pages sans ligne CSV, `- [ ]  ` pour une tâche vide, `-` seul pour un élément vide, équations `$…$`/`$$…$$`.
 - Tests e2e : lancer Electron avec `CHROMIUM_FLAGS` (`tests/e2e/flags.mjs`), sinon les fenêtres en arrière-plan rendent les tests instables.
 - Vérifier avant commit : `npm run typecheck && npm run lint && npm test && npm run test:e2e` (l'e2e attrape les problèmes de bundling main que vitest ne voit pas).
+- Formules et rollups : `src/shared/formula.ts` (analyse + évaluation sans eval), `src/shared/computed.ts` (calcul à la lecture dans `DatabaseRepository.get`, jamais stocké : `normalizeAll` avant chaque écriture).
+- `Popover` enregistre ses écouteurs une seule fois (ref vers le dernier `onClose`) ; ne pas mettre `user-select: none` sur un élément `draggable` (Chromium n'y démarre pas le glisser).
 - Toujours lire `properties`/`db_schema` via `parseRowProperties`/`parseSchema`.
 - Pages importées : colonne `source` unique (`notion:<id>`, `notion-folder:<chemin>`) ; ne jamais écraser une page déjà importée.
 - Commits de ce repo : auteur `bouzoubad` (config git locale), sans ligne Co-Authored-By.

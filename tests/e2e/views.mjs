@@ -95,9 +95,10 @@ await win.screenshot({ path: join(tmp, 'board.png') })
 await addView('Calendrier')
 const dayCell = (d) => win.locator(`.calendar-day[data-date="${day(d)}"]`)
 await dayCell(4).waitFor()
+// "Maquettes" was moved to the end when its card changed column on the board.
 assert.deepEqual(await dayCell(3).locator('.calendar-item').allInnerTexts(), [
-  'Maquettes',
-  'Développement'
+  'Développement',
+  'Maquettes'
 ])
 assert.deepEqual(await dayCell(4).locator('.calendar-item').allInnerTexts(), ['Développement'])
 await dayCell(10).hover()

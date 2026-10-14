@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { DatabaseData, NewRow, PageId } from '../../../shared/types'
-import type {
-  DatabaseRow,
-  DatabaseSchema,
-  PropertyType,
-  PropertyValue
+import {
+  isComputed,
+  type DatabaseRow,
+  type DatabaseSchema,
+  type PropertyType,
+  type PropertyValue
 } from '../../../shared/database'
 import { useStore } from '../store'
 
@@ -46,6 +47,8 @@ export function useDatabase(id: PageId): DatabaseApi {
     try {
       const saved = await window.api.databases.updateSchema(id, schema)
       setData((d) => (d ? { ...d, schema: saved } : d))
+      // Formulas and rollups depend on the schema: their values are computed again.
+      if (saved.properties.some((p) => isComputed(p.type))) await reload()
     } catch (e) {
       fail(e)
       await reload()

@@ -13,6 +13,7 @@ import {
 } from '../../../shared/database'
 import { useStore } from '../store'
 import { OptionTag } from './OptionTag'
+import { ComputedValue } from './ComputedEditors'
 import { Popover } from './Popover'
 
 export interface CellProps {
@@ -29,6 +30,7 @@ const READ_ONLY = new Set(['created_time', 'last_edited_time'])
 export function Cell(props: CellProps): React.JSX.Element {
   const { prop, row } = props
   const value = rowValue(row, prop)
+  if (prop.type === 'formula' || prop.type === 'rollup') return <ComputedValue value={value} />
   if (READ_ONLY.has(prop.type))
     return <div className="cell readonly">{displayValue(prop, value)}</div>
   switch (prop.type) {

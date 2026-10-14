@@ -1,13 +1,16 @@
 // E2E for database views (board, calendar, list, gallery) and row templates.
 // Run after `npm run build`: node tests/e2e/views.mjs
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from './flags.mjs'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import assert from 'assert'
 
 const tmp = mkdtempSync(join(tmpdir(), 'notionix-e2e-views-'))
-const app = await electron.launch({ args: ['.', `--user-data-dir=${join(tmp, 'profile')}`] })
+const app = await electron.launch({
+  args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'profile')}`]
+})
 const win = await app.firstWindow()
 await win.locator('.blank').waitFor()
 

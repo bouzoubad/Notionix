@@ -1,6 +1,7 @@
 // E2E for phase 2 blocks: table, callout, toggle, image, formatting menu, block drag.
 // Run after `npm run build`: node tests/e2e/blocks.mjs
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from './flags.mjs'
 import { unzipSync } from 'fflate'
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -17,7 +18,8 @@ writeFileSync(
   )
 )
 const outZip = join(tmp, 'page.zip')
-const launch = () => electron.launch({ args: ['.', `--user-data-dir=${join(tmp, 'profile')}`] })
+const launch = () =>
+  electron.launch({ args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'profile')}`] })
 
 let app = await launch()
 await app.evaluate(({ dialog }, out) => {
@@ -43,9 +45,13 @@ await win.keyboard.press('Shift+Home')
 // The menu appears ~250 ms after the selection, then the autosave (400 ms after typing)
 // re-renders the page: the menu must still be there afterwards.
 await win.waitForTimeout(800)
+const focus = await win.evaluate(() => ({
+  doc: document.hasFocus(),
+  editor: document.activeElement?.className ?? ''
+}))
 assert.ok(
   await win.locator('.bubble').isVisible(),
-  'formatting menu hidden by the autosave re-render'
+  `formatting menu hidden (window focus: ${JSON.stringify(focus)})`
 )
 await win.locator('.bubble').getByRole('button', { name: 'B', exact: true }).click()
 await win.locator('.editor p strong', { hasText: 'Texte important' }).waitFor()

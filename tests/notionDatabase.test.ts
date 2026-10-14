@@ -9,7 +9,7 @@ import { inferDatabase, splitLinkedCell } from '../src/main/transfer/notionDatab
 import { migrate } from '../src/main/db/database'
 import { PageRepository } from '../src/main/db/pageRepository'
 import { DatabaseRepository } from '../src/main/db/databaseRepository'
-import { importNotionExport } from '../src/main/transfer/notionImport'
+import { importNotionExport, lastNotionId } from '../src/main/transfer/notionImport'
 import { AssetStore } from '../src/main/assets'
 import { displayValue, type PropertyDef } from '../src/shared/database'
 import { exportPagesAsMarkdown, zipMarkdown } from '../src/main/transfer/markdownExport'
@@ -24,6 +24,11 @@ describe('CSV', () => {
       ['C', '']
     ])
     expect(parseCsv(stringifyCsv(rows))).toEqual(rows)
+    expect(parseCsv('Nom,Résumé\n,\n\nA,b\n')).toEqual([
+      ['Nom', 'Résumé'],
+      ['', ''],
+      ['A', 'b']
+    ])
   })
 })
 
@@ -395,5 +400,19 @@ describe('inline databases', () => {
     expect(
       JSON.parse(b.pages.get(again.id)!.content).content.map((n: { type: string }) => n.type)
     ).toContain('databaseView')
+  })
+})
+
+describe('lastNotionId', () => {
+  it('ignores the %20 that precedes an id and takes the row’s own id', () => {
+    const id = '1772899d8453806fab1de8f284e3b8b4'
+    expect(lastNotionId(`Dev%20Corner/General%20Good%20coding%20practices%20${id}.csv`)).toBe(id)
+    expect(lastNotionId(`Projets%20${'a'.repeat(32)}/Site%20${id}.md`)).toBe(id)
+    expect(
+      lastNotionId(
+        'https://app.notion.com/p/Configure-a-ssh-access-17e2899d845380b6bd00ce04c9e8296d?pvs=21'
+      )
+    ).toBe('17e2899d845380b6bd00ce04c9e8296d')
+    expect(lastNotionId('no-id.md')).toBeNull()
   })
 })

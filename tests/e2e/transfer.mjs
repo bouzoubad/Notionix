@@ -1,6 +1,7 @@
 // E2E: import a Notion-style export through the UI, then export to Markdown.
 // Run after `npm run build`: node tests/e2e/transfer.mjs
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from './flags.mjs'
 import { strToU8, unzipSync, zipSync } from 'fflate'
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -21,7 +22,9 @@ writeFileSync(
 )
 const outPath = join(tmp, 'out.zip')
 
-const app = await electron.launch({ args: ['.', `--user-data-dir=${join(tmp, 'profile')}`] })
+const app = await electron.launch({
+  args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'profile')}`]
+})
 await app.evaluate(
   ({ dialog }, { zipPath, outPath }) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [zipPath] })

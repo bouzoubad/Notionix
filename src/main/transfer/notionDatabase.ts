@@ -112,6 +112,10 @@ function inferRelation(
   resolve: NonNullable<InferOptions['resolveRelation']>
 ): { database: string; cells: Map<string, string[]> } | null {
   if (values.length === 0) return null
+  // Bare titles are weak evidence: a single cell that happens to equal a row title
+  // (e.g. a description saying "AWS") must not turn a text column into a relation.
+  const linkedCells = values.filter((v) => splitLinkedCell(v) !== null).length
+  if (linkedCells === 0 && values.length < 2) return null
   const cells = new Map<string, string[]>()
   const databases = new Map<string, number>()
   for (const value of new Set(values)) {

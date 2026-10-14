@@ -633,3 +633,75 @@ describe('AssetStore', () => {
     expect(await s.read('https://example.com/x.png')).toBeNull()
   })
 })
+
+describe('Notion specifics seen in real exports', () => {
+  it('reads empty to-dos written "- [ ]  "', () => {
+    const list = convert('- [x]  tttt\n- [ ]  \n- [ ]  \n').doc.content![0]
+    expect(list.type).toBe('taskList')
+    expect(list.content!.map((i) => i.attrs?.checked)).toEqual([true, false, false])
+    expect(flat(list.content![0])).toBe('tttt')
+  })
+
+  it('keeps a line followed by an empty "-" item as a list item, not a heading', () => {
+    const doc = convert(
+      '- 11 juin 2024\n    - Sujets à aborder\n        -\n    - Notes\n        -\n'
+    ).doc
+    expect(JSON.stringify(doc)).not.toContain('heading')
+    const inner = doc.content![0].content![0].content![1]
+    expect(inner.type).toBe('bulletList')
+    expect(inner.content!.map((i) => flat(i.content![0]))).toEqual(['Sujets à aborder', 'Notes'])
+    expect(inner.content![0].content![1].type).toBe('bulletList') // the empty sub-item
+  })
+
+  it('reads inline and block equations, and not dollar amounts', () => {
+    const { doc } = convert(
+      'Soit $\\nu$ le coefficient et $C_{10} = 0.05$.\n\n$$\n\\delta = \\frac{FL}{AE}\n$$\n\nPrix : $5 et $6.\n'
+    )
+    const inline = doc
+      .content![0].content!.filter((n) => n.type === 'inlineMath')
+      .map((n) => n.attrs?.latex)
+    expect(inline).toEqual(['\\nu', 'C_{10} = 0.05'])
+    expect(doc.content![1]).toMatchObject({
+      type: 'blockMath',
+      attrs: { latex: '\\delta = \\frac{FL}{AE}' }
+    })
+    expect(flat(doc.content![2])).toBe('Prix : $5 et $6.')
+  })
+
+  it('repairs a table row that Notion broke inside a cell', () => {
+    const md =
+      '| **** | **t** | **C** |\n| --- | --- | --- |\n| **LE** | 0.6 |  |\n| **MR** | 0.6 | $C_{10} = 1$\n$C_{01} = 2$  |\n'
+    const table = convert(md).doc.content![0]
+    expect(table.type).toBe('table')
+    expect(table.content).toHaveLength(3)
+    const lastCell = table.content![2].content![2]
+    expect(lastCell.content![0].content!.map((n) => n.type)).toEqual([
+      'inlineMath',
+      'hardBreak',
+      'inlineMath'
+    ])
+    expect(flat(table.content![0].content![0])).toBe('')
+  })
+
+  it('round-trips equations and literal dollars through Markdown', () => {
+    const doc: JsonNode = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Coût $5, ' },
+            { type: 'inlineMath', attrs: { latex: 'x^2' } }
+          ]
+        },
+        { type: 'blockMath', attrs: { latex: 'a = \\frac{b}{c}' } }
+      ]
+    }
+    const back = canonicalDoc(markdownToDoc(docToMarkdown(doc), noLinks, newStats()))!
+    expect(back.content![0].content!.map((n) => n.text ?? n.attrs?.latex)).toEqual([
+      'Coût $5, ',
+      'x^2'
+    ])
+    expect(back.content![1].attrs?.latex).toBe('a = \\frac{b}{c}')
+  })
+})

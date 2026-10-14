@@ -57,11 +57,38 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
   }
   useEffect(() => flush, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Opens the equation dialog for the equation at `pos`, or for a new one when `pos` is null. */
+  const editMath = (inline: boolean, latex: string, pos: number | null): void => {
+    useStore.getState().setMathEdit({
+      latex,
+      inline,
+      apply: (next) => {
+        // `editor` is read when the dialog is validated, long after this render.
+        if (!editor) return
+        const chain = editor.chain().focus()
+        if (pos === null) {
+          if (next)
+            (inline
+              ? chain.insertInlineMath({ latex: next })
+              : chain.insertBlockMath({ latex: next })
+            ).run()
+          return
+        }
+        if (!next) (inline ? chain.deleteInlineMath({ pos }) : chain.deleteBlockMath({ pos })).run()
+        else
+          (inline
+            ? chain.updateInlineMath({ latex: next, pos })
+            : chain.updateBlockMath({ latex: next, pos })
+          ).run()
+      }
+    })
+  }
   const editor = useEditor({
     extensions: [
       ...createDocumentExtensions(lowlight, {
         callout: InteractiveCallout,
-        databaseView: InteractiveDatabaseView
+        databaseView: InteractiveDatabaseView,
+        onMathClick: (node, pos) => editMath(node.type.name === 'inlineMath', node.attrs.latex, pos)
       }),
       FileHandler.configure({
         allowedMimeTypes: IMAGE_TYPES,
@@ -91,6 +118,12 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
   })
 
   const crumbs = ancestorsOf(pages, page.id)
+  useEffect(() => {
+    const onInsert = (e: Event): void => editMath((e as CustomEvent<boolean>).detail, '', null)
+    window.addEventListener('notionix:insert-math', onInsert)
+    return () => window.removeEventListener('notionix:insert-math', onInsert)
+  })
+
   return (
     <div className="page">
       <div className="breadcrumbs">

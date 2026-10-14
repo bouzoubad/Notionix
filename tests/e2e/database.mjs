@@ -1,12 +1,14 @@
 // E2E for databases (table view): node tests/e2e/database.mjs after `npm run build`
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from './flags.mjs'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import assert from 'assert'
 
 const tmp = mkdtempSync(join(tmpdir(), 'notionix-e2e-db-'))
-const launch = () => electron.launch({ args: ['.', `--user-data-dir=${join(tmp, 'profile')}`] })
+const launch = () =>
+  electron.launch({ args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'profile')}`] })
 let app = await launch()
 let win = await app.firstWindow()
 

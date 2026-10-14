@@ -1,5 +1,6 @@
 // E2E for databases shown inside a page. Run after `npm run build`: node tests/e2e/inline.mjs
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from './flags.mjs'
 import { strToU8, zipSync } from 'fflate'
 import { mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -7,7 +8,8 @@ import { join } from 'path'
 import assert from 'assert'
 
 const tmp = mkdtempSync(join(tmpdir(), 'notionix-e2e-inline-'))
-const launch = () => electron.launch({ args: ['.', `--user-data-dir=${join(tmp, 'profile')}`] })
+const launch = () =>
+  electron.launch({ args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'profile')}`] })
 let app = await launch()
 let win = await app.firstWindow()
 

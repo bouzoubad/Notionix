@@ -1,4 +1,4 @@
-import MarkdownIt, { type Token } from 'markdown-it'
+import MarkdownIt, { type MarkdownIt as MarkdownItInstance, type Token } from 'markdown-it'
 
 export interface JsonMark {
   type: string
@@ -29,6 +29,99 @@ const SAFE_SCHEME = /^(https?|mailto|tel):/i
 const ANY_SCHEME = /^[a-z][a-z0-9+.-]*:/i
 
 const md = new MarkdownIt({ html: true, linkify: false }).enable(['table', 'strikethrough'])
+md.use(mathPlugin)
+
+/**
+ * Notion equations: "$$" lines around a block equation, "$…$" inline. An inline
+ * equation cannot start or end with a space, and "$5 and $6" is not one.
+ */
+function mathPlugin(markdown: MarkdownItInstance): void {
+  markdown.block.ruler.before(
+    'fence',
+    'math_block',
+    (state, startLine, endLine, silent) => {
+      const lineText = (n: number): string =>
+        state.src.slice(state.bMarks[n] + state.tShift[n], state.eMarks[n])
+      const first = lineText(startLine).trim()
+      if (!first.startsWith('$$')) return false
+      let latex: string
+      let last = startLine
+      if (first.length > 4 && first.endsWith('$$')) {
+        latex = first.slice(2, -2)
+      } else if (first === '$$') {
+        const lines: string[] = []
+        let closed = false
+        while (++last < endLine) {
+          if (lineText(last).trim() === '$$') {
+            closed = true
+            break
+          }
+          lines.push(state.src.slice(state.bMarks[last], state.eMarks[last]))
+        }
+        if (!closed) return false
+        latex = lines.join('\n')
+      } else {
+        return false
+      }
+      if (silent) return true
+      const token = state.push('math_block', 'math', 0)
+      token.content = latex.trim()
+      token.map = [startLine, last + 1]
+      state.line = last + 1
+      return true
+    },
+    { alt: ['paragraph', 'reference', 'blockquote', 'list'] }
+  )
+  markdown.inline.ruler.after('escape', 'math_inline', (state, silent) => {
+    const src = state.src
+    if (src[state.pos] !== '$' || src[state.pos + 1] === '$') return false
+    const start = state.pos + 1
+    if (start >= src.length || /\s/.test(src[start])) return false
+    let end = start
+    while ((end = src.indexOf('$', end)) !== -1 && src[end - 1] === '\\') end += 1
+    if (end === -1 || end === start || /\s/.test(src[end - 1]) || /\d/.test(src[end + 1] ?? '')) {
+      return false
+    }
+    if (!silent) state.push('math_inline', 'math', 0).content = src.slice(start, end)
+    state.pos = end + 1
+    return true
+  })
+}
+
+/**
+ * Notion writes an empty list item as a bare "-". Right under a line of text,
+ * Markdown reads that as a heading underline ("Text" + "-" = heading), so the
+ * empty item gets an invisible HTML comment as content.
+ */
+export function protectEmptyListItems(source: string): string {
+  return source.replace(/^([ \t]*[-*+])[ \t]*$/gm, '$1 <!-- -->')
+}
+
+/**
+ * Notion can break a table row inside a cell (a line break in the cell) and
+ * writes "****" for an empty bold header. Rows are joined back with <br>.
+ */
+export function repairNotionTables(source: string): string {
+  const lines = source.split('\n')
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i += 1) {
+    let line = lines[i]
+    if (line.trimStart().startsWith('|')) {
+      while (
+        !line.trimEnd().endsWith('|') &&
+        i + 1 < lines.length &&
+        !lines[i + 1].trimStart().startsWith('|') &&
+        lines[i + 1].trim() !== ''
+      ) {
+        i += 1
+        line = `${line.trimEnd()}<br>${lines[i].trim()}`
+      }
+      line = line.replace(/\|\s*\*\*\*\*\s*(?=\|)/g, '| ')
+    }
+    out.push(line)
+  }
+  return out.join('\n')
+}
 
 const text = (value: string, marks: JsonMark[] = []): JsonNode => ({
   type: 'text',
@@ -49,7 +142,7 @@ export function markdownToDoc(
   resolve: LinkResolver,
   stats: ConversionStats
 ): JsonNode {
-  const tokens = md.parse(source, {})
+  const tokens = md.parse(protectEmptyListItems(repairNotionTables(source)), {})
   const converter = new Converter(tokens, resolve, stats)
   const [blocks] = converter.blocks(0, () => false)
   return { type: 'doc', content: blocks.length ? blocks : [emptyParagraph()] }
@@ -106,6 +199,10 @@ class Converter {
           i += 1
           break
         }
+        case 'math_block':
+          out.push({ type: 'blockMath', attrs: { latex: t.content } })
+          i += 1
+          break
         case 'hr':
           out.push({ type: 'horizontalRule' })
           i += 1
@@ -298,6 +395,9 @@ class Converter {
         case 'link_close':
           stack.pop()
           break
+        case 'math_inline':
+          if (t.content) out.push({ type: 'inlineMath', attrs: { latex: t.content } })
+          break
         case 'image':
           out.push({
             type: 'image',
@@ -380,7 +480,8 @@ function callout(body: JsonNode[]): JsonNode {
   }
 }
 
-const TASK_MARKER = /^\[([ xX])\]\s+/
+// Notion writes an empty to-do as "- [ ]  "; once trimmed only "[ ]" remains.
+const TASK_MARKER = /^\[([ xX])\](?:\s+|$)/
 
 /** Returns the checked state when the item starts with "[ ]"/"[x]" and removes the marker; null otherwise. */
 function takeTaskMarker(children: JsonNode[]): boolean | null {

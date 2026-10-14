@@ -1,12 +1,14 @@
 // Smoke test: node tests/e2e/smoke.mjs (requires `npm run build` first)
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from './flags.mjs'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import assert from 'assert'
 
 const userData = mkdtempSync(join(tmpdir(), 'notionix-e2e-'))
-const launch = () => electron.launch({ args: ['.', `--user-data-dir=${userData}`] })
+const launch = () =>
+  electron.launch({ args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${userData}`] })
 
 let app = await launch()
 let win = await app.firstWindow()

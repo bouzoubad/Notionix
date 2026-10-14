@@ -1308,15 +1308,17 @@ main {
   right: 6px;
   top: 5px;
   z-index: 2;
-  display: none;
+  opacity: 0;
   font-size: 12px;
   padding: 1px 6px;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text-muted);
 }
-.db-table tr:hover .open-row {
-  display: block;
+/* Always in the layout so the keyboard can reach it; shown on hover or focus. */
+.db-table tr:hover .open-row,
+.open-row:focus-visible {
+  opacity: 1;
 }
 .add-row {
   display: block;
@@ -1693,4 +1695,70 @@ button:focus:not(:focus-visible) {
 }
 .db-loading {
   min-height: 120px;
+}
+
+/* Equations */
+.editor .tiptap-mathematics-render {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.editor .tiptap-mathematics-render:hover {
+  background: var(--bg-hover);
+}
+.editor [data-type='block-math'] {
+  display: block;
+  text-align: center;
+  padding: 8px 0;
+  overflow-x: auto;
+}
+.math-dialog textarea {
+  margin: 0 16px;
+  min-height: 90px;
+  font:
+    14px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: var(--text);
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  resize: vertical;
+  outline: 0;
+}
+.math-preview {
+  margin: 12px 16px;
+  min-height: 40px;
+  overflow-x: auto;
+  text-align: center;
+}
+.math-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px 14px;
+  font-size: 13px;
+}
+.math-actions .muted {
+  margin-right: auto;
+}
+.math-actions button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+}
+.math-actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Like Notion, table cells show one line; the full value is in the row page. */
+.db-table td .cell:not(.title-cell):not(.editing) {
+  white-space: nowrap;
+  max-height: 34px;
+}
+.db-table td .cell .tags {
+  flex-wrap: nowrap;
 }

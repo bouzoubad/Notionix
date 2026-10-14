@@ -9,6 +9,9 @@ interface State {
   trashOpen: boolean
   transferOpen: boolean
   notice: string | null
+  /** Equation being edited, and how to write the result back (null removes it) */
+  mathEdit: { latex: string; inline: boolean; apply: (latex: string | null) => void } | null
+  setMathEdit: (edit: State['mathEdit']) => void
   load: () => Promise<void>
   open: (id: PageId | null) => void
   toggle: (id: PageId) => void
@@ -47,6 +50,8 @@ export const useStore = create<State>((set, get) => ({
   trashOpen: false,
   transferOpen: false,
   notice: null,
+  mathEdit: null,
+  setMathEdit: (mathEdit) => set({ mathEdit }),
 
   load: async () => {
     const pages = await api.list()

@@ -12,7 +12,8 @@ interface Resolvers {
   title: (pageId: string) => string | undefined
 }
 
-const INLINE_ESCAPE = /([\\`*_[\]<>~])/g
+// "$" is escaped so that text is not read back as an equation.
+const INLINE_ESCAPE = /([\\`*_[\]<>~$])/g
 const BLOCK_START = /^(\s*)([#>+-]|\d+[.)])(?=\s|$)/
 const BULLET_LISTS = new Set(['bulletList', 'taskList'])
 
@@ -93,6 +94,8 @@ function block(node: JsonNode, r: Resolvers, alternate = false): string {
     }
     case 'table':
       return table(node, r)
+    case 'blockMath':
+      return `$$\n${String(node.attrs?.latex ?? '')}\n$$`
     case 'databaseView': {
       // Notion's layout for a database inside a page: a link to its CSV on its own line.
       const id = String(node.attrs?.databaseId ?? '')
@@ -166,6 +169,7 @@ function inline(nodes: JsonNode[], r: Resolvers): string {
 
 function inlineNode(node: JsonNode, r: Resolvers): string {
   if (node.type === 'hardBreak') return '  \n'
+  if (node.type === 'inlineMath') return `$${String(node.attrs?.latex ?? '')}$`
   if (node.type !== 'text') return inline(node.content ?? [], r)
   const marks = node.marks ?? []
   const raw = node.text ?? ''

@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
 import { TrashDialog } from './components/TrashDialog'
 import { TransferDialog } from './components/TransferDialog'
+import { MathDialog } from './components/MathDialog'
 import { PageEditor } from './editor/PageEditor'
 import { DatabasePage } from './database/DatabasePage'
 import { Logo } from './components/Logo'
@@ -16,6 +17,7 @@ export default function App(): React.JSX.Element {
   const trashOpen = useStore((s) => s.trashOpen)
   const transferOpen = useStore((s) => s.transferOpen)
   const notice = useStore((s) => s.notice)
+  const mathEdit = useStore((s) => s.mathEdit)
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const createPage = useStore((s) => s.createPage)
 
@@ -50,6 +52,7 @@ export default function App(): React.JSX.Element {
       {searchOpen && <SearchDialog />}
       {trashOpen && <TrashDialog />}
       {transferOpen && <TransferDialog />}
+      {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}
       {notice && <div className="notice">{notice}</div>}
     </div>
   )

@@ -7,6 +7,8 @@ import { Image } from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details'
 import type { createLowlight } from 'lowlight'
+import { BlockMath, InlineMath } from '@tiptap/extension-mathematics'
+import type { Node as PmNode } from '@tiptap/pm/model'
 import { Callout } from './callout'
 import { DatabaseView } from './databaseView'
 
@@ -25,6 +27,8 @@ export interface DocumentExtensionOverrides {
   callout?: AnyExtension
   /** Inline database rendered with its views (renderer only) */
   databaseView?: AnyExtension
+  /** Opens the equation editor (renderer only) */
+  onMathClick?: (node: PmNode, pos: number) => void
 }
 
 /**
@@ -52,6 +56,12 @@ export function createDocumentExtensions(
     Details.configure({ persist: true, HTMLAttributes: { class: 'toggle' } }),
     DetailsSummary,
     DetailsContent,
+    // Equations (KaTeX), written $…$ and $$…$$ like Notion's export.
+    InlineMath.configure({ katexOptions: { throwOnError: false }, onClick: overrides.onMathClick }),
+    BlockMath.configure({
+      katexOptions: { throwOnError: false, displayMode: true },
+      onClick: overrides.onMathClick
+    }),
     overrides.callout ?? Callout,
     overrides.databaseView ?? DatabaseView
   ]

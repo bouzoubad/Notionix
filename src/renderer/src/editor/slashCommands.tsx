@@ -110,6 +110,24 @@ export const SLASH_ITEMS: SlashItem[] = [
     }
   },
   {
+    title: 'Équation',
+    hint: 'Bloc LaTeX',
+    keywords: ['equation', 'math', 'latex', 'formule', 'tex'],
+    run: (e, r) => {
+      chain(e, r).run()
+      window.dispatchEvent(new CustomEvent('notionix:insert-math', { detail: false }))
+    }
+  },
+  {
+    title: 'Équation en ligne',
+    hint: 'LaTeX dans le texte',
+    keywords: ['inline', 'math', 'latex', 'formule'],
+    run: (e, r) => {
+      chain(e, r).run()
+      window.dispatchEvent(new CustomEvent('notionix:insert-math', { detail: true }))
+    }
+  },
+  {
     title: 'Séparateur',
     hint: 'Ligne horizontale',
     keywords: ['divider', 'hr', 'separateur'],

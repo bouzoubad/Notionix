@@ -42,6 +42,8 @@ export interface ImportNode {
   dbSchema?: string | null
   /** database row values (JSON) */
   properties?: string | null
+  /** database template row */
+  isTemplate?: boolean
 }
 
 const toSummary = (r: Omit<Row, 'content'>): PageSummary => ({
@@ -238,8 +240,8 @@ export class PageRepository {
       let created = 0
       let containerId: PageId | null = null
       const insert = this.db.prepare(
-        `INSERT INTO pages (id, parent_id, title, content, position, created_at, updated_at, source, kind, db_schema, properties)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO pages (id, parent_id, title, content, position, created_at, updated_at, source, kind, db_schema, properties, is_template)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const nextPosition = new Map<PageId | null, number>()
       const position = (parent: PageId | null): number => {
@@ -271,7 +273,8 @@ export class PageRepository {
               null,
               'page',
               null,
-              null
+              null,
+              0
             )
             this.reindex(containerId)
             created += 1
@@ -289,7 +292,8 @@ export class PageRepository {
           node.source,
           node.kind ?? 'page',
           node.dbSchema ?? null,
-          node.properties ?? null
+          node.properties ?? null,
+          node.isTemplate ? 1 : 0
         )
         this.reindex(node.id)
         created += 1

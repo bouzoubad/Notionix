@@ -21,7 +21,8 @@ import type { AssetStore } from '../assets'
 
 const MAX_MARKDOWN_BYTES = 20 * 1024 * 1024
 const MAX_IMAGE_BYTES = 50 * 1024 * 1024
-const NOTION_URL_ID = /^https?:\/\/(?:[\w-]+\.)?notion\.(?:so|site)\/.*?([0-9a-f]{32})(?:[?#].*)?$/i
+const NOTION_URL_ID =
+  /^https?:\/\/(?:[\w-]+\.)?notion\.(?:so|site|com)\/.*?([0-9a-f]{32})(?:[?#].*)?$/i
 
 type NodeKind = 'page' | 'database' | 'container'
 
@@ -42,6 +43,8 @@ interface PlanNode {
   properties: string | null
   /** database row: position in the CSV, which is the order of the Notion view */
   csvIndex?: number
+  /** database template (a page of the database without a CSV row) */
+  isTemplate?: boolean
 }
 
 export interface ImportPlan {
@@ -142,9 +145,29 @@ export async function planNotionImport(
   }
 
   // Parents: the page (or database) owning the folder a file sits in, else a container for that folder.
+  // Older exports name the folder like the file ("Page <id>/"); current ones drop the id ("Page/"),
+  // so the owner is then the sibling page or database with that title (a database first, since
+  // its folder holds its rows).
+  const ownerAlias = new Map<string, string>()
+  const siblingOwner = (folder: string): string | undefined => {
+    const { dir, base } = splitPath(folder)
+    const candidates = [...nodes.values()].filter(
+      (n) =>
+        n.kind !== 'container' &&
+        splitPath(n.key).dir === dir &&
+        parseNotionName(splitPath(n.key).base).title === base
+    )
+    return (candidates.find((n) => n.kind === 'database') ?? candidates[0])?.key
+  }
   const ownerOf = (folder: string): string | null => {
     if (folder === '') return null
+    if (ownerAlias.has(folder)) return ownerAlias.get(folder)!
     if (!nodes.has(folder)) {
+      const sibling = siblingOwner(folder)
+      if (sibling) {
+        ownerAlias.set(folder, sibling)
+        return sibling
+      }
       const container = make(folder, 'container', splitPath(folder).base, null)
       container.parentKey = ownerOf(splitPath(folder).dir)
     }
@@ -164,7 +187,11 @@ export async function planNotionImport(
       }
       if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('#')) return undefined
       const path = resolveRelative(fromDir, href)
-      const id = path ? pathToId.get(path) : undefined
+      // Notion sometimes links a page with the wrong extension (".csv" for a page):
+      // the Notion id at the end of the link still names it.
+      const lastId = lastNotionId(href)
+      const id =
+        (path ? pathToId.get(path) : undefined) ?? (lastId ? sourceToId.get(lastId) : undefined)
       return id ? pageLinkHref(id) : undefined
     }
 
@@ -249,7 +276,7 @@ export async function planNotionImport(
     const unused = new Set(children)
     const rows = table.slice(1).map((cells, i) => {
       const title = (cells[0] ?? '').trim()
-      const page = [...unused].find((c) => c.title === title)
+      const page = [...unused].find((c) => sameTitle(c.title, title))
       if (page) {
         unused.delete(page)
         page.csvIndex = i
@@ -273,8 +300,12 @@ export async function planNotionImport(
       nodes.set(row.key, row)
       return row
     })
+    // Pages in the database folder without a CSV row are Notion's database templates.
     let extra = rows.length
-    for (const page of unused) page.csvIndex = extra++
+    for (const page of unused) {
+      page.csvIndex = extra++
+      page.isTemplate = true
+    }
     csvDatabases.push({ node: db, table, rows })
   }
 
@@ -298,8 +329,8 @@ export async function planNotionImport(
     (title: string, link: string | null): RelationTarget | null => {
       if (link) {
         // The row's own id comes last: earlier ids belong to the folders above it.
-        const ids = link.match(/[0-9a-f]{32}/gi)
-        const byId = ids ? sourceToId.get(ids[ids.length - 1].toLowerCase()) : undefined
+        const lastId = lastNotionId(link)
+        const byId = lastId ? sourceToId.get(lastId) : undefined
         const path = byId ? null : resolveRelative(fromDir, link)
         const id = byId ?? (path ? pathToId.get(path) : undefined)
         const db = id ? databaseOfPage(id) : undefined
@@ -397,6 +428,30 @@ export async function planNotionImport(
 
 const stripBom = (text: string): string => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
 
+/** Titles match when equal up to surrounding and repeated spaces (Notion trims CSV cells unevenly). */
+const UNTITLED = new Set(['', 'sans titre', 'untitled'])
+const normalTitle = (t: string): string => {
+  const n = t.replace(/\s+/g, ' ').trim()
+  // An untitled Notion page has an empty CSV cell but "Untitled"/"Sans titre" as its page title.
+  return UNTITLED.has(n.toLowerCase()) ? '' : n
+}
+const sameTitle = (a: string, b: string): boolean => normalTitle(a) === normalTitle(b)
+
+/**
+ * The last Notion id (32 hex digits) in a link, read after URL decoding so that
+ * "%20" before an id is not taken for part of it; earlier ids name parent folders.
+ */
+export function lastNotionId(link: string): string | null {
+  let decoded = link
+  try {
+    decoded = decodeURIComponent(link)
+  } catch {
+    // keep the raw link
+  }
+  const ids = decoded.match(/(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])/gi)
+  return ids ? ids[ids.length - 1].toLowerCase() : null
+}
+
 const depth = (key: string): number => key.split('/').length
 
 function plainTextDoc(markdown: string): JsonNode {
@@ -426,7 +481,8 @@ export function splitFrontMatter(
   let title: string | null = null
   const heading = /^#\s+(.+?)\s*#*\s*$/.exec(lines[i] ?? '')
   if (heading) {
-    title = heading[1].replace(/\*\*|`/g, '').trim() || null
+    // Notion writes the title as is (a lone ` or * is part of it), so nothing is stripped.
+    title = heading[1].trim() || null
     i += 1
   }
   const rest = lines.slice(i)
@@ -468,6 +524,7 @@ export async function importNotionExport(
       kind: n.kind === 'database' ? 'database' : 'page',
       dbSchema: n.dbSchema,
       properties: n.properties,
+      isTemplate: n.isTemplate === true,
       source: n.source,
       existing: n.existing
     }))

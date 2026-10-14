@@ -37,7 +37,8 @@ export function parseCsv(text: string): string[][] {
     row.push(field)
     rows.push(row)
   }
-  return rows.filter((r) => r.some((cell) => cell !== ''))
+  // Only truly blank lines are dropped: "," is a row whose cells are all empty (e.g. an untitled page).
+  return rows.filter((r) => r.length > 1 || r[0] !== '')
 }
 
 const needsQuotes = /[",\r\n]|^\s|\s$/

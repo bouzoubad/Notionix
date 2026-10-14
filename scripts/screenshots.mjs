@@ -1,5 +1,6 @@
 // Regenerate docs/screenshots/*.png from the built app: npm run build && node scripts/screenshots.mjs
 import { _electron as electron } from 'playwright-core'
+import { CHROMIUM_FLAGS } from '../tests/e2e/flags.mjs'
 import { strToU8, zipSync } from 'fflate'
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -90,7 +91,7 @@ const roadmap = doc(p(text('Objectifs du trimestre.')), h(2, 'Phase 2'), {
 
 const app = await electron.launch({
   cwd: root,
-  args: ['.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'nx-shots-'))}`]
+  args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'nx-shots-'))}`]
 })
 const win = await app.firstWindow()
 await win.setViewportSize?.({ width: 1280, height: 820 })
@@ -280,7 +281,11 @@ writeFileSync(
 )
 const importApp = await electron.launch({
   cwd: root,
-  args: ['.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'nx-shots-import-'))}`]
+  args: [
+    ...CHROMIUM_FLAGS,
+    '.',
+    `--user-data-dir=${mkdtempSync(join(tmpdir(), 'nx-shots-import-'))}`
+  ]
 })
 const importWin = await importApp.firstWindow()
 await importWin.waitForSelector('.blank')

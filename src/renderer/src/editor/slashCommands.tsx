@@ -134,16 +134,23 @@ function createMenuController(): ReturnType<
       },
       onPick: pick
     })
-    const rect = latest.clientRect?.()
-    const el = component.element as HTMLElement
-    if (rect) {
-      el.style.position = 'fixed'
-      el.style.left = `${rect.left}px`
-      el.style.top = `${rect.bottom + 6}px`
-      el.style.zIndex = '50'
-    }
+    place()
+  }
+  /** Follow the caret: also called on scroll, since the editor scrolls after a keystroke. */
+  const place = (): void => {
+    const rect = latest?.clientRect?.()
+    const el = component?.element as HTMLElement | undefined
+    if (!rect || !el) return
+    const gap = 6
+    const below = rect.bottom + gap
+    const fitsBelow = below + el.offsetHeight <= window.innerHeight
+    el.style.position = 'fixed'
+    el.style.left = `${rect.left}px`
+    el.style.top = `${fitsBelow ? below : Math.max(gap, rect.top - gap - el.offsetHeight)}px`
+    el.style.zIndex = '50'
   }
   const close = (): void => {
+    window.removeEventListener('scroll', place, true)
     component?.element.remove()
     component?.destroy()
     component = null
@@ -159,6 +166,7 @@ function createMenuController(): ReturnType<
         editor: props.editor
       })
       document.body.appendChild(component.element)
+      window.addEventListener('scroll', place, true)
       draw()
     },
     onUpdate: (props) => {

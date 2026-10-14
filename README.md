@@ -2,6 +2,15 @@
 
 Réimplémentation originale, 100 % locale, d'un espace de travail de type Notion. Aucune copie de code ni d'assets Notion : le comportement visé vient de la documentation publique et du comportement connu du produit. Sync et en ligne : prévus plus tard.
 
+## Aperçu
+
+| Thème clair | Thème sombre |
+| --- | --- |
+| ![Éditeur, thème clair](docs/screenshots/editor-light.png) | ![Éditeur, thème sombre](docs/screenshots/editor-dark.png) |
+| ![Menu « / » pour insérer des blocs](docs/screenshots/slash-menu.png) | ![Recherche plein texte (Cmd+K)](docs/screenshots/search.png) |
+
+Captures régénérées par `npm run build && node scripts/screenshots.mjs` (pages d'exemple créées dans un profil temporaire, rien n'est lu dans tes données).
+
 ## Stack
 
 Electron 39, React 19, TypeScript, TipTap 3 (ProseMirror), Zustand, SQLite via `node:sqlite` (FTS5, aucune dépendance native à recompiler), Vitest, Playwright (smoke e2e).

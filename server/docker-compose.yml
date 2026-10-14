@@ -1,0 +1,20 @@
+# docker compose -f server/docker-compose.yml up -d --build   (from the repository root)
+services:
+  notionix:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    image: notionix-server
+    restart: unless-stopped
+    # Reachable only from the host itself: IIS forwards HTTPS traffic to it.
+    ports:
+      - '127.0.0.1:8080:8080'
+    volumes:
+      - notionix-data:/data
+    environment:
+      # First administrator, created only when no account exists yet.
+      # Remove these two lines after the first start.
+      NOTIONIX_ADMIN_EMAIL: admin@entreprise.local
+      NOTIONIX_ADMIN_PASSWORD: change-moi-tout-de-suite
+volumes:
+  notionix-data:

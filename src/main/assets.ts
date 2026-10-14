@@ -2,39 +2,9 @@ import { createHash } from 'crypto'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { ASSET_NAME, assetNameFromSrc, assetSrc } from '../shared/assets'
+import { ASSET_NAME, assetNameFromSrc, assetSrc, detectImageType } from '../shared/assets'
 
 export const MAX_ASSET_BYTES = 50 * 1024 * 1024
-
-const EXTENSIONS: Record<string, string> = {
-  png: 'png',
-  jpg: 'jpg',
-  jpeg: 'jpg',
-  gif: 'gif',
-  webp: 'webp',
-  svg: 'svg',
-  avif: 'avif',
-  bmp: 'bmp'
-}
-
-/** Image type from the file's first bytes; falls back to the name only for SVG (text). */
-export function detectImageType(bytes: Uint8Array, name: string): string | null {
-  const b = bytes
-  const ascii = (start: number, text: string): boolean =>
-    [...text].every((c, i) => b[start + i] === c.charCodeAt(0))
-  if (b[0] === 0x89 && ascii(1, 'PNG')) return 'png'
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg'
-  if (ascii(0, 'GIF8')) return 'gif'
-  if (ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'webp'
-  if (ascii(4, 'ftypavif') || ascii(4, 'ftypavis')) return 'avif'
-  if (ascii(0, 'BM')) return 'bmp'
-  const ext = EXTENSIONS[name.split('.').pop()?.toLowerCase() ?? '']
-  if (ext === 'svg') {
-    const head = Buffer.from(b.subarray(0, 1024)).toString('utf8')
-    if (/<svg[\s>]/i.test(head)) return 'svg'
-  }
-  return null
-}
 
 /**
  * Content-addressed image store under the user data folder. The same bytes

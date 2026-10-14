@@ -5,7 +5,7 @@ import { join } from 'path'
 import { strToU8, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { parseCsv, stringifyCsv } from '../src/main/transfer/csv'
-import { inferDatabase } from '../src/main/transfer/notionDatabase'
+import { inferDatabase, splitLinkedCell } from '../src/main/transfer/notionDatabase'
 import { migrate } from '../src/main/db/database'
 import { PageRepository } from '../src/main/db/pageRepository'
 import { DatabaseRepository } from '../src/main/db/databaseRepository'
@@ -225,5 +225,117 @@ describe('database export', () => {
     }
     expect(values('Premier')).toEqual(['Ouvert', '12.5', '2026-10-14', 'Oui', 'avec, virgule'])
     expect(values('Second')).toEqual(['Fermé', '3', '2026-10-01 → 2026-10-03', 'Non', ''])
+  })
+})
+
+describe('relations', () => {
+  it('splits linked cells written as "Title (link)"', () => {
+    expect(
+      splitLinkedCell(
+        'Site web (Projets%20a/Site%20web%20b.md), App (https://www.notion.so/App-0123)'
+      )
+    ).toEqual([
+      { title: 'Site web', link: 'Projets%20a/Site%20web%20b.md' },
+      { title: 'App', link: 'https://www.notion.so/App-0123' }
+    ])
+    expect(splitLinkedCell('Texte libre')).toBeNull()
+  })
+
+  it('infers a relation only when every value names rows of one database', () => {
+    const rows: Record<string, { id: string; database: string }> = {
+      Site: { id: 'r1', database: 'db1' },
+      App: { id: 'r2', database: 'db1' },
+      Autre: { id: 'r3', database: 'db2' }
+    }
+    const resolve = (title: string): { id: string; database: string } | null => rows[title] ?? null
+    const db = inferDatabase(
+      [
+        ['Name', 'Projet', 'Mixte', 'Libre'],
+        ['T1', 'Site', 'Site', 'Site'],
+        ['T2', 'Site, App', 'Autre', 'Inconnu'],
+        ['T3', '', '', '']
+      ],
+      { resolveRelation: resolve }
+    )!
+    const [, projet, mixte, libre] = db.schema.properties
+    expect([projet.type, projet.relationDatabaseId]).toEqual(['relation', 'db1'])
+    expect(mixte.type).not.toBe('relation')
+    expect(libre.type).not.toBe('relation')
+    expect(db.rows.map((r) => r.values[projet.id] ?? null)).toEqual([['r1'], ['r1', 'r2'], null])
+  })
+
+  it('rebuilds relations between two Notion databases and keeps the CSV row order', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec('PRAGMA foreign_keys = ON;')
+    migrate(db)
+    const pages = new PageRepository(db)
+    const dbs = new DatabaseRepository(pages)
+    const P = 'a'.repeat(32)
+    const T = 'b'.repeat(32)
+    const site = 'c'.repeat(32)
+    const app = 'd'.repeat(32)
+    const zip = join(mkdtempSync(join(tmpdir(), 'nx-rel-')), 'export.zip')
+    writeFileSync(
+      zip,
+      zipSync({
+        [`Projets ${P}_all.csv`]: strToU8('Name,Client\nSite web,ACME\nApplication,Globex\n'),
+        [`Projets ${P}/Site web ${site}.md`]: strToU8('# Site web\n\nClient: ACME\n'),
+        [`Projets ${P}/Application ${app}.md`]: strToU8('# Application\n\nClient: Globex\n'),
+        [`Tâches ${T}_all.csv`]: strToU8(
+          `Name,Projet\nZ dernière en titre,Site web (Projets%20${P}/Site%20web%20${site}.md)\nA première en titre,"Site web (https://www.notion.so/Site-web-${site}), Application (https://www.notion.so/Application-${app})"\nM sans projet,\n`
+        )
+      })
+    )
+    await importNotionExport(pages, zip, null)
+    const byTitle = Object.fromEntries(
+      pages
+        .list()
+        .filter((p) => p.kind === 'database')
+        .map((p) => [p.title, p.id])
+    )
+    const tasks = dbs.get(byTitle['Tâches'])!
+    const projets = dbs.get(byTitle['Projets'])!
+    const rel = tasks.schema.properties.find((p) => p.name === 'Projet')!
+    expect(rel.type).toBe('relation')
+    expect(rel.relationDatabaseId).toBe(projets.id)
+    // rows in CSV order, not alphabetical
+    expect(tasks.rows.map((r) => r.title)).toEqual([
+      'Z dernière en titre',
+      'A première en titre',
+      'M sans projet'
+    ])
+    const idOf = (t: string): string => projets.rows.find((r) => r.title === t)!.id
+    expect(tasks.rows.map((r) => r.properties[rel.id] ?? null)).toEqual([
+      [idOf('Site web')],
+      [idOf('Site web'), idOf('Application')],
+      null
+    ])
+
+    // export then import again: the relation survives
+    const { files, attachments } = await exportPagesAsMarkdown(
+      pages.list(),
+      (id) => pages.get(id),
+      async () => null,
+      null,
+      (id) => dbs.get(id)
+    )
+    const csv = files.find((f) => f.path.endsWith('Tâches.csv'))!.markdown
+    expect(csv).toContain('Site web (Projets/Site%20web.md)')
+    const db2 = new DatabaseSync(':memory:')
+    db2.exec('PRAGMA foreign_keys = ON;')
+    migrate(db2)
+    const pages2 = new PageRepository(db2)
+    const dbs2 = new DatabaseRepository(pages2)
+    const zip2 = join(mkdtempSync(join(tmpdir(), 'nx-rel2-')), 'export.zip')
+    writeFileSync(zip2, zipMarkdown(files, attachments))
+    await importNotionExport(pages2, zip2, null)
+    const t2 = dbs2.get(
+      pages2.list().find((p) => p.title === 'Tâches' && p.kind === 'database')!.id
+    )!
+    const rel2 = t2.schema.properties.find((p) => p.name === 'Projet')!
+    expect(rel2.type).toBe('relation')
+    expect(
+      t2.rows.map((r) => (r.properties[rel2.id] as string[] | undefined)?.length ?? 0)
+    ).toEqual([1, 2, 0])
   })
 })

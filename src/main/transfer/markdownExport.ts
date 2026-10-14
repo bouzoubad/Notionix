@@ -101,7 +101,15 @@ export async function exportPagesAsMarkdown(
     const path = paths.get(summary.id)!
     if (summary.kind === 'database') {
       const data = databaseOf(summary.id)
-      if (data) files.push({ path, markdown: databaseCsv(data, (id) => titles.get(id)) })
+      const fromDir = path.slice(0, path.lastIndexOf('/') + 1)
+      // Relations as Notion writes them: "Title (path of the row page)".
+      const linkOf = (id: string): string | undefined => {
+        const target = paths.get(id)
+        const title = titles.get(id)
+        if (title === undefined) return undefined
+        return target ? `${title || 'Sans titre'} (${relativeLink(fromDir, target)})` : title
+      }
+      if (data) files.push({ path, markdown: databaseCsv(data, linkOf) })
       continue
     }
     const page = load(summary.id)

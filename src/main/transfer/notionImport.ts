@@ -16,8 +16,7 @@ import {
 } from './notionNames'
 import { openSource, type SourceFile } from './sources'
 import { parseCsv } from './csv'
-import { inferDatabase } from './notionDatabase'
-import type { PropertyValue } from '../../shared/database'
+import { inferDatabase, type RelationTarget } from './notionDatabase'
 import type { AssetStore } from '../assets'
 
 const MAX_MARKDOWN_BYTES = 20 * 1024 * 1024
@@ -41,6 +40,8 @@ interface PlanNode {
   dbSchema: string | null
   /** database row: typed values (JSON) */
   properties: string | null
+  /** database row: position in the CSV, which is the order of the Notion view */
+  csvIndex?: number
 }
 
 export interface ImportPlan {
@@ -216,61 +217,138 @@ export async function planNotionImport(
     node.content = kept
   }
 
+  // --- Databases, first pass: read each CSV and the row pages next to it, so rows
+  // keep the CSV order and relations can point to rows of any database.
+  const rawText = new Map<string, string>()
+  const readMarkdown = async (node: PlanNode): Promise<string | null> => {
+    if (!node.file) return null
+    if (rawText.has(node.key)) return rawText.get(node.key)!
+    if (node.file.size > MAX_MARKDOWN_BYTES) return null
+    const raw = stripBom((await node.file.read()).toString('utf8')).replace(/\r\n?/g, '\n')
+    rawText.set(node.key, raw)
+    return raw
+  }
+  const csvDatabases: { node: PlanNode; table: string[][]; rows: PlanNode[] }[] = []
+  for (const db of [...nodes.values()]) {
+    if (db.kind !== 'database' || db.existing) continue
+    const csv = csvByDatabase.get(db.key)
+    const table =
+      csv && csv.size <= MAX_MARKDOWN_BYTES
+        ? parseCsv(stripBom((await csv.read()).toString('utf8')))
+        : []
+    if (table.length === 0) {
+      warnings.push(`${db.title} : CSV illisible ou vide, base créée sans propriétés.`)
+      continue
+    }
+    const children = [...nodes.values()].filter((n) => n.parentKey === db.key && n.kind === 'page')
+    for (const child of children) {
+      const raw = await readMarkdown(child)
+      const title = raw ? splitFrontMatter(raw, 'drop').title : null
+      if (title) child.title = title
+    }
+    const unused = new Set(children)
+    const rows = table.slice(1).map((cells, i) => {
+      const title = (cells[0] ?? '').trim()
+      const page = [...unused].find((c) => c.title === title)
+      if (page) {
+        unused.delete(page)
+        page.csvIndex = i
+        return page
+      }
+      // A CSV row without a page of its own becomes an empty row page.
+      const row: PlanNode = {
+        key: `${db.key}/#csv-${i}`,
+        kind: 'page',
+        title,
+        source: null,
+        parentKey: db.key,
+        file: null,
+        id: newId(),
+        existing: false,
+        content: EMPTY_DOC,
+        dbSchema: null,
+        properties: null,
+        csvIndex: i
+      }
+      nodes.set(row.key, row)
+      return row
+    })
+    let extra = rows.length
+    for (const page of unused) page.csvIndex = extra++
+    csvDatabases.push({ node: db, table, rows })
+  }
+
+  // Relation targets: Notion writes linked rows as "Title (link)" or as bare titles.
+  const nodeById = new Map([...nodes.values()].map((n) => [n.id, n]))
+  const databaseOfPage = (pageId: string): PlanNode | undefined => {
+    const parent = nodeById.get(pageId)?.parentKey
+    const db = parent ? nodes.get(parent) : undefined
+    return db?.kind === 'database' ? db : undefined
+  }
+  const rowsByTitle = new Map<string, { id: string; db: PlanNode }[]>()
+  for (const { node: db, rows } of csvDatabases) {
+    for (const row of rows) {
+      const list = rowsByTitle.get(row.title) ?? []
+      list.push({ id: row.id, db })
+      rowsByTitle.set(row.title, list)
+    }
+  }
+  const resolveRelation =
+    (fromDir: string) =>
+    (title: string, link: string | null): RelationTarget | null => {
+      if (link) {
+        // The row's own id comes last: earlier ids belong to the folders above it.
+        const ids = link.match(/[0-9a-f]{32}/gi)
+        const byId = ids ? sourceToId.get(ids[ids.length - 1].toLowerCase()) : undefined
+        const path = byId ? null : resolveRelative(fromDir, link)
+        const id = byId ?? (path ? pathToId.get(path) : undefined)
+        const db = id ? databaseOfPage(id) : undefined
+        return id && db ? { id, database: db.id } : null
+      }
+      const matches = rowsByTitle.get(title) ?? []
+      return matches.length === 1 ? { id: matches[0].id, database: matches[0].db.id } : null
+    }
+
+  let relationsFound = 0
+  for (const { node: db, table, rows } of csvDatabases) {
+    const inferred = inferDatabase(table, {
+      resolveRelation: resolveRelation(splitPath(db.key).dir)
+    })!
+    db.dbSchema = JSON.stringify(inferred.schema)
+    relationsFound += inferred.schema.properties.filter((p) => p.type === 'relation').length
+    inferred.rows.forEach((r, i) => {
+      if (rows[i]) rows[i].properties = JSON.stringify(r.values)
+    })
+  }
+  if (relationsFound) warnings.push(`${relationsFound} relation(s) entre bases reconstruite(s).`)
+
+  // --- Pages
   const stats = newStats()
   const ordered = [...nodes.values()].sort(
     (a, b) =>
       depth(a.key) - depth(b.key) ||
       (a.parentKey ?? '').localeCompare(b.parentKey ?? '') ||
-      a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
+      (a.csvIndex !== undefined && b.csvIndex !== undefined
+        ? a.csvIndex - b.csvIndex
+        : a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
   )
-
-  /** CSV rows of each new database, matched to row pages by title as they are read. */
-  const csvRows = new Map<
-    string,
-    { title: string; values: Record<string, PropertyValue>; used: boolean }[]
-  >()
+  const withCsv = new Set(csvDatabases.map((d) => d.node.key))
 
   for (const node of ordered) {
-    if (node.existing) continue
-    if (node.kind === 'database') {
-      const csv = csvByDatabase.get(node.key)
-      const inferred =
-        csv && csv.size <= MAX_MARKDOWN_BYTES
-          ? inferDatabase(parseCsv(stripBom((await csv.read()).toString('utf8'))))
-          : null
-      if (!inferred) {
-        warnings.push(`${node.title} : CSV illisible ou vide, base créée sans propriétés.`)
-        continue
-      }
-      node.dbSchema = JSON.stringify(inferred.schema)
-      csvRows.set(
-        node.key,
-        inferred.rows.map((r) => ({ ...r, used: false }))
-      )
-      continue
-    }
-    if (node.kind === 'container' || !node.file) continue
+    if (node.existing || node.kind !== 'page' || !node.file) continue
     if (node.file.size > MAX_MARKDOWN_BYTES) {
       warnings.push(
         `${node.file.path} : fichier trop volumineux (${node.file.size} octets), importé vide.`
       )
       continue
     }
-    const raw = stripBom((await node.file.read()).toString('utf8')).replace(/\r\n?/g, '\n')
+    const raw = (await readMarkdown(node))!
     const parent = node.parentKey ? nodes.get(node.parentKey) : undefined
-    const rowsOfParent = parent ? csvRows.get(parent.key) : undefined
     const page = splitFrontMatter(
       raw,
-      parent?.kind !== 'database' ? 'none' : rowsOfParent ? 'drop' : 'text'
+      parent?.kind !== 'database' ? 'none' : withCsv.has(parent.key) ? 'drop' : 'text'
     )
     if (page.title) node.title = page.title
-    if (rowsOfParent) {
-      const match = rowsOfParent.find((r) => !r.used && r.title === node.title)
-      if (match) {
-        match.used = true
-        node.properties = JSON.stringify(match.values)
-      }
-    }
     const dir = splitPath(node.file.path).dir
     const doc = markdownToDoc(page.body, resolveHref(dir), stats)
     await resolveImages(doc, dir)
@@ -281,25 +359,6 @@ export async function planNotionImport(
       )
     }
     node.content = JSON.stringify(canonical ?? plainTextDoc(page.body))
-  }
-
-  // CSV rows without a page of their own become empty row pages.
-  for (const [key, rows] of csvRows) {
-    for (const r of rows.filter((x) => !x.used)) {
-      ordered.push({
-        key: `${key}/#csv-${ordered.length}`,
-        kind: 'page',
-        title: r.title,
-        source: null,
-        parentKey: key,
-        file: null,
-        id: newId(),
-        existing: false,
-        content: EMPTY_DOC,
-        dbSchema: null,
-        properties: JSON.stringify(r.values)
-      })
-    }
   }
 
   return {

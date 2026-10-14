@@ -10,6 +10,10 @@ Clone local de Notion, réimplémentation originale (ne jamais copier de code ou
 - `src/renderer/src/` : `store.ts` (Zustand), `components/`, `editor/` (TipTap + menu `/`).
 - Persistance : `node:sqlite` (pas de module natif). Tests unitaires sous Node 24 (`.nvmrc`), e2e Electron dans `tests/e2e/smoke.mjs`.
 
+## Branding
+
+Logos générés par `scripts/build-logos.py` depuis `branding/notionix-brand-sheet.png` ; ne pas éditer à la main les PNG de `src/renderer/src/assets/logo-*` ni `build/icon.*`. Composant `components/Logo.tsx` (`<picture>` clair/sombre).
+
 ## Conventions
 
 - Ajouter une migration = nouvelle entrée dans `MIGRATIONS` ; ne jamais modifier les anciennes.

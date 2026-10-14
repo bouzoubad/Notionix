@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
 import { openDatabase } from './db/database'
 import { PageRepository } from './db/pageRepository'
 import { registerPageHandlers } from './ipc'
@@ -13,6 +14,7 @@ function createWindow(): void {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
+    ...(process.platform === 'darwin' ? {} : { icon }),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -37,6 +39,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.notionix')
+  if (process.platform === 'darwin') app.dock?.setIcon(icon)
 
   const db = openDatabase()
   registerPageHandlers(ipcMain, new PageRepository(db))

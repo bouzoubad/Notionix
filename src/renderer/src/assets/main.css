@@ -504,3 +504,25 @@ main {
   padding: 3px 8px;
   font-size: 13px;
 }
+
+/* Branding */
+.sidebar-brand {
+  padding: 2px 14px 12px;
+  flex: none;
+}
+.logo-sidebar {
+  display: block;
+  height: 26px;
+  width: auto;
+  user-select: none;
+}
+.logo-hero {
+  display: block;
+  height: 72px;
+  width: auto;
+  user-select: none;
+}
+.blank p {
+  margin: 0 0 8px;
+  letter-spacing: 0.04em;
+}

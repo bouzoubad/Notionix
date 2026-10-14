@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
 import { TrashDialog } from './components/TrashDialog'
 import { PageEditor } from './editor/PageEditor'
+import { Logo } from './components/Logo'
 
 export default function App(): React.JSX.Element {
   const load = useStore((s) => s.load)
@@ -33,7 +34,8 @@ export default function App(): React.JSX.Element {
           <PageEditor pageId={currentId} />
         ) : (
           <div className="blank">
-            <h2>Bienvenue dans Notionix</h2>
+            <Logo variant="wordmark" className="logo-hero" />
+            <p>Vos idées. Un seul espace.</p>
             <button onClick={() => void createPage(null)}>Créer une page</button>
           </div>
         )}

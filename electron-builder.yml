@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: notionix
+appId: app.notionix
+productName: Notionix
 directories:
   buildResources: build
 files:

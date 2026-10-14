@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { childrenOf, useStore } from '../store'
+import { Logo } from './Logo'
 import type { PageSummary } from '../../../shared/types'
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
@@ -30,6 +31,9 @@ export function Sidebar(): React.JSX.Element {
   return (
     <aside className="sidebar">
       <div className="sidebar-drag" />
+      <div className="sidebar-brand">
+        <Logo variant="wordmark" className="logo-sidebar" />
+      </div>
       <div className="sidebar-actions">
         <button onClick={() => setSearchOpen(true)}>
           Rechercher <kbd>⌘K</kbd>

@@ -26,6 +26,15 @@ npm run typecheck && npm run lint
 - Sauvegarde automatique (debounce 400 ms), thème clair/sombre selon le système.
 - Données : `pages(id, parent_id, position, version, updated_at…)`, `version` incrémentée à chaque écriture pour préparer la sync.
 
+## Identité visuelle
+
+La planche source est `branding/notionix-brand-sheet.png`. `python3 -I scripts/build-logos.py` (Pillow, numpy, `iconutil` sur macOS) en dérive :
+
+- bannière avec nom, transparente, en variantes claire/sombre (sidebar et écran d'accueil, selon le thème système) ;
+- tuile blanche (la plus à gauche de la planche) et tuile sombre (deuxième à gauche) : favicon et icône d'application (`build/icon.*`, `resources/icon.png`, icône du Dock en dev), la tuile sombre servant d'icône d'app.
+
+Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un agrandissement, un peu douce. Un export vectoriel du logo permettrait de la régénérer nette.
+
 ## TODO
 
 - Phase 2 : blocs supplémentaires (callout, toggle, tableau, image, embeds), menu de formatage flottant, drag-and-drop de blocs, icônes et couvertures choisies par l'utilisateur.

@@ -42,7 +42,7 @@ const api = async (path: string, init: { method?: string; token?: string; json?:
       ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}),
       ...(init.json ? { 'Content-Type': 'application/json' } : {})
     },
-    body: init.json ? JSON.stringify(init.json) : init.body
+    body: init.json ? JSON.stringify(init.json) : init.body ? new Blob([init.body as Uint8Array<ArrayBuffer>]) : undefined
   })
   const text = await res.text()
   let body: Record<string, unknown> = {}

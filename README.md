@@ -73,7 +73,7 @@ npm run typecheck && npm run lint
 
 - Pages imbriquées, arbre en sidebar, glisser-déposer pour réordonner ou imbriquer, favoris, duplication (sous-pages incluses), fil d'Ariane.
 - Corbeille : sous-arbre mis à la corbeille ensemble, restauration, suppression définitive.
-- Éditeur de blocs (TipTap) : titres, listes à puces/numérotées/tâches, citation, code avec coloration, séparateur, liens, tableaux (lignes/colonnes, en-tête, redimensionnement), images (fichier, coller, glisser ; stockage local par empreinte SHA-256 servi par le protocole `notionix-asset://`), callouts à icône, toggles ; menu `/`, menu flottant de mise en forme et de tableau, poignée de déplacement des blocs.
+- Éditeur de blocs (TipTap) : titres, listes à puces/numérotées/tâches, citation, code avec coloration, séparateur, liens, tableaux (lignes/colonnes, en-tête, redimensionnement), images (fichier, coller, glisser ; stockage local par empreinte SHA-256 servi par le protocole `notionix-asset://`), callouts à icône, toggles, équations LaTeX en ligne et en bloc (KaTeX, édition avec aperçu) ; menu `/`, menu flottant de mise en forme et de tableau, poignée de déplacement des blocs.
 - Recherche plein texte (titre + corps) via `Cmd/Ctrl+K`.
 - Sauvegarde automatique (debounce 400 ms), thème clair/sombre selon le système.
 - Icônes de pages (emoji) et couvertures (dégradés ou image locale), affichées aussi dans la barre latérale et le fil d'Ariane.

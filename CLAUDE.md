@@ -23,6 +23,8 @@ Logos générés par `scripts/build-logos.py` depuis `branding/notionix-brand-sh
 
 - Ajouter une migration = nouvelle entrée dans `MIGRATIONS` ; ne jamais modifier les anciennes.
 - Toute écriture incrémente `version` et `updated_at` (prépare la sync).
+- Import Notion : tester tout changement sur un vrai export avec `npm run build && node scripts/import-check.mjs export.zip` (profil jetable, rapport, arborescence, schémas). Formats réels observés : dossiers de sous-pages sans identifiant, liens encodés (`%20` avant l'id), modèles de base = pages sans ligne CSV, `- [ ]  ` pour une tâche vide, `-` seul pour un élément vide, équations `$…$`/`$$…$$`.
+- Tests e2e : lancer Electron avec `CHROMIUM_FLAGS` (`tests/e2e/flags.mjs`), sinon les fenêtres en arrière-plan rendent les tests instables.
 - Vérifier avant commit : `npm run typecheck && npm run lint && npm test && npm run test:e2e` (l'e2e attrape les problèmes de bundling main que vitest ne voit pas).
 - Toujours lire `properties`/`db_schema` via `parseRowProperties`/`parseSchema`.
 - Pages importées : colonne `source` unique (`notion:<id>`, `notion-folder:<chemin>`) ; ne jamais écraser une page déjà importée.

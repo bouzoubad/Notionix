@@ -15,16 +15,9 @@ export interface JsonNode {
 export interface ConversionStats {
   linksResolved: number
   linksUnresolved: number
-  tablesFlattened: number
-  imagesIgnored: number
 }
 
-export const newStats = (): ConversionStats => ({
-  linksResolved: 0,
-  linksUnresolved: 0,
-  tablesFlattened: 0,
-  imagesIgnored: 0
-})
+export const newStats = (): ConversionStats => ({ linksResolved: 0, linksUnresolved: 0 })
 
 /**
  * Maps a link found in a page to the href of an imported page. Returns
@@ -47,8 +40,9 @@ const emptyParagraph = (): JsonNode => ({ type: 'paragraph' })
 
 /**
  * Converts Markdown (as exported by Notion) to a ProseMirror document using
- * the node and mark names of the editor schema. Constructs the editor has no
- * block for (tables, toggles, images) degrade to text and are counted in `stats`.
+ * the node and mark names of the editor schema. Notion callouts (<aside>) and
+ * toggles (<details>) become callout and details blocks. Images keep their
+ * original src; the caller stores the files and rewrites or drops them.
  */
 export function markdownToDoc(
   source: string,
@@ -77,14 +71,13 @@ class Converter {
       switch (t.type) {
         case 'heading_open': {
           const level = Math.min(6, Math.max(1, Number(t.tag.slice(1)) || 1))
-          const content = this.inline(this.tokens[i + 1])
+          const content = withoutImages(this.inline(this.tokens[i + 1]))
           out.push({ type: 'heading', attrs: { level }, content })
           i += 3
           break
         }
         case 'paragraph_open': {
-          const content = this.inline(this.tokens[i + 1])
-          if (content.length) out.push(paragraph(content))
+          out.push(...splitImages(this.inline(this.tokens[i + 1])))
           i += 3
           break
         }
@@ -118,9 +111,8 @@ class Converter {
           i += 1
           break
         case 'table_open': {
-          const [rows, end] = this.table(i)
-          out.push(...rows)
-          this.stats.tablesFlattened += 1
+          const [table, end] = this.table(i)
+          if (table) out.push(table)
           i = end + 1
           break
         }
@@ -172,28 +164,26 @@ class Converter {
     ]
   }
 
-  /** Tables have no block in the editor: each row becomes a paragraph of " | " separated cells. */
-  private table(start: number): [JsonNode[], number] {
+  private table(start: number): [JsonNode | null, number] {
     const rows: JsonNode[] = []
-    let i = start + 1
     let cells: JsonNode[] = []
-    let header = false
+    let i = start + 1
     while (i < this.tokens.length && this.tokens[i].type !== 'table_close') {
       const t = this.tokens[i]
       if (t.type === 'tr_open') {
         cells = []
-        header = false
       } else if (t.type === 'th_open' || t.type === 'td_open') {
-        header = t.type === 'th_open'
-        const inline = this.inline(this.tokens[i + 1])
-        if (cells.length) cells.push(text(' | '))
-        cells.push(...(header ? inline.map(bolden) : inline))
+        const content = splitImages(this.inline(this.tokens[i + 1]))
+        cells.push({
+          type: t.type === 'th_open' ? 'tableHeader' : 'tableCell',
+          content: content.length ? content : [emptyParagraph()]
+        })
       } else if (t.type === 'tr_close' && cells.length) {
-        rows.push(paragraph(cells))
+        rows.push({ type: 'tableRow', content: cells })
       }
       i += 1
     }
-    return [rows, i]
+    return [rows.length ? { type: 'table', content: rows } : null, i]
   }
 
   private htmlBlock(index: number, out: JsonNode[]): number {
@@ -202,29 +192,59 @@ class Converter {
     if (/^<aside\b/i.test(trimmed)) {
       const inner = html.replace(/^\s*<aside[^>]*>/i, '')
       const closing = /<\/aside>/i.exec(inner)
+      let body: JsonNode[]
+      let next: number
       if (closing) {
         // The whole callout is in this block (no blank line before the closing tag).
-        const quote = this.htmlParagraph(inner.slice(0, closing.index))
-        out.push({ type: 'blockquote', content: quote.length ? quote : [emptyParagraph()] })
-        out.push(...this.htmlParagraph(inner.slice(closing.index + closing[0].length)))
-        return index + 1
+        body = this.htmlParagraph(inner.slice(0, closing.index))
+        next = index + 1
+        out.push(
+          callout(body),
+          ...this.htmlParagraph(inner.slice(closing.index + closing[0].length))
+        )
+        return next
       }
       const [children, end] = this.blocks(
         index + 1,
         (t) => t.type === 'html_block' && /<\/aside>/i.test(t.content)
       )
-      const quote = [...this.htmlParagraph(inner), ...children]
-      out.push({ type: 'blockquote', content: quote.length ? quote : [emptyParagraph()] })
+      body = [...this.htmlParagraph(inner), ...children]
+      out.push(callout(body))
       return end + 1
     }
-    const summary = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(html)
-    if (summary) {
-      // Toggles have no block in the editor: the summary becomes a bold line, the body follows it.
-      const inline = md.parseInline(summary[1].trim(), {})[0]?.children ?? []
-      const content = this.inlineTokens(inline)
-      if (content.length) out.push(paragraph(content.map(bolden)))
+    if (/^<details\b/i.test(trimmed)) {
+      const summaryMatch = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(html)
+      const summaryHtml = summaryMatch ? summaryMatch[1].replace(/<[^>]+>/g, '').trim() : ''
+      const summary = withoutImages(
+        this.inlineTokens(md.parseInline(summaryHtml, {})[0]?.children ?? [])
+      ).filter((n) => n.type === 'text')
+      const rest = html
+        .replace(/^\s*<details[^>]*>/i, '')
+        .replace(/<summary[^>]*>[\s\S]*?<\/summary>/i, '')
+      const closing = /<\/details>/i.exec(rest)
+      let body: JsonNode[]
+      let next: number
+      if (closing) {
+        body = this.htmlParagraph(rest.slice(0, closing.index))
+        next = index + 1
+      } else {
+        const [children, end] = this.blocks(
+          index + 1,
+          (t) => t.type === 'html_block' && /<\/details>/i.test(t.content)
+        )
+        body = [...this.htmlParagraph(rest), ...children]
+        next = end + 1
+      }
+      out.push({
+        type: 'details',
+        content: [
+          { type: 'detailsSummary', ...(summary.length ? { content: summary } : {}) },
+          { type: 'detailsContent', content: body.length ? body : [emptyParagraph()] }
+        ]
+      })
+      return next
     }
-    out.push(...this.htmlParagraph(html.replace(/<summary[^>]*>[\s\S]*?<\/summary>/gi, '')))
+    out.push(...this.htmlParagraph(html))
     return index + 1
   }
 
@@ -279,7 +299,10 @@ class Converter {
           stack.pop()
           break
         case 'image':
-          this.stats.imagesIgnored += 1
+          out.push({
+            type: 'image',
+            attrs: { src: String(t.attrGet('src') ?? ''), alt: t.content || null }
+          })
           break
         case 'html_inline': {
           const tag = t.content.trim().toLowerCase()
@@ -309,8 +332,53 @@ class Converter {
   }
 }
 
-const bolden = (node: JsonNode): JsonNode =>
-  node.type === 'text' ? { ...node, marks: [...(node.marks ?? []), { type: 'bold' }] } : node
+const withoutImages = (nodes: JsonNode[]): JsonNode[] => nodes.filter((n) => n.type !== 'image')
+
+/** Images are blocks in the editor: a paragraph is split around the images it contains. */
+function splitImages(inline: JsonNode[]): JsonNode[] {
+  const out: JsonNode[] = []
+  let run: JsonNode[] = []
+  const flush = (): void => {
+    while (run[0]?.type === 'hardBreak') run.shift()
+    while (run[run.length - 1]?.type === 'hardBreak') run.pop()
+    if (run.some((n) => n.type !== 'text' || n.text?.trim())) out.push(paragraph(run))
+    run = []
+  }
+  for (const node of inline) {
+    if (node.type === 'image') {
+      flush()
+      out.push(node)
+    } else {
+      run.push(node)
+    }
+  }
+  flush()
+  return out
+}
+
+const LEADING_EMOJI =
+  /^\s*(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*/u
+
+/** Notion writes the callout icon as the first characters of its text. */
+function callout(body: JsonNode[]): JsonNode {
+  let icon: string | undefined
+  const first = body[0]?.type === 'paragraph' ? body[0] : undefined
+  const head = first?.content?.[0]
+  if (head?.type === 'text' && head.text) {
+    const match = LEADING_EMOJI.exec(head.text)
+    if (match) {
+      icon = match[1]
+      head.text = head.text.slice(match[0].length)
+      if (!head.text) first!.content = first!.content!.slice(1)
+      if (!first!.content?.length) body = body.slice(1)
+    }
+  }
+  return {
+    type: 'callout',
+    ...(icon ? { attrs: { icon } } : {}),
+    content: body.length ? body : [emptyParagraph()]
+  }
+}
 
 const TASK_MARKER = /^\[([ xX])\]\s+/
 

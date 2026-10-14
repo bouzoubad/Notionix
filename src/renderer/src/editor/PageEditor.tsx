@@ -6,6 +6,11 @@ import type { Page } from '../../../shared/types'
 import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editorExtensions'
 import { ancestorsOf, useStore } from '../store'
 import { SlashCommands } from './slashCommands'
+import { FileHandler } from '@tiptap/extension-file-handler'
+import { InteractiveCallout } from './CalloutView'
+import { BlockHandle } from './blockHandle'
+import { TableBubbleMenu, TextBubbleMenu } from './BubbleMenus'
+import { IMAGE_TYPES, insertImages } from './images'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -50,7 +55,13 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
 
   const editor = useEditor({
     extensions: [
-      ...createDocumentExtensions(lowlight),
+      ...createDocumentExtensions(lowlight, { callout: InteractiveCallout }),
+      FileHandler.configure({
+        allowedMimeTypes: IMAGE_TYPES,
+        onPaste: (editor, files) => void insertImages(editor, files),
+        onDrop: (editor, files, pos) => void insertImages(editor, files, pos)
+      }),
+      BlockHandle,
       Placeholder.configure({
         placeholder: ({ node }) =>
           node.type.name === 'heading' ? 'Titre' : "Tapez '/' pour insérer un bloc"
@@ -106,6 +117,8 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
           }}
         />
         <EditorContent editor={editor} className="editor" />
+        {editor && <TextBubbleMenu editor={editor} />}
+        {editor && <TableBubbleMenu editor={editor} />}
       </div>
     </div>
   )

@@ -49,7 +49,7 @@ assert.equal(await win.locator('.editor li[data-checked="true"]').count(), 1)
 
 // internal link opens the linked page
 await win.locator('.editor a', { hasText: 'Détails' }).click()
-await win.locator('.editor blockquote', { hasText: 'Penser aux images' }).waitFor()
+await win.locator('.editor aside.callout', { hasText: 'Penser aux images' }).waitFor()
 assert.equal(await win.locator('.page-title').inputValue(), 'Détails')
 
 // export everything

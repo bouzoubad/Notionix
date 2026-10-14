@@ -23,6 +23,7 @@ interface State {
   setTrashOpen: (open: boolean) => void
   setTransferOpen: (open: boolean) => void
   exportPage: (id: PageId | null) => Promise<void>
+  showNotice: (message: string) => void
 }
 
 const api = window.api.pages
@@ -97,6 +98,7 @@ export const useStore = create<State>((set, get) => ({
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   setTrashOpen: (trashOpen) => set({ trashOpen }),
   setTransferOpen: (transferOpen) => set({ transferOpen }),
+  showNotice: (message) => notify(set, message),
   exportPage: async (id) => {
     try {
       const result = await window.api.transfer.exportMarkdown(id)

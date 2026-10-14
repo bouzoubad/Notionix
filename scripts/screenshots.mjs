@@ -179,7 +179,7 @@ await importWin.getByRole('button', { name: 'Ouvrir les pages importées' }).cli
 await importWin.locator('.row', { hasText: 'Importé de Notion' }).locator('.chevron').click()
 await importWin.locator('.row', { hasText: 'Roadmap produit' }).locator('.chevron').click()
 await importWin.locator('.row', { hasText: 'Roadmap produit' }).click()
-await importWin.locator('.editor blockquote').first().waitFor()
+await importWin.locator('.editor aside.callout').first().waitFor()
 await importWin.waitForTimeout(300)
 await importWin.screenshot({ path: join(out, 'imported-notion.png') })
 await importApp.close()

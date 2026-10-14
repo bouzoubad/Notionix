@@ -15,8 +15,10 @@ import {
   splitPath
 } from './notionNames'
 import { openSource, type SourceFile } from './sources'
+import type { AssetStore } from '../assets'
 
 const MAX_MARKDOWN_BYTES = 20 * 1024 * 1024
+const MAX_IMAGE_BYTES = 50 * 1024 * 1024
 const NOTION_URL_ID = /^https?:\/\/(?:[\w-]+\.)?notion\.(?:so|site)\/.*?([0-9a-f]{32})(?:[?#].*)?$/i
 
 type NodeKind = 'page' | 'database' | 'container'
@@ -39,8 +41,8 @@ export interface ImportPlan {
   databases: number
   linksResolved: number
   linksUnresolved: number
-  tablesFlattened: number
-  imagesIgnored: number
+  imagesImported: number
+  imagesMissing: number
   attachmentsIgnored: number
   warnings: string[]
 }
@@ -49,6 +51,8 @@ export interface PlanOptions {
   /** Id of the page already imported from this source, if any */
   existingIdForSource(source: string): PageId | undefined
   newId?: () => PageId
+  /** Stores image bytes and returns the src to use; without it, images are dropped */
+  saveAsset?: (bytes: Uint8Array, name: string) => Promise<string>
 }
 
 const EMPTY_DOC = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] })
@@ -68,7 +72,11 @@ export async function planNotionImport(
   const usedSources = new Set<string>()
   const pathToId = new Map<string, PageId>()
   const sourceToId = new Map<string, PageId>()
-  let attachmentsIgnored = 0
+  const fileByPath = new Map(files.map((f) => [f.path, f]))
+  const usedAttachments = new Set<string>()
+  const attachments = new Set<string>()
+  let imagesImported = 0
+  let imagesMissing = 0
 
   const make = (
     key: string,
@@ -111,7 +119,7 @@ export async function planNotionImport(
       const key = dir ? `${dir}/${csvStem(base)}` : csvStem(base)
       csvFiles.set(key, [...(csvFiles.get(key) ?? []), file.path])
     } else {
-      attachmentsIgnored += 1
+      attachments.add(file.path)
     }
   }
   for (const [key, paths] of csvFiles) {
@@ -145,6 +153,55 @@ export async function planNotionImport(
       const id = path ? pathToId.get(path) : undefined
       return id ? pageLinkHref(id) : undefined
     }
+
+  /**
+   * Stores the images a page references and points them at the stored copy.
+   * Images that cannot be found or read are removed; remote images become a
+   * link, since nothing is fetched from the network.
+   */
+  const resolveImages = async (node: JsonNode, dir: string): Promise<void> => {
+    if (!node.content) return
+    const kept: JsonNode[] = []
+    for (const child of node.content) {
+      if (child.type !== 'image') {
+        await resolveImages(child, dir)
+        kept.push(child)
+        continue
+      }
+      const src = String(child.attrs?.src ?? '')
+      if (/^https?:\/\//i.test(src)) {
+        imagesMissing += 1
+        kept.push({
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Image distante : ' },
+            { type: 'text', text: src, marks: [{ type: 'link', attrs: { href: src } }] }
+          ]
+        })
+        continue
+      }
+      const path = resolveRelative(dir, src)
+      const file = path ? fileByPath.get(path) : undefined
+      if (!file || !options.saveAsset || file.size > MAX_IMAGE_BYTES) {
+        imagesMissing += 1
+        continue
+      }
+      try {
+        const stored = await options.saveAsset(
+          new Uint8Array(await file.read()),
+          splitPath(file.path).base
+        )
+        child.attrs = { ...child.attrs, src: stored }
+        usedAttachments.add(file.path)
+        imagesImported += 1
+        kept.push(child)
+      } catch (e) {
+        imagesMissing += 1
+        warnings.push(`${file.path} : ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    node.content = kept
+  }
 
   const stats = newStats()
   const ordered = [...nodes.values()].sort(
@@ -185,7 +242,9 @@ export async function planNotionImport(
     const parent = node.parentKey ? nodes.get(node.parentKey) : undefined
     const page = splitFrontMatter(raw, parent?.kind === 'database')
     if (page.title) node.title = page.title
-    const doc = markdownToDoc(page.body, resolveHref(splitPath(node.file.path).dir), stats)
+    const dir = splitPath(node.file.path).dir
+    const doc = markdownToDoc(page.body, resolveHref(dir), stats)
+    await resolveImages(doc, dir)
     const canonical = canonicalDoc(doc)
     if (!canonical) {
       warnings.push(
@@ -200,9 +259,9 @@ export async function planNotionImport(
     databases: ordered.filter((n) => n.kind === 'database' && !n.existing).length,
     linksResolved: stats.linksResolved,
     linksUnresolved: stats.linksUnresolved,
-    tablesFlattened: stats.tablesFlattened,
-    imagesIgnored: stats.imagesIgnored,
-    attachmentsIgnored,
+    imagesImported,
+    imagesMissing,
+    attachmentsIgnored: [...attachments].filter((p) => !usedAttachments.has(p)).length,
     warnings
   }
 }
@@ -260,12 +319,14 @@ export function splitFrontMatter(
 export async function importNotionExport(
   repo: PageRepository,
   path: string,
+  assets: Pick<AssetStore, 'save'> | null,
   today: Date = new Date()
 ): Promise<ImportSummary> {
   const source = await openSource(path)
   try {
     const plan = await planNotionImport(source.files, {
-      existingIdForSource: (s) => repo.findIdBySource(s)
+      existingIdForSource: (s) => repo.findIdBySource(s),
+      saveAsset: assets ? (bytes, name) => assets.save(bytes, name) : undefined
     })
     const keyToId = new Map(plan.nodes.map((n) => [n.key, n.id]))
     const inputs: ImportNode[] = plan.nodes.map((n) => ({
@@ -285,8 +346,8 @@ export async function importNotionExport(
       databases: plan.databases,
       linksResolved: plan.linksResolved,
       linksUnresolved: plan.linksUnresolved,
-      tablesFlattened: plan.tablesFlattened,
-      imagesIgnored: plan.imagesIgnored,
+      imagesImported: plan.imagesImported,
+      imagesMissing: plan.imagesMissing,
       attachmentsIgnored: plan.attachmentsIgnored,
       warnings: plan.warnings
     }

@@ -45,9 +45,11 @@ export interface ImportSummary {
   databases: number
   linksResolved: number
   linksUnresolved: number
-  tablesFlattened: number
-  imagesIgnored: number
-  /** Files of the export that are not Markdown or CSV (images, PDFs…) */
+  /** Images of the export stored locally */
+  imagesImported: number
+  /** Images not found in the export, unreadable, or remote (kept as a link) */
+  imagesMissing: number
+  /** Other files of the export (PDFs, unused images…), not imported */
   attachmentsIgnored: number
   warnings: string[]
 }
@@ -69,6 +71,10 @@ export interface NotionixApi {
     deleteForever(id: PageId): Promise<void>
     duplicate(id: PageId): Promise<Page>
     search(query: string): Promise<SearchHit[]>
+  }
+  assets: {
+    /** Stores an image locally and returns its src (notionix-asset://…) */
+    save(bytes: Uint8Array, name: string): Promise<string>
   }
   transfer: {
     /** Asks for a Notion export (.zip or extracted folder) and imports it; null if cancelled */

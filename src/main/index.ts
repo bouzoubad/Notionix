@@ -1,10 +1,20 @@
-import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron'
+import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { openDatabase } from './db/database'
 import { PageRepository } from './db/pageRepository'
-import { registerPageHandlers, registerTransferHandlers } from './ipc'
+import { registerAssetHandlers, registerPageHandlers, registerTransferHandlers } from './ipc'
+import { AssetStore } from './assets'
+import { ASSET_SCHEME } from '../shared/assets'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: ASSET_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -43,8 +53,17 @@ app.whenReady().then(() => {
 
   const db = openDatabase()
   const repo = new PageRepository(db)
+  const assets = new AssetStore(join(app.getPath('userData'), 'assets'))
+  protocol.handle(ASSET_SCHEME, (request) => {
+    const name = decodeURIComponent(new URL(request.url).pathname.slice(1))
+    const path = assets.pathOf(name)
+    return path
+      ? net.fetch(pathToFileURL(path).toString())
+      : new Response('Not found', { status: 404 })
+  })
   registerPageHandlers(ipcMain, repo)
-  registerTransferHandlers(ipcMain, repo, {
+  registerAssetHandlers(ipcMain, assets)
+  registerTransferHandlers(ipcMain, repo, assets, {
     dialog,
     getWindow: () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
   })

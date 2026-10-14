@@ -17,6 +17,9 @@ const api: NotionixApi = {
     duplicate: (id) => call('pages:duplicate', id),
     search: (q) => call('pages:search', q)
   },
+  assets: {
+    save: (bytes, name) => call('assets:save', bytes, name)
+  },
   transfer: {
     importNotion: () => call('transfer:importNotion'),
     exportMarkdown: (pageId) => call('transfer:exportMarkdown', pageId)

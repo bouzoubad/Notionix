@@ -55,9 +55,9 @@ export function TransferDialog(): React.JSX.Element {
           <section className="transfer-section">
             <h4>Exporter vers Markdown</h4>
             <p>
-              Toutes les pages (hors corbeille) dans une archive .zip : un fichier .md par page, un
-              dossier par page ayant des sous-pages, liens entre pages conservés. Une seule page :
-              menu « ⋯ » de la page dans la barre latérale.
+              Toutes les pages (hors corbeille) dans une archive .zip : un fichier .md par page,
+              images comprises, un dossier par page ayant des sous-pages, liens entre pages
+              conservés. Une seule page : menu « ⋯ » de la page dans la barre latérale.
             </p>
             <button disabled={busy} onClick={() => void exportPage(null)}>
               Exporter toutes les pages…
@@ -87,11 +87,14 @@ function ImportReport({
     notes.push(
       `Liens entre pages : ${summary.linksResolved} conservés, ${summary.linksUnresolved} vers du contenu absent de l’export (texte gardé).`
     )
-  if (summary.tablesFlattened)
-    notes.push(`${summary.tablesFlattened} tableau(x) converti(s) en lignes de texte.`)
-  if (summary.imagesIgnored || summary.attachmentsIgnored)
+  if (summary.imagesImported) notes.push(`${summary.imagesImported} image(s) importée(s).`)
+  if (summary.imagesMissing)
     notes.push(
-      `Images et pièces jointes non importées : ${summary.imagesIgnored} image(s) référencée(s), ${summary.attachmentsIgnored} fichier(s) dans l’export.`
+      `${summary.imagesMissing} image(s) non reprise(s) : absente(s) de l’export, illisible(s) ou distante(s) (gardée(s) en lien).`
+    )
+  if (summary.attachmentsIgnored)
+    notes.push(
+      `${summary.attachmentsIgnored} autre(s) fichier(s) de l’export non importé(s) (PDF, pièces jointes…).`
     )
   return (
     <div className="import-report">

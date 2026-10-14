@@ -2,6 +2,7 @@
 import { Extension, type Editor, type Range } from '@tiptap/core'
 import Suggestion, { exitSuggestion, type SuggestionProps } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
+import { pickImages } from './images'
 
 export interface SlashItem {
   title: string
@@ -67,6 +68,33 @@ export const SLASH_ITEMS: SlashItem[] = [
     hint: 'Bloc de code',
     keywords: ['code', 'snippet'],
     run: (e, r) => chain(e, r).toggleCodeBlock().run()
+  },
+  {
+    title: 'Image',
+    hint: 'Depuis un fichier',
+    keywords: ['image', 'photo', 'picture', 'img'],
+    run: (e, r) => {
+      chain(e, r).run()
+      pickImages(e)
+    }
+  },
+  {
+    title: 'Tableau',
+    hint: 'Lignes et colonnes',
+    keywords: ['table', 'tableau', 'grille'],
+    run: (e, r) => chain(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+  },
+  {
+    title: 'Toggle',
+    hint: 'Contenu repliable',
+    keywords: ['toggle', 'details', 'replier', 'accordeon'],
+    run: (e, r) => chain(e, r).setDetails().run()
+  },
+  {
+    title: 'Callout',
+    hint: 'Encadré avec icône',
+    keywords: ['callout', 'encadre', 'note', 'aside'],
+    run: (e, r) => chain(e, r).setCallout().run()
   },
   {
     title: 'Séparateur',

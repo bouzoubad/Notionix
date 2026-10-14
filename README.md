@@ -14,7 +14,7 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 - **Importez votre Notion** : un export « Markdown & CSV » (`.zip` ou dossier) devient des pages Notionix, hiérarchie et liens entre pages compris. Réimport sans doublon, sans jamais écraser vos modifications.
 - **Exportez quand vous voulez** : tout (ou une page et ses sous-pages) en Markdown, dans l'organisation d'un export Notion.
 - **Local d'abord** : aucun compte, aucun jeton, aucune connexion ; tout est dans une base SQLite sur votre machine.
-- **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, menu `/`.
+- **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, tableaux, images (stockées en local), callouts, toggles ; menu `/`, menu de mise en forme sur la sélection, blocs déplaçables à la poignée ⋮⋮.
 - **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K`), favoris, corbeille.
 - **Thème clair et sombre** selon le système.
 
@@ -31,13 +31,13 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 **Ce qui est repris**
 
 - Hiérarchie reconstruite depuis les dossiers (`Page <id>.md` + dossier `Page <id>/`), sous une page « Importé de Notion (date) ».
-- Titres, paragraphes, gras/italique/barré/souligné/code, listes imbriquées, tâches, citations, blocs de code, séparateurs, callouts (en citation), toggles (titre en gras suivi du contenu).
+- Titres, paragraphes, gras/italique/barré/souligné/code, listes imbriquées, tâches, citations, blocs de code, séparateurs, **tableaux**, **images** (copiées dans Notionix), **callouts** avec leur icône, **toggles**.
 - Liens entre pages, cliquables dans l'éditeur (liens `notion.so` vers une page de l'export inclus). Les schémas non sûrs (`javascript:`…) sont retirés.
 - Lignes de base de données : importées comme sous-pages, propriétés en tête de page (`**Statut :** …`).
 - **Réimport sans doublon** : l'identifiant Notion est mémorisé ; une page déjà importée n'est jamais écrasée, seules les nouvelles pages sont ajoutées à leur parent.
 - Un **rapport d'import** détaille à l'écran ce qui n'a pas pu être repris.
 
-**Ce qui ne l'est pas encore** : images et pièces jointes (pas de bloc image dans Notionix), tableaux (convertis en lignes de texte), propriétés typées et vues des bases de données (réduites à des pages simples), icônes et couvertures (absentes de l'export Markdown de Notion). Les blocs image, tableau et base de données arrivent avec les phases 2 et 3.
+**Ce qui ne l'est pas encore** : pièces jointes autres que des images (PDF…), images distantes (gardées en lien, rien n'est téléchargé), propriétés typées et vues des bases de données (réduites à des pages simples, phase 3), icônes et couvertures (absentes de l'export Markdown de Notion).
 
 > Le format d'export Notion est implémenté d'après sa structure documentée et testé sur des archives de test ; il n'a pas encore été confronté à un vrai export volumineux, d'où le rapport d'import. Un export de votre espace qui se comporte mal : ouvrez une issue avec le rapport.
 
@@ -71,7 +71,7 @@ npm run typecheck && npm run lint
 
 - Pages imbriquées, arbre en sidebar, glisser-déposer pour réordonner ou imbriquer, favoris, duplication (sous-pages incluses), fil d'Ariane.
 - Corbeille : sous-arbre mis à la corbeille ensemble, restauration, suppression définitive.
-- Éditeur de blocs (TipTap) : titres, listes à puces/numérotées/tâches, citation, code avec coloration, séparateur, liens ; menu `/`.
+- Éditeur de blocs (TipTap) : titres, listes à puces/numérotées/tâches, citation, code avec coloration, séparateur, liens, tableaux (lignes/colonnes, en-tête, redimensionnement), images (fichier, coller, glisser ; stockage local par empreinte SHA-256 servi par le protocole `notionix-asset://`), callouts à icône, toggles ; menu `/`, menu flottant de mise en forme et de tableau, poignée de déplacement des blocs.
 - Recherche plein texte (titre + corps) via `Cmd/Ctrl+K`.
 - Sauvegarde automatique (debounce 400 ms), thème clair/sombre selon le système.
 - Import d'un export Notion (Markdown & CSV) et export Markdown, voir « Migrer depuis Notion ».
@@ -88,7 +88,8 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 ## TODO
 
-- Phase 2 : blocs supplémentaires (callout, toggle, tableau, image, embeds ; permettra aussi d'importer images et tableaux de Notion), menu de formatage flottant, drag-and-drop de blocs, icônes et couvertures choisies par l'utilisateur.
+- Valider l'import sur un vrai export Notion (rapport d'import à l'appui) et ajuster le format si besoin.
+- Phase 2 (en cours) : faite pour tableaux, images, callouts, toggles, menu de mise en forme, déplacement des blocs ; reste les icônes et couvertures de pages. Embeds (YouTube…) reportés : ils supposent du réseau.
 - Phase 3 : bases de données (propriétés typées, vues table/board/liste/calendrier/galerie, filtres, tris, relations), templates.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
 - Plus tard : sync et en ligne (contenu aujourd'hui stocké comme un document TipTap JSON par page ; une sync fine par bloc demandera un modèle de blocs ou un CRDT).

@@ -821,3 +821,128 @@ main {
   font: inherit;
   outline: 0;
 }
+
+/* Page icon and cover */
+.page-cover {
+  position: relative;
+  height: 30vh;
+  max-height: 280px;
+  min-height: 140px;
+  background-size: cover;
+  background-position: center;
+}
+.cover-controls {
+  position: absolute;
+  right: 24px;
+  bottom: 12px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.page-cover:hover .cover-controls {
+  opacity: 1;
+}
+.cover-controls button {
+  background: var(--bg);
+  color: var(--text);
+  padding: 4px 10px;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+}
+.cover-controls button:hover {
+  background: var(--bg);
+  filter: brightness(0.96);
+}
+.page-cover .cover-picker {
+  right: 24px;
+  top: auto;
+  bottom: 48px;
+  left: auto;
+}
+.page-head {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 96px 0;
+  position: relative;
+}
+.page-head.with-cover {
+  padding-top: 0;
+}
+.page-head + .page-body {
+  padding-top: 4px;
+}
+.page-icon-wrap {
+  position: relative;
+  display: inline-block;
+}
+.page-icon {
+  font-size: 64px;
+  line-height: 1.1;
+  padding: 4px;
+}
+.page-head.with-cover .page-icon {
+  margin-top: -42px;
+}
+.page-head-actions {
+  display: flex;
+  gap: 4px;
+  min-height: 28px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.page:hover .page-head-actions {
+  opacity: 1;
+}
+.page-head-actions button {
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+}
+.picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  border-radius: 8px;
+}
+.picker-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin: 2px 0 6px;
+}
+.picker-actions button {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 32px);
+  gap: 2px;
+}
+.emoji-grid button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 20px;
+}
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 110px);
+  gap: 6px;
+}
+.cover-grid button {
+  height: 56px;
+  border-radius: 6px;
+  background-size: cover;
+}
+.cover-grid button:hover {
+  filter: brightness(0.92);
+}
+.page-head-actions:empty {
+  display: none;
+}

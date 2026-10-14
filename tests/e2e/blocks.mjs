@@ -40,9 +40,19 @@ const slash = async (query, item) => {
 // formatting bubble on a selection
 await win.keyboard.type('Texte important')
 await win.keyboard.press('Shift+Home')
+// The menu appears ~250 ms after the selection, then the autosave (400 ms after typing)
+// re-renders the page: the menu must still be there afterwards.
+await win.waitForTimeout(800)
+assert.ok(
+  await win.locator('.bubble').isVisible(),
+  'formatting menu hidden by the autosave re-render'
+)
 await win.locator('.bubble').getByRole('button', { name: 'B', exact: true }).click()
 await win.locator('.editor p strong', { hasText: 'Texte important' }).waitFor()
 await win.keyboard.press('ArrowRight') // collapse the selection at its end (End only scrolls on macOS)
+// ProseMirror learns about the native selection change on the next selectionchange event;
+// an instant Enter would still see the old selection and replace the text.
+await win.waitForTimeout(100)
 await win.keyboard.press('Enter')
 
 // callout with a chosen icon
@@ -95,6 +105,17 @@ assert.equal(
   1,
   `callout not moved first: ${after}`
 )
+// page icon and gradient cover
+await win.locator('.page').hover()
+await win.getByRole('button', { name: 'Ajouter une icône' }).click()
+await win.locator('.page-icon').click()
+await win.locator('.emoji-grid button', { hasText: '🚀' }).click()
+assert.equal(await win.locator('.page-icon').innerText(), '🚀')
+await win.locator('.page').hover()
+await win.getByRole('button', { name: 'Ajouter une couverture' }).click()
+await win.getByRole('button', { name: 'Dégradé 4' }).click()
+await win.locator('.page-cover').waitFor()
+await win.locator('.row', { hasText: '🚀' }).waitFor()
 await win.waitForTimeout(700)
 await app.close()
 
@@ -107,6 +128,8 @@ win = await app.firstWindow()
 await win.locator('.editor table').waitFor()
 assert.equal(await win.locator('.editor table tr').count(), 4)
 assert.equal(await win.locator('.callout-icon').innerText(), '⚠️')
+assert.equal(await win.locator('.page-icon').innerText(), '🚀')
+await win.locator('.page-cover').waitFor()
 assert.equal(await win.locator('.editor div[data-type="details"]').count(), 1)
 await win.waitForFunction(() => document.querySelector('.editor img')?.naturalWidth === 1)
 await win.screenshot({ path: join(tmp, 'blocks.png') })

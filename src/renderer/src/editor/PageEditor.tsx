@@ -11,6 +11,7 @@ import { InteractiveCallout } from './CalloutView'
 import { BlockHandle } from './blockHandle'
 import { TableBubbleMenu, TextBubbleMenu } from './BubbleMenus'
 import { IMAGE_TYPES, insertImages } from './images'
+import { PageDecorations } from '../components/PageDecorations'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -96,6 +97,7 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
           {summary?.icon ?? ''} {title || 'Sans titre'}
         </span>
       </div>
+      {summary && <PageDecorations page={summary} />}
       <div className="page-body">
         <input
           className="page-title"

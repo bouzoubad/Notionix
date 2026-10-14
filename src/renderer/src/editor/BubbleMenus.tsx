@@ -6,6 +6,19 @@ import { NodeSelection } from '@tiptap/pm/state'
 
 const SAFE_LINK = /^(https?:|mailto:|tel:|notionix:)/i
 
+type ShouldShow = NonNullable<React.ComponentProps<typeof BubbleMenu>['shouldShow']>
+
+// Module-level so they keep the same identity across renders: BubbleMenu hides
+// itself whenever these props change, e.g. when an autosave re-renders the page.
+const showTextMenu: ShouldShow = ({ editor, state, from, to }) =>
+  editor.isEditable &&
+  from !== to &&
+  !(state.selection instanceof NodeSelection) &&
+  !editor.isActive('codeBlock')
+const showTableMenu: ShouldShow = ({ editor }) => editor.isEditable && editor.isActive('table')
+const TEXT_MENU_OPTIONS = { placement: 'top' } as const
+const TABLE_MENU_OPTIONS = { placement: 'top-start' } as const
+
 /** Formatting toolbar shown on a text selection, Notion-style. */
 export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
   const [linking, setLinking] = useState(false)
@@ -50,13 +63,8 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
     <BubbleMenu
       editor={editor}
       pluginKey="textMenu"
-      shouldShow={({ editor: e, state: s, from, to }) =>
-        e.isEditable &&
-        from !== to &&
-        !(s.selection instanceof NodeSelection) &&
-        !e.isActive('codeBlock')
-      }
-      options={{ placement: 'top' }}
+      shouldShow={showTextMenu}
+      options={TEXT_MENU_OPTIONS}
       className="bubble"
     >
       {linking ? (
@@ -105,8 +113,8 @@ export function TableBubbleMenu({ editor }: { editor: Editor }): React.JSX.Eleme
     <BubbleMenu
       editor={editor}
       pluginKey="tableMenu"
-      shouldShow={({ editor: e }) => e.isEditable && e.isActive('table')}
-      options={{ placement: 'top-start' }}
+      shouldShow={showTableMenu}
+      options={TABLE_MENU_OPTIONS}
       className="bubble"
     >
       {run('+ Ligne', () => editor.chain().focus().addRowAfter().run())}

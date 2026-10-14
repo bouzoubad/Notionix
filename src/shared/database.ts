@@ -215,7 +215,13 @@ export function parseSchema(raw: unknown): DatabaseSchema {
       type,
       filterMode: v.filterMode === 'or' ? 'or' : 'and',
       filters: (Array.isArray(v.filters) ? v.filters : []).flatMap((f) =>
-        isRecord(f) && ids.has(str(f.propertyId)) && typeof f.operator === 'string'
+        // A filter whose operator does not suit the property type (e.g. after a type
+        // change) is dropped instead of silently matching every row.
+        isRecord(f) &&
+        ids.has(str(f.propertyId)) &&
+        operatorsFor(properties.find((p) => p.id === str(f.propertyId))!.type).some(
+          (o) => o.op === f.operator
+        )
           ? [
               {
                 id: str(f.id) || newId(),
@@ -433,8 +439,9 @@ export function operatorsFor(type: PropertyType): { op: FilterOperator; label: s
       ]
     case 'select':
       return [{ op: 'equals', label: 'est' }, { op: 'not_equals', label: 'n’est pas' }, ...empty]
-    case 'multi_select':
     case 'relation':
+      return empty
+    case 'multi_select':
       return [
         { op: 'contains', label: 'contient' },
         { op: 'not_contains', label: 'ne contient pas' },

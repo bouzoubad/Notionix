@@ -12,6 +12,7 @@ import { BlockHandle } from './blockHandle'
 import { TableBubbleMenu, TextBubbleMenu } from './BubbleMenus'
 import { IMAGE_TYPES, insertImages } from './images'
 import { PageDecorations } from '../components/PageDecorations'
+import { RowProperties } from '../database/RowProperties'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -38,6 +39,7 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
   const open = useStore((s) => s.open)
   const summary = pages.find((p) => p.id === page.id)
   const [title, setTitle] = useState(page.title)
+  const isRow = pages.some((p) => p.id === page.parentId && p.kind === 'database')
   const pending = useRef<{ content?: string; title?: string }>({})
   const timer = useRef<number | undefined>(undefined)
 
@@ -118,6 +120,7 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
             }
           }}
         />
+        {isRow && <RowProperties rowId={page.id} />}
         <EditorContent editor={editor} className="editor" />
         {editor && <TextBubbleMenu editor={editor} />}
         {editor && <TableBubbleMenu editor={editor} />}

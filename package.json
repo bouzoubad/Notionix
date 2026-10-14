@@ -19,7 +19,7 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "test": "vitest run",
-    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs && node tests/e2e/blocks.mjs"
+    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs && node tests/e2e/blocks.mjs && node tests/e2e/database.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

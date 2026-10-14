@@ -5,11 +5,13 @@ import { SearchDialog } from './components/SearchDialog'
 import { TrashDialog } from './components/TrashDialog'
 import { TransferDialog } from './components/TransferDialog'
 import { PageEditor } from './editor/PageEditor'
+import { DatabasePage } from './database/DatabasePage'
 import { Logo } from './components/Logo'
 
 export default function App(): React.JSX.Element {
   const load = useStore((s) => s.load)
   const currentId = useStore((s) => s.currentId)
+  const current = useStore((s) => s.pages.find((p) => p.id === s.currentId))
   const searchOpen = useStore((s) => s.searchOpen)
   const trashOpen = useStore((s) => s.trashOpen)
   const transferOpen = useStore((s) => s.transferOpen)
@@ -33,7 +35,9 @@ export default function App(): React.JSX.Element {
     <div className="app">
       <Sidebar />
       <main>
-        {currentId ? (
+        {current?.kind === 'database' ? (
+          <DatabasePage key={current.id} page={current} />
+        ) : currentId ? (
           <PageEditor pageId={currentId} />
         ) : (
           <div className="blank">

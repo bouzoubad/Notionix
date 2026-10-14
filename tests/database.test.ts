@@ -241,6 +241,20 @@ describe('schema and conversions', () => {
     expect(parsed.properties.map((p) => p.id)).toEqual(['title', 'p'])
     expect(parsed.views[0]).toMatchObject({ groupBy: null, hidden: ['p'], sorts: [] })
     expect(parseSchema('not json').views).toHaveLength(1)
+    const mismatched = parseSchema({
+      properties: [{ id: 'p', name: 'P', type: 'text' }],
+      views: [
+        {
+          id: 'v',
+          type: 'table',
+          filters: [
+            { id: 'f', propertyId: 'p', operator: 'gte', value: 3 },
+            { id: 'g', propertyId: 'p', operator: 'contains', value: 'x' }
+          ]
+        }
+      ]
+    })
+    expect(mismatched.views[0].filters.map((f) => f.id)).toEqual(['g'])
   })
 
   it('converts text to select (creating options), select to text and text to number', () => {

@@ -13,6 +13,10 @@ interface State {
   open: (id: PageId | null) => void
   toggle: (id: PageId) => void
   createPage: (parentId: PageId | null) => Promise<void>
+  createDatabase: (parentId: PageId | null) => Promise<PageId>
+  createRow: (databaseId: PageId) => Promise<void>
+  /** Creates a database under `parentId` without leaving the page, then calls `link` with its id */
+  createDatabaseAndLink: (parentId: PageId | null, link: (id: PageId) => void) => Promise<void>
   patch: (id: PageId, patch: PagePatch) => Promise<void>
   move: (id: PageId, parentId: PageId | null, index: number) => Promise<void>
   trash: (id: PageId) => Promise<void>
@@ -59,6 +63,27 @@ export const useStore = create<State>((set, get) => ({
     const expanded = { ...get().expanded, [id]: !get().expanded[id] }
     localStorage.setItem('expanded', JSON.stringify(expanded))
     set({ expanded })
+  },
+  createDatabase: async (parentId) => {
+    const page = await window.api.databases.create(parentId)
+    await get().load()
+    get().open(page.id)
+    return page.id
+  },
+  createDatabaseAndLink: async (parentId, link) => {
+    const page = await window.api.databases.create(parentId)
+    if (parentId) {
+      const expanded = { ...get().expanded, [parentId]: true }
+      localStorage.setItem('expanded', JSON.stringify(expanded))
+      set({ expanded })
+    }
+    await get().load()
+    link(page.id)
+  },
+  createRow: async (databaseId) => {
+    const row = await window.api.databases.createRow(databaseId, {})
+    await get().load()
+    get().open(row.id)
   },
   createPage: async (parentId) => {
     const page = await api.create(parentId)
@@ -109,7 +134,13 @@ export const useStore = create<State>((set, get) => ({
   }
 }))
 
+/** Child pages shown in the tree; rows of a database are reached through its views instead. */
 export const childrenOf = (pages: PageSummary[], parentId: PageId | null): PageSummary[] =>
+  parentId !== null && pages.some((p) => p.id === parentId && p.kind === 'database')
+    ? []
+    : directChildren(pages, parentId)
+
+const directChildren = (pages: PageSummary[], parentId: PageId | null): PageSummary[] =>
   pages
     .filter((p) => p.parentId === parentId && !p.trashedAt)
     .sort((a, b) => a.position - b.position)

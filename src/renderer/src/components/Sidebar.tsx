@@ -11,6 +11,7 @@ export function Sidebar(): React.JSX.Element {
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const setTrashOpen = useStore((s) => s.setTrashOpen)
   const setTransferOpen = useStore((s) => s.setTransferOpen)
+  const createDatabase = useStore((s) => s.createDatabase)
   const [drag, setDrag] = useState<string | null>(null)
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
@@ -20,6 +21,7 @@ export function Sidebar(): React.JSX.Element {
 
   const dropOn = (target: PageSummary, where: 'before' | 'inside' | 'after'): void => {
     if (!drag || drag === target.id) return
+    if (where === 'inside' && target.kind === 'database') return // rows are added from the database
     if (where === 'inside') {
       void move(drag, target.id, childrenOf(pages, target.id).length)
     } else {
@@ -40,6 +42,7 @@ export function Sidebar(): React.JSX.Element {
           Rechercher <kbd>⌘K</kbd>
         </button>
         <button onClick={() => void createPage(null)}>+ Nouvelle page</button>
+        <button onClick={() => void createDatabase(null)}>+ Nouvelle base de données</button>
       </div>
       {favorites.length > 0 && (
         <section>
@@ -105,6 +108,7 @@ function Row(props: RowProps): React.JSX.Element {
   const patch = useStore((s) => s.patch)
   const trash = useStore((s) => s.trash)
   const duplicate = useStore((s) => s.duplicate)
+  const createRow = useStore((s) => s.createRow)
   const exportPage = useStore((s) => s.exportPage)
   const [menu, setMenu] = useState(false)
   const kids = flat ? [] : childrenOf(pages, page.id)
@@ -152,14 +156,19 @@ function Row(props: RowProps): React.JSX.Element {
             {expanded ? '▾' : '▸'}
           </button>
         )}
-        <span className="icon">{page.icon ?? '📄'}</span>
+        <span className="icon">{page.icon ?? (page.kind === 'database' ? '🗃️' : '📄')}</span>
         <span className="label">{page.title || 'Sans titre'}</span>
         {!flat && (
           <span className="row-actions" onClick={(e) => e.stopPropagation()}>
             <button title="Plus" onClick={() => setMenu(!menu)}>
               ⋯
             </button>
-            <button title="Sous-page" onClick={() => void createPage(page.id)}>
+            <button
+              title={page.kind === 'database' ? 'Nouvelle ligne' : 'Sous-page'}
+              onClick={() =>
+                void (page.kind === 'database' ? createRow(page.id) : createPage(page.id))
+              }
+            >
               +
             </button>
           </span>

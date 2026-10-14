@@ -322,6 +322,27 @@ export async function planNotionImport(
   }
   if (relationsFound) warnings.push(`${relationsFound} relation(s) entre bases reconstruite(s).`)
 
+  /**
+   * Notion writes a database shown inside a page as a link to its CSV on its
+   * own line. Such a paragraph becomes an inline database block when the
+   * database belongs to this page; other links to databases stay links.
+   */
+  const inlineDatabases = (doc: JsonNode, page: PlanNode): void => {
+    const own = new Map(
+      [...nodes.values()]
+        .filter((n) => n.kind === 'database' && n.parentKey === page.key)
+        .map((n) => [pageLinkHref(n.id), n.id])
+    )
+    if (own.size === 0 || !doc.content) return
+    doc.content = doc.content.map((block) => {
+      const only =
+        block.type === 'paragraph' && block.content?.length === 1 ? block.content[0] : null
+      const href = only?.marks?.find((m) => m.type === 'link')?.attrs?.href
+      const databaseId = typeof href === 'string' ? own.get(href) : undefined
+      return databaseId ? { type: 'databaseView', attrs: { databaseId } } : block
+    })
+  }
+
   // --- Pages
   const stats = newStats()
   const ordered = [...nodes.values()].sort(
@@ -352,6 +373,7 @@ export async function planNotionImport(
     const dir = splitPath(node.file.path).dir
     const doc = markdownToDoc(page.body, resolveHref(dir), stats)
     await resolveImages(doc, dir)
+    inlineDatabases(doc, node)
     const canonical = canonicalDoc(doc)
     if (!canonical) {
       warnings.push(

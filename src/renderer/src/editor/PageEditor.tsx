@@ -13,6 +13,7 @@ import { TableBubbleMenu, TextBubbleMenu } from './BubbleMenus'
 import { IMAGE_TYPES, insertImages } from './images'
 import { PageDecorations } from '../components/PageDecorations'
 import { RowProperties } from '../database/RowProperties'
+import { InteractiveDatabaseView } from '../database/InlineDatabase'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -58,7 +59,10 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
 
   const editor = useEditor({
     extensions: [
-      ...createDocumentExtensions(lowlight, { callout: InteractiveCallout }),
+      ...createDocumentExtensions(lowlight, {
+        callout: InteractiveCallout,
+        databaseView: InteractiveDatabaseView
+      }),
       FileHandler.configure({
         allowedMimeTypes: IMAGE_TYPES,
         onPaste: (editor, files) => void insertImages(editor, files),

@@ -339,3 +339,61 @@ describe('relations', () => {
     ).toEqual([1, 2, 0])
   })
 })
+
+describe('inline databases', () => {
+  it('turns a page’s own database link into an inline block, and back on export', async () => {
+    const fresh = (): { pages: PageRepository; dbs: DatabaseRepository } => {
+      const db = new DatabaseSync(':memory:')
+      db.exec('PRAGMA foreign_keys = ON;')
+      migrate(db)
+      const pages = new PageRepository(db)
+      return { pages, dbs: new DatabaseRepository(pages) }
+    }
+    const home = 'a'.repeat(32)
+    const tasks = 'b'.repeat(32)
+    const other = 'c'.repeat(32)
+    const zip = join(mkdtempSync(join(tmpdir(), 'nx-inline-')), 'export.zip')
+    writeFileSync(
+      zip,
+      zipSync({
+        [`Accueil ${home}.md`]: strToU8(
+          `# Accueil\n\nAvant\n\n[Tâches](Accueil%20${home}/T%C3%A2ches%20${tasks}.csv)\n\nVoir aussi [Contacts](Contacts%20${other}.csv)\n`
+        ),
+        [`Accueil ${home}/Tâches ${tasks}.csv`]: strToU8('Name,Status\nA,Todo\n'),
+        [`Contacts ${other}.csv`]: strToU8('Name\nBob\n')
+      })
+    )
+    const a = fresh()
+    await importNotionExport(a.pages, zip, null)
+    const accueil = a.pages.list().find((p) => p.title === 'Accueil')!
+    const tasksDb = a.pages.list().find((p) => p.title === 'Tâches')!
+    const contacts = a.pages.list().find((p) => p.title === 'Contacts')!
+    const doc = JSON.parse(a.pages.get(accueil.id)!.content)
+    expect(doc.content.map((n: { type: string }) => n.type)).toEqual([
+      'paragraph',
+      'databaseView',
+      'paragraph'
+    ])
+    expect(doc.content[1].attrs.databaseId).toBe(tasksDb.id)
+    expect(tasksDb.parentId).toBe(accueil.id)
+    expect(JSON.stringify(doc.content[2])).toContain(`notionix://page/${contacts.id}`) // not this page's database
+
+    const { files, attachments } = await exportPagesAsMarkdown(
+      a.pages.list(),
+      (id) => a.pages.get(id),
+      async () => null,
+      null,
+      (id) => a.dbs.get(id)
+    )
+    const md = files.find((f) => f.path.endsWith('/Accueil.md'))!.markdown
+    expect(md).toContain('[Tâches](Accueil/T%C3%A2ches.csv)')
+    const b = fresh()
+    const zip2 = join(mkdtempSync(join(tmpdir(), 'nx-inline2-')), 'export.zip')
+    writeFileSync(zip2, zipMarkdown(files, attachments))
+    await importNotionExport(b.pages, zip2, null)
+    const again = b.pages.list().find((p) => p.title === 'Accueil')!
+    expect(
+      JSON.parse(b.pages.get(again.id)!.content).content.map((n: { type: string }) => n.type)
+    ).toContain('databaseView')
+  })
+})

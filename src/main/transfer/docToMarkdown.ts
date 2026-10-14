@@ -9,6 +9,7 @@ export type ImageResolver = (src: string) => string | null
 interface Resolvers {
   page: PageLinkResolver
   image: ImageResolver
+  title: (pageId: string) => string | undefined
 }
 
 const INLINE_ESCAPE = /([\\`*_[\]<>~])/g
@@ -23,9 +24,10 @@ const BULLET_LISTS = new Set(['bulletList', 'taskList'])
 export function docToMarkdown(
   doc: JsonNode,
   linkTo: PageLinkResolver = () => null,
-  imageTo: ImageResolver = () => null
+  imageTo: ImageResolver = () => null,
+  titleOf: (pageId: string) => string | undefined = () => undefined
 ): string {
-  return blocks(doc.content ?? [], { page: linkTo, image: imageTo })
+  return blocks(doc.content ?? [], { page: linkTo, image: imageTo, title: titleOf })
     .join('\n\n')
     .trimEnd()
 }
@@ -91,6 +93,13 @@ function block(node: JsonNode, r: Resolvers, alternate = false): string {
     }
     case 'table':
       return table(node, r)
+    case 'databaseView': {
+      // Notion's layout for a database inside a page: a link to its CSV on its own line.
+      const id = String(node.attrs?.databaseId ?? '')
+      const path = r.page(id)
+      const title = escapeInline(r.title(id) || 'Base de données')
+      return path ? `[${title}](${path})` : title
+    }
     case 'callout': {
       // Notion's layout: the icon opens the first line inside <aside>.
       const icon = String(node.attrs?.icon ?? '')

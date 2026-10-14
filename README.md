@@ -34,11 +34,11 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 - Hiérarchie reconstruite depuis les dossiers (`Page <id>.md` + dossier `Page <id>/`), sous une page « Importé de Notion (date) ».
 - Titres, paragraphes, gras/italique/barré/souligné/code, listes imbriquées, tâches, citations, blocs de code, séparateurs, **tableaux**, **images** (copiées dans Notionix), **callouts** avec leur icône, **toggles**.
 - Liens entre pages, cliquables dans l'éditeur (liens `notion.so` vers une page de l'export inclus). Les schémas non sûrs (`javascript:`…) sont retirés.
-- **Bases de données** : chaque CSV devient une vraie base ; le type de chaque colonne est déduit de toutes ses valeurs (case à cocher, nombre, date et plage, URL, e-mail, sélection, multi-sélection, sinon texte) ; chaque ligne retrouve sa page et son contenu.
+- **Bases de données** : chaque CSV devient une vraie base ; le type de chaque colonne est déduit de toutes ses valeurs (case à cocher, nombre, date et plage, URL, e-mail, sélection, multi-sélection, sinon texte) ; chaque ligne retrouve sa page et son contenu, dans l'ordre de la vue Notion ; les **relations** entre bases sont reconstruites (liens « Titre (page) » ou titres) ; une base affichée dans une page reste **affichée dans la page** (bloc base de données inline).
 - **Réimport sans doublon** : l'identifiant Notion est mémorisé ; une page déjà importée n'est jamais écrasée, seules les nouvelles pages sont ajoutées à leur parent.
 - Un **rapport d'import** détaille à l'écran ce qui n'a pas pu être repris.
 
-**Ce qui ne l'est pas encore** : pièces jointes autres que des images (PDF…), images distantes (gardées en lien, rien n'est téléchargé), formules, rollups, relations entre bases et vues des bases Notion (absents du CSV : les relations arrivent en texte), icônes et couvertures (absentes de l'export Markdown de Notion).
+**Ce qui ne l'est pas encore** : pièces jointes autres que des images (PDF…), images distantes (gardées en lien, rien n'est téléchargé), ce que l'export Notion ne contient pas : vues (filtres, tris, regroupements ; un board est proposé s'il y a une sélection), couleurs des options, formules et rollups (leur valeur arrive figée), personnes (en texte), icônes et couvertures (absentes de l'export Markdown de Notion).
 
 > Le format d'export Notion est implémenté d'après sa structure documentée et testé sur des archives de test ; il n'a pas encore été confronté à un vrai export volumineux, d'où le rapport d'import. Un export de votre espace qui se comporte mal : ouvrez une issue avec le rapport.
 
@@ -94,7 +94,7 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 - Valider l'import sur un vrai export Notion (rapport d'import à l'appui) et ajuster le format si besoin.
 - Embeds (YouTube…) : reportés, ils supposent du réseau ; à reprendre avec la phase en ligne.
-- Bases de données, suite : formules et rollups, bases inline dans une page (aujourd'hui : sous-page liée), relations reconstruites à l'import Notion, réordonnancement manuel des lignes dans les vues.
+- Bases de données, suite : formules et rollups, réordonnancement manuel des lignes dans les vues.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
 - Plus tard : sync et en ligne (contenu aujourd'hui stocké comme un document TipTap JSON par page ; une sync fine par bloc demandera un modèle de blocs ou un CRDT).
 

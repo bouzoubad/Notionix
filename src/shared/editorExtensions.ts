@@ -8,6 +8,7 @@ import { TableKit } from '@tiptap/extension-table'
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details'
 import type { createLowlight } from 'lowlight'
 import { Callout } from './callout'
+import { DatabaseView } from './databaseView'
 
 type Lowlight = ReturnType<typeof createLowlight>
 
@@ -22,6 +23,8 @@ export const pageIdFromHref = (href: string): string | null =>
 export interface DocumentExtensionOverrides {
   /** Callout with an interactive node view (renderer only) */
   callout?: AnyExtension
+  /** Inline database rendered with its views (renderer only) */
+  databaseView?: AnyExtension
 }
 
 /**
@@ -49,6 +52,7 @@ export function createDocumentExtensions(
     Details.configure({ persist: true, HTMLAttributes: { class: 'toggle' } }),
     DetailsSummary,
     DetailsContent,
-    overrides.callout ?? Callout
+    overrides.callout ?? Callout,
+    overrides.databaseView ?? DatabaseView
   ]
 }

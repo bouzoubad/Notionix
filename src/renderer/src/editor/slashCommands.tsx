@@ -4,7 +4,6 @@ import Suggestion, { exitSuggestion, type SuggestionProps } from '@tiptap/sugges
 import { ReactRenderer } from '@tiptap/react'
 import { pickImages } from './images'
 import { useStore } from '../store'
-import { pageLinkHref } from '../../../shared/editorExtensions'
 
 export interface SlashItem {
   title: string
@@ -100,27 +99,14 @@ export const SLASH_ITEMS: SlashItem[] = [
   },
   {
     title: 'Base de données',
-    hint: 'Sous-page en base de données',
+    hint: 'Base affichée dans la page',
     keywords: ['database', 'base', 'table', 'bdd', 'tableau'],
     run: (e, r) => {
       chain(e, r).run()
       const parentId = useStore.getState().currentId
-      void useStore.getState().createDatabaseAndLink(parentId, (id) =>
-        e
-          .chain()
-          .focus()
-          .insertContent({
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: '🗃️ Base de données',
-                marks: [{ type: 'link', attrs: { href: pageLinkHref(id) } }]
-              }
-            ]
-          })
-          .run()
-      )
+      void useStore
+        .getState()
+        .createDatabaseAndLink(parentId, (id) => e.chain().focus().insertDatabaseView(id).run())
     }
   },
   {

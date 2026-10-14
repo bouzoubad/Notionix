@@ -1657,3 +1657,40 @@ main {
 button:focus:not(:focus-visible) {
   outline: none;
 }
+
+/* Inline database block */
+.inline-database {
+  margin: 12px 0;
+  padding: 4px 0 8px;
+  border-radius: 4px;
+}
+.inline-database.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.inline-database-title {
+  font-size: 20px;
+  font-weight: 700;
+  padding: 2px 4px;
+  margin-bottom: 2px;
+}
+.inline-database-missing {
+  padding: 12px;
+  color: var(--text-muted);
+  background: var(--bg-sidebar);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.inline-database .db-header {
+  margin-top: 0;
+}
+.inline-database .db-table {
+  font-size: 14px;
+}
+.inline-database .board,
+.inline-database .gallery {
+  padding-bottom: 8px;
+}
+.db-loading {
+  min-height: 120px;
+}

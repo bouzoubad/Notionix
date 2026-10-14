@@ -132,7 +132,8 @@ export async function exportPagesAsMarkdown(
         const target = paths.get(id)
         return target ? relativeLink(fromDir, target) : null
       },
-      (src) => imagePaths.get(src) ?? null
+      (src) => imagePaths.get(src) ?? null,
+      (id) => titles.get(id)
     )
     const heading = `# ${summary.title || 'Sans titre'}`
     const parentDb = databaseOf(summary.parentId)

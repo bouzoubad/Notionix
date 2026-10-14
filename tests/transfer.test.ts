@@ -517,7 +517,9 @@ describe('Markdown export', () => {
       trashedAt: null,
       createdAt: t,
       updatedAt: t,
-      version: 1
+      version: 1,
+      kind: 'page',
+      isTemplate: false
     })
     const summaries = [
       mk('1', null, 'Accueil', 1),

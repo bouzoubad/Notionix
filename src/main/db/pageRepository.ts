@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'crypto'
 import type { Page, PageId, PagePatch, PageSummary, SearchHit } from '../../shared/types'
 import { docToText } from './text'
+import { displayValue, parseRowProperties, parseSchema } from '../../shared/database'
 
 interface Row {
   id: string
@@ -16,10 +17,12 @@ interface Row {
   created_at: number
   updated_at: number
   version: number
+  kind: string
+  is_template: number
 }
 
 const SUMMARY_COLUMNS =
-  'id, parent_id, title, icon, cover, position, favorite, trashed_at, created_at, updated_at, version'
+  'id, parent_id, title, icon, cover, position, favorite, trashed_at, created_at, updated_at, version, kind, is_template'
 
 const EMPTY_DOC = '{"type":"doc","content":[{"type":"paragraph"}]}'
 
@@ -47,15 +50,19 @@ const toSummary = (r: Omit<Row, 'content'>): PageSummary => ({
   trashedAt: r.trashed_at,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
-  version: r.version
+  version: r.version,
+  kind: r.kind === 'database' ? 'database' : 'page',
+  isTemplate: r.is_template === 1
 })
 
 const toPage = (r: Row): Page => ({ ...toSummary(r), content: r.content })
 
 export class PageRepository {
+  private txDepth = 0
+
   constructor(
-    private readonly db: DatabaseSync,
-    private readonly now: () => number = Date.now
+    readonly db: DatabaseSync,
+    readonly now: () => number = Date.now
   ) {}
 
   list(): PageSummary[] {
@@ -110,6 +117,11 @@ export class PageRepository {
   move(id: PageId, parentId: PageId | null, index: number): void {
     if (parentId !== null && (parentId === id || this.descendantIds(id).includes(parentId))) {
       throw new Error('Cannot move a page into itself or its descendants')
+    }
+    const current = this.summary(id)
+    const parent = parentId ? this.summary(parentId) : null
+    if (parent?.kind === 'database' && current.parentId !== parentId) {
+      throw new Error('A page cannot be moved into a database; add a row instead')
     }
     const siblings = (
       this.db
@@ -269,8 +281,12 @@ export class PageRepository {
   private cloneTree(src: Page, parentId: PageId | null, title: string): Page {
     const copy = this.create(parentId)
     this.db
-      .prepare('UPDATE pages SET icon = ?, cover = ? WHERE id = ?')
-      .run(src.icon, src.cover, copy.id)
+      .prepare(
+        `UPDATE pages SET (icon, cover, kind, db_schema, properties, is_template) =
+           (SELECT icon, cover, kind, db_schema, properties, is_template FROM pages WHERE id = ?)
+         WHERE id = ?`
+      )
+      .run(src.id, copy.id)
     this.update(copy.id, { title, content: src.content })
     const children = this.db
       .prepare('SELECT id FROM pages WHERE parent_id = ? AND trashed_at IS NULL ORDER BY position')
@@ -279,7 +295,7 @@ export class PageRepository {
     return this.get(copy.id)!
   }
 
-  private summary(id: PageId): PageSummary {
+  summary(id: PageId): PageSummary {
     const row = this.db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM pages WHERE id = ?`).get(id) as
       Omit<Row, 'content'> | undefined
     if (!row) throw new Error(`Page not found: ${id}`)
@@ -298,18 +314,50 @@ export class PageRepository {
     return rows.map((r) => r.id)
   }
 
-  private reindex(id: PageId): void {
-    const row = this.db.prepare('SELECT title, content FROM pages WHERE id = ?').get(id) as
-      { title: string; content: string } | undefined
+  /** Search text: title and body, plus property values for a database row. */
+  reindex(id: PageId): void {
+    const row = this.db
+      .prepare(
+        `SELECT p.title, p.content, p.properties, d.db_schema AS schema
+         FROM pages p LEFT JOIN pages d ON d.id = p.parent_id AND d.kind = 'database'
+         WHERE p.id = ?`
+      )
+      .get(id) as
+      | { title: string; content: string; properties: string | null; schema: string | null }
+      | undefined
     if (!row) return
+    let body = docToText(row.content)
+    if (row.schema) {
+      const schema = parseSchema(row.schema)
+      const values = parseRowProperties(row.properties, schema)
+      const extra = schema.properties
+        .filter((p) => p.type !== 'relation')
+        .map((p) => displayValue(p, values[p.id] ?? null))
+        .filter(Boolean)
+      if (extra.length) body = `${extra.join(' ')} ${body}`
+    }
     this.db.prepare('DELETE FROM page_fts WHERE id = ?').run(id)
     this.db
       .prepare('INSERT INTO page_fts (id, title, body) VALUES (?, ?, ?)')
-      .run(id, row.title, docToText(row.content))
+      .run(id, row.title, body)
+  }
+
+  /** Runs `fn` atomically; nested calls join the outer transaction. */
+  transaction<T>(fn: () => T): T {
+    return this.inTransaction(fn)
   }
 
   private inTransaction<T>(fn: () => T): T {
+    if (this.txDepth > 0) {
+      this.txDepth += 1
+      try {
+        return fn()
+      } finally {
+        this.txDepth -= 1
+      }
+    }
     this.db.exec('BEGIN')
+    this.txDepth = 1
     try {
       const out = fn()
       this.db.exec('COMMIT')
@@ -317,6 +365,8 @@ export class PageRepository {
     } catch (e) {
       this.db.exec('ROLLBACK')
       throw e
+    } finally {
+      this.txDepth = 0
     }
   }
 }

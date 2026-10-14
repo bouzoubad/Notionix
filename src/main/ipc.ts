@@ -3,6 +3,7 @@ import type { BrowserWindow, Dialog, IpcMain } from 'electron'
 import type { ExportSummary, ImportSummary } from '../shared/types'
 import type { PageRepository } from './db/pageRepository'
 import type { AssetStore } from './assets'
+import type { DatabaseRepository } from './db/databaseRepository'
 import { exportPagesAsMarkdown, safeName, zipMarkdown } from './transfer/markdownExport'
 import { importNotionExport } from './transfer/notionImport'
 
@@ -24,6 +25,25 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
 export interface TransferDeps {
   dialog: Pick<Dialog, 'showOpenDialog' | 'showSaveDialog'>
   getWindow: () => BrowserWindow | null
+}
+
+export function registerDatabaseHandlers(ipc: IpcMain, dbs: DatabaseRepository): void {
+  ipc.handle('databases:create', (_e, parentId: string | null) => dbs.create(parentId))
+  ipc.handle('databases:get', (_e, id: string) => dbs.get(id))
+  ipc.handle('databases:getRow', (_e, rowId: string) => dbs.getRow(rowId))
+  ipc.handle('databases:updateSchema', (_e, id: string, schema: unknown) =>
+    dbs.updateSchema(id, schema)
+  )
+  ipc.handle('databases:createRow', (_e, id: string, init) => dbs.createRow(id, init ?? {}))
+  ipc.handle('databases:updateRow', (_e, rowId: string, values) =>
+    dbs.updateRow(rowId, values ?? {})
+  )
+  ipc.handle('databases:setTemplate', (_e, rowId: string, flag: boolean) =>
+    dbs.setTemplate(rowId, flag === true)
+  )
+  ipc.handle('databases:changePropertyType', (_e, id: string, propertyId: string, type) =>
+    dbs.changePropertyType(id, propertyId, type)
+  )
 }
 
 export function registerAssetHandlers(ipc: IpcMain, assets: AssetStore): void {

@@ -17,6 +17,17 @@ const api: NotionixApi = {
     duplicate: (id) => call('pages:duplicate', id),
     search: (q) => call('pages:search', q)
   },
+  databases: {
+    create: (parentId) => call('databases:create', parentId),
+    get: (id) => call('databases:get', id),
+    getRow: (rowId) => call('databases:getRow', rowId),
+    updateSchema: (id, schema) => call('databases:updateSchema', id, schema),
+    createRow: (id, init) => call('databases:createRow', id, init),
+    updateRow: (rowId, values) => call('databases:updateRow', rowId, values),
+    setTemplate: (rowId, flag) => call('databases:setTemplate', rowId, flag),
+    changePropertyType: (id, propertyId, type) =>
+      call('databases:changePropertyType', id, propertyId, type)
+  },
   assets: {
     save: (bytes, name) => call('assets:save', bytes, name)
   },

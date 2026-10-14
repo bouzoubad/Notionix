@@ -1,3 +1,5 @@
+import type { DatabaseRow, DatabaseSchema, PropertyType, PropertyValue } from './database'
+
 export type PageId = string
 
 export interface Page {
@@ -15,6 +17,31 @@ export interface Page {
   updatedAt: number
   /** Monotonic per-row counter, reserved for future sync */
   version: number
+  /** A database page shows its rows (child pages) through views */
+  kind: PageKind
+  /** Database row used as a template for new rows */
+  isTemplate: boolean
+}
+
+export type PageKind = 'page' | 'database'
+
+export interface DatabaseData {
+  id: PageId
+  schema: DatabaseSchema
+  rows: DatabaseRow[]
+}
+
+export interface RowData {
+  databaseId: PageId
+  schema: DatabaseSchema
+  row: DatabaseRow
+}
+
+export interface NewRow {
+  title?: string
+  properties?: Record<string, PropertyValue>
+  /** Copies content, icon and values of this template row */
+  templateId?: PageId | null
 }
 
 export type PageSummary = Omit<Page, 'content'>
@@ -71,6 +98,20 @@ export interface NotionixApi {
     deleteForever(id: PageId): Promise<void>
     duplicate(id: PageId): Promise<Page>
     search(query: string): Promise<SearchHit[]>
+  }
+  databases: {
+    create(parentId: PageId | null): Promise<PageSummary>
+    get(id: PageId): Promise<DatabaseData | null>
+    getRow(rowId: PageId): Promise<RowData | null>
+    updateSchema(id: PageId, schema: DatabaseSchema): Promise<DatabaseSchema>
+    createRow(databaseId: PageId, init: NewRow): Promise<DatabaseRow>
+    updateRow(rowId: PageId, values: Record<string, PropertyValue>): Promise<DatabaseRow>
+    setTemplate(rowId: PageId, isTemplate: boolean): Promise<void>
+    changePropertyType(
+      databaseId: PageId,
+      propertyId: string,
+      type: PropertyType
+    ): Promise<DatabaseSchema>
   }
   assets: {
     /** Stores an image locally and returns its src (notionix-asset://…) */

@@ -21,7 +21,12 @@ const MIGRATIONS: string[] = [
    CREATE VIRTUAL TABLE page_fts USING fts5(id UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2');`,
   // Provenance of imported pages (e.g. 'notion:<32 hex id>'), so a re-import skips them.
   `ALTER TABLE pages ADD COLUMN source TEXT;
-   CREATE UNIQUE INDEX pages_source ON pages(source) WHERE source IS NOT NULL;`
+   CREATE UNIQUE INDEX pages_source ON pages(source) WHERE source IS NOT NULL;`,
+  // Databases: a page of kind 'database' holds the schema; its child pages are rows.
+  `ALTER TABLE pages ADD COLUMN kind TEXT NOT NULL DEFAULT 'page';
+   ALTER TABLE pages ADD COLUMN db_schema TEXT;
+   ALTER TABLE pages ADD COLUMN properties TEXT;
+   ALTER TABLE pages ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0;`
 ]
 
 export function openDatabase(file = join(app.getPath('userData'), 'notionix.db')): DatabaseSync {

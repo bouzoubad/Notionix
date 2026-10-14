@@ -5,7 +5,13 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { openDatabase } from './db/database'
 import { PageRepository } from './db/pageRepository'
-import { registerAssetHandlers, registerPageHandlers, registerTransferHandlers } from './ipc'
+import {
+  registerAssetHandlers,
+  registerDatabaseHandlers,
+  registerPageHandlers,
+  registerTransferHandlers
+} from './ipc'
+import { DatabaseRepository } from './db/databaseRepository'
 import { AssetStore } from './assets'
 import { ASSET_SCHEME } from '../shared/assets'
 
@@ -62,6 +68,7 @@ app.whenReady().then(() => {
       : new Response('Not found', { status: 404 })
   })
   registerPageHandlers(ipcMain, repo)
+  registerDatabaseHandlers(ipcMain, new DatabaseRepository(repo))
   registerAssetHandlers(ipcMain, assets)
   registerTransferHandlers(ipcMain, repo, assets, {
     dialog,

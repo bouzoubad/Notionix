@@ -18,6 +18,7 @@ import { displaySrc } from '../platform'
 import { PageSubEditor, SubEditor } from './SubEditor'
 import { PageIcon } from '../components/PageIcon'
 import { iconText } from '../icons'
+import { t } from '../../../shared/i18n'
 
 /** Atom blocks keep their own events (buttons, inputs, nested editors). */
 const isolated = {
@@ -27,10 +28,10 @@ const isolated = {
 
 const formatSize = (bytes: number): string =>
   bytes < 1024
-    ? `${bytes} o`
+    ? t('{n} o', { n: bytes })
     : bytes < 1024 * 1024
-      ? `${Math.round(bytes / 1024)} Ko`
-      : `${(bytes / 1024 / 1024).toFixed(1)} Mo`
+      ? t('{n} Ko', { n: Math.round(bytes / 1024) })
+      : t('{n} Mo', { n: (bytes / 1024 / 1024).toFixed(1) })
 
 // ---------------------------------------------------------------------------
 // Table of contents
@@ -59,11 +60,13 @@ function TocView({ editor }: ReactNodeViewProps): React.JSX.Element {
   return (
     <NodeViewWrapper className="toc" contentEditable={false}>
       {headings.length === 0 ? (
-        <span className="toc-empty">Ajoutez des titres pour remplir la table des matières.</span>
+        <span className="toc-empty">
+          {t('Ajoutez des titres pour remplir la table des matières.')}
+        </span>
       ) : (
         headings.map((h) => (
           <button key={h.pos} className={`toc-item level-${h.level}`} onClick={() => go(h.pos)}>
-            {h.text || 'Titre sans texte'}
+            {h.text || t('Titre sans texte')}
           </button>
         ))
       )}
@@ -91,10 +94,10 @@ function PageLinkView({ node }: ReactNodeViewProps): React.JSX.Element {
           <span className="page-link-icon">
             <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
           </span>
-          <span className="page-link-title">{page.title || 'Sans titre'}</span>
+          <span className="page-link-title">{page.title || t('Sans titre')}</span>
         </button>
       ) : (
-        <span className="page-link-missing">↗ Page supprimée ou inaccessible</span>
+        <span className="page-link-missing">{t('↗ Page supprimée ou inaccessible')}</span>
       )}
     </NodeViewWrapper>
   )
@@ -111,7 +114,7 @@ export const InteractivePageLink = PageLink.extend({
 
 function FileView({ node }: ReactNodeViewProps): React.JSX.Element {
   const src = String(node.attrs.src ?? '')
-  const name = String(node.attrs.name ?? 'Fichier')
+  const name = String(node.attrs.name ?? t('Fichier'))
   const size = Number(node.attrs.size ?? 0)
   const showNotice = useStore((s) => s.showNotice)
   const isPdf = assetNameFromSrc(src)?.endsWith('.pdf')
@@ -122,14 +125,16 @@ function FileView({ node }: ReactNodeViewProps): React.JSX.Element {
       {size > 0 && <span className="file-size">{formatSize(size)}</span>}
       <button
         onClick={() =>
-          void window.api.assets
-            .download(src, name)
-            .catch((e) =>
-              showNotice(`Téléchargement impossible : ${e instanceof Error ? e.message : e}`)
+          void window.api.assets.download(src, name).catch((e) =>
+            showNotice(
+              t('Téléchargement impossible : {error}', {
+                error: e instanceof Error ? e.message : String(e)
+              })
             )
+          )
         }
       >
-        Télécharger
+        {t('Télécharger')}
       </button>
     </NodeViewWrapper>
   )
@@ -191,11 +196,12 @@ export async function insertFiles(
         at = editor.state.selection.to
       }
     } catch (e) {
-      useStore
-        .getState()
-        .showNotice(
-          `Fichier non ajouté (${file.name}) : ${e instanceof Error ? e.message : String(e)}`
-        )
+      useStore.getState().showNotice(
+        t('Fichier non ajouté ({name}) : {error}', {
+          name: file.name,
+          error: e instanceof Error ? e.message : String(e)
+        })
+      )
     }
   }
 }
@@ -222,7 +228,7 @@ function SyncedView({ node, editor, selected }: ReactNodeViewProps): React.JSX.E
   return (
     <NodeViewWrapper className={`synced-block${selected ? ' selected' : ''}`}>
       <div className="synced-bar" contentEditable={false}>
-        <span>🔁 Bloc synchronisé</span>
+        <span>{t('🔁 Bloc synchronisé')}</span>
         <button
           onClick={() => {
             // Copying the block and pasting it elsewhere shows the same content there.
@@ -231,7 +237,9 @@ function SyncedView({ node, editor, selected }: ReactNodeViewProps): React.JSX.E
               useStore
                 .getState()
                 .showNotice(
-                  'Copie directe indisponible ici : sélectionnez le bloc avec sa poignée ⋮⋮ puis Ctrl+C.'
+                  t(
+                    'Copie directe indisponible ici : sélectionnez le bloc avec sa poignée ⋮⋮ puis Ctrl+C.'
+                  )
                 )
               return
             }
@@ -239,14 +247,14 @@ function SyncedView({ node, editor, selected }: ReactNodeViewProps): React.JSX.E
               ?.write([
                 new ClipboardItem({
                   'text/html': new Blob([html], { type: 'text/html' }),
-                  'text/plain': new Blob(['Bloc synchronisé'], { type: 'text/plain' })
+                  'text/plain': new Blob([t('Bloc synchronisé')], { type: 'text/plain' })
                 })
               ])
               .then(() => setCopied(true))
               .catch(() => setCopied(false))
           }}
         >
-          {copied ? 'Copié : collez-le dans une autre page' : 'Copier et synchroniser'}
+          {copied ? t('Copié : collez-le dans une autre page') : t('Copier et synchroniser')}
         </button>
       </div>
       <PageSubEditor pageId={sourceId} editable={editor.isEditable} />
@@ -277,13 +285,15 @@ function ButtonView({
 
   const press = async (): Promise<void> => {
     if (attrs.action === 'addRow') {
-      if (!attrs.databaseId) return showNotice('Choisissez la base de données du bouton.')
+      if (!attrs.databaseId) return showNotice(t('Choisissez la base de données du bouton.'))
       try {
         await window.api.databases.createRow(attrs.databaseId, {})
         await useStore.getState().remoteChange()
-        showNotice('Ligne ajoutée.')
+        showNotice(t('Ligne ajoutée.'))
       } catch (e) {
-        showNotice(`Ajout impossible : ${e instanceof Error ? e.message : String(e)}`)
+        showNotice(
+          t('Ajout impossible : {error}', { error: e instanceof Error ? e.message : String(e) })
+        )
       }
       return
     }
@@ -306,12 +316,12 @@ function ButtonView({
   return (
     <NodeViewWrapper className="button-block" contentEditable={false}>
       <button className="button-block-button" onClick={() => void press()}>
-        {attrs.label || 'Bouton'}
+        {attrs.label || t('Bouton')}
       </button>
       {editor.isEditable && (
         <button
           className="button-block-settings"
-          title="Configurer"
+          title={t('Configurer')}
           onClick={() => setConfiguring(!configuring)}
         >
           ⚙
@@ -320,27 +330,27 @@ function ButtonView({
       {configuring && (
         <div className="button-config">
           <label>
-            Libellé
+            {t('Libellé')}
             <input
               value={attrs.label}
               onChange={(e) => updateAttributes({ label: e.target.value })}
             />
           </label>
           <label>
-            Action
+            {t('Action')}
             <select
               value={attrs.action}
               onChange={(e) =>
                 updateAttributes({ action: e.target.value as ButtonAttrs['action'] })
               }
             >
-              <option value="insert">Insérer des blocs sous le bouton</option>
-              <option value="addRow">Ajouter une ligne à une base</option>
+              <option value="insert">{t('Insérer des blocs sous le bouton')}</option>
+              <option value="addRow">{t('Ajouter une ligne à une base')}</option>
             </select>
           </label>
           {attrs.action === 'insert' ? (
             <div className="button-template">
-              <span>Blocs insérés :</span>
+              <span>{t('Blocs insérés :')}</span>
               <SubEditor
                 editable
                 content={{ type: 'doc', content: safeTemplate(attrs.template) }}
@@ -353,21 +363,21 @@ function ButtonView({
             </div>
           ) : (
             <label>
-              Base de données
+              {t('Base de données')}
               <select
                 value={attrs.databaseId ?? ''}
                 onChange={(e) => updateAttributes({ databaseId: e.target.value || null })}
               >
-                <option value="">Choisir…</option>
+                <option value="">{t('Choisir…')}</option>
                 {databases.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {iconText(d.icon, '🗃️')} {d.title || 'Sans titre'}
+                    {iconText(d.icon, '🗃️')} {d.title || t('Sans titre')}
                   </option>
                 ))}
               </select>
             </label>
           )}
-          <button onClick={() => setConfiguring(false)}>Fermer</button>
+          <button onClick={() => setConfiguring(false)}>{t('Fermer')}</button>
         </div>
       )}
     </NodeViewWrapper>

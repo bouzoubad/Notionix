@@ -19,6 +19,7 @@ import {
   toText,
   type FormulaValue
 } from './formula'
+import { t } from './i18n'
 
 export interface DatabaseSource {
   schema: DatabaseSchema
@@ -78,14 +79,14 @@ class Engine {
   value(dbId: string, src: DatabaseSource, row: DatabaseRow, prop: PropertyDef): PropertyValue {
     const key = `${dbId}|${row.id}|${prop.id}`
     if (this.cache.has(key)) return this.cache.get(key)!
-    if (this.running.has(key)) return { error: 'Référence circulaire' }
+    if (this.running.has(key)) return { error: t('Référence circulaire') }
     this.running.add(key)
     let result: PropertyValue
     try {
       result =
         prop.type === 'formula' ? this.formula(dbId, src, row, prop) : this.rollup(src, row, prop)
     } catch (e) {
-      result = { error: e instanceof FormulaError ? e.message : 'Erreur de calcul' }
+      result = { error: e instanceof FormulaError ? e.message : t('Erreur de calcul') }
     } finally {
       this.running.delete(key)
     }
@@ -106,7 +107,7 @@ class Engine {
       try {
         tree = parseFormula(expression)
       } catch (e) {
-        tree = e instanceof FormulaError ? e : new FormulaError('Formule invalide.')
+        tree = e instanceof FormulaError ? e : new FormulaError(t('Formule invalide.'))
       }
       this.parsed.set(expression, tree)
     }
@@ -122,7 +123,7 @@ class Engine {
   private byName(src: DatabaseSource, name: string): PropertyDef {
     const wanted = name.trim().toLowerCase()
     const p = src.schema.properties.find((x) => x.name.trim().toLowerCase() === wanted)
-    if (!p) throw new FormulaError(`Propriété inconnue : « ${name} ».`)
+    if (!p) throw new FormulaError(t('Propriété inconnue : « {name} ».', { name }))
     return p
   }
 
@@ -133,7 +134,9 @@ class Engine {
       const target = targetId ? this.source(targetId) : null
       const row = target?.rows.find((r) => r.id === rowId)
       if (!target || !row || !targetId)
-        throw new FormulaError(`« ${title} » n’est pas dans une base : pas de propriétés.`)
+        throw new FormulaError(
+          t('« {title} » n’est pas dans une base : pas de propriétés.', { title })
+        )
       return this.input(targetId, target, row, this.byName(target, name))
     })
   }
@@ -146,7 +149,8 @@ class Engine {
   /** A property value as seen by formulas. */
   private input(dbId: string, src: DatabaseSource, row: DatabaseRow, p: PropertyDef): FormulaValue {
     const v = isComputed(p.type) ? this.value(dbId, src, row, p) : rowValue(row, p)
-    if (isComputedError(v)) throw new FormulaError(`${p.name} : ${v.error}`)
+    if (isComputedError(v))
+      throw new FormulaError(t('{name} : {error}', { name: p.name, error: v.error }))
     switch (p.type) {
       case 'number':
         return typeof v === 'number' ? v : null
@@ -187,17 +191,17 @@ class Engine {
     const relation = src.schema.properties.find(
       (p) => p.id === cfg?.relationPropertyId && p.type === 'relation'
     )
-    if (!cfg || !relation) return { error: 'Choisissez la relation à agréger' }
+    if (!cfg || !relation) return { error: t('Choisissez la relation à agréger') }
     const targetId = relation.relationDatabaseId
     const target = targetId ? this.source(targetId) : null
-    if (!targetId || !target) return { error: 'Base liée introuvable' }
+    if (!targetId || !target) return { error: t('Base liée introuvable') }
     const ids = row.properties[relation.id]
     const linked = (Array.isArray(ids) ? ids : [])
       .map((id) => target.rows.find((r) => r.id === id && !r.isTemplate))
       .filter((r): r is DatabaseRow => !!r)
     if (cfg.aggregate === 'count') return linked.length
     const targetProp = target.schema.properties.find((p) => p.id === cfg.targetPropertyId)
-    if (!targetProp) return { error: 'Choisissez la propriété à agréger' }
+    if (!targetProp) return { error: t('Choisissez la propriété à agréger') }
     const values = linked.map((r) =>
       isComputed(targetProp.type)
         ? this.value(targetId, target, r, targetProp)
@@ -261,10 +265,10 @@ const pad = (n: number): string => String(n).padStart(2, '0')
 
 function fromFormula(v: FormulaValue): PropertyValue {
   if (v === null) return null
-  if (typeof v === 'number') return Number.isFinite(v) ? v : { error: 'Résultat non numérique' }
+  if (typeof v === 'number') return Number.isFinite(v) ? v : { error: t('Résultat non numérique') }
   if (typeof v === 'string' || typeof v === 'boolean') return v
   if (v instanceof Date) {
-    if (Number.isNaN(v.getTime())) return { error: 'Date invalide' }
+    if (Number.isNaN(v.getTime())) return { error: t('Date invalide') }
     const day = `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`
     const time =
       v.getHours() || v.getMinutes() ? `T${pad(v.getHours())}:${pad(v.getMinutes())}` : ''

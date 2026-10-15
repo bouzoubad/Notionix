@@ -13,6 +13,7 @@ import {
   type RowGroup
 } from '../../../shared/database'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 export const TYPE_ICONS: Record<PropertyType, string> = {
   title: 'Aa',
@@ -89,7 +90,7 @@ export function groupValues(
 export const nameOf = (id: string): string | undefined => {
   const { pages, people } = useStore.getState()
   const page = pages.find((p) => p.id === id && !p.trashedAt)
-  if (page) return page.title || 'Sans titre'
+  if (page) return page.title || t('Sans titre')
   return people.find((p) => p.id === id)?.name
 }
 

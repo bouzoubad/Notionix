@@ -5,6 +5,7 @@ import { ReactRenderer } from '@tiptap/react'
 import { pickImages } from './images'
 import { pickFiles } from './blockViews'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 export interface SlashItem {
   title: string
@@ -20,9 +21,9 @@ const chain = (editor: Editor, range: Range): ReturnType<Editor['chain']> =>
 
 export const SLASH_ITEMS: SlashItem[] = [
   {
-    title: 'Page',
-    hint: 'Sous-page dans cette page',
-    keywords: ['page', 'sous-page', 'subpage', 'new'],
+    title: t('Page'),
+    hint: t('Sous-page dans cette page'),
+    keywords: ['page', 'sous-page', 'subpage', 'new', 'nouvelle'],
     run: (e, r) => {
       chain(e, r).run()
       const { currentId, load, open } = useStore.getState()
@@ -35,69 +36,71 @@ export const SLASH_ITEMS: SlashItem[] = [
           open(page.id)
         })
         .catch((err) =>
-          useStore
-            .getState()
-            .showNotice(`Page non créée : ${err instanceof Error ? err.message : err}`)
+          useStore.getState().showNotice(
+            t('Page non créée : {error}', {
+              error: err instanceof Error ? err.message : String(err)
+            })
+          )
         )
     }
   },
   {
-    title: 'Texte',
-    hint: 'Paragraphe simple',
-    keywords: ['text', 'paragraph', 'p'],
+    title: t('Texte'),
+    hint: t('Paragraphe simple'),
+    keywords: ['text', 'texte', 'paragraph', 'paragraphe', 'p'],
     run: (e, r) => chain(e, r).setParagraph().run()
   },
   {
-    title: 'Titre 1',
-    hint: 'Grand titre',
-    keywords: ['h1', 'heading', 'titre'],
+    title: t('Titre 1'),
+    hint: t('Grand titre'),
+    keywords: ['h1', 'heading', 'titre', 'title'],
     run: (e, r) => chain(e, r).setHeading({ level: 1 }).run()
   },
   {
-    title: 'Titre 2',
-    hint: 'Titre moyen',
-    keywords: ['h2', 'heading'],
+    title: t('Titre 2'),
+    hint: t('Titre moyen'),
+    keywords: ['h2', 'heading', 'titre', 'title'],
     run: (e, r) => chain(e, r).setHeading({ level: 2 }).run()
   },
   {
-    title: 'Titre 3',
-    hint: 'Petit titre',
-    keywords: ['h3', 'heading'],
+    title: t('Titre 3'),
+    hint: t('Petit titre'),
+    keywords: ['h3', 'heading', 'titre', 'title'],
     run: (e, r) => chain(e, r).setHeading({ level: 3 }).run()
   },
   {
-    title: 'Liste à puces',
-    hint: 'Liste simple',
-    keywords: ['bullet', 'ul', 'liste'],
+    title: t('Liste à puces'),
+    hint: t('Liste simple'),
+    keywords: ['bullet', 'ul', 'liste', 'list', 'puces'],
     run: (e, r) => chain(e, r).toggleBulletList().run()
   },
   {
-    title: 'Liste numérotée',
-    hint: 'Liste ordonnée',
-    keywords: ['number', 'ol', 'liste'],
+    title: t('Liste numérotée'),
+    hint: t('Liste ordonnée'),
+    keywords: ['number', 'ol', 'liste', 'list', 'numerotee', 'numbered'],
     run: (e, r) => chain(e, r).toggleOrderedList().run()
   },
   {
-    title: 'Liste de tâches',
-    hint: 'Cases à cocher',
-    keywords: ['todo', 'task', 'checkbox', 'tache'],
+    title: t('Liste de tâches'),
+    hint: t('Cases à cocher'),
+    keywords: ['todo', 'task', 'checkbox', 'tache', 'liste', 'list'],
     run: (e, r) => chain(e, r).toggleTaskList().run()
   },
   {
-    title: 'Citation',
-    hint: 'Bloc de citation',
-    keywords: ['quote', 'blockquote'],
+    title: t('Citation'),
+    hint: t('Bloc de citation'),
+    keywords: ['quote', 'blockquote', 'citation'],
     run: (e, r) => chain(e, r).toggleBlockquote().run()
   },
   {
-    title: 'Code',
-    hint: 'Bloc de code',
+    title: t('Code'),
+    hint: t('Bloc de code'),
     keywords: ['code', 'snippet'],
     run: (e, r) => chain(e, r).toggleCodeBlock().run()
   },
   {
-    title: 'Image',
-    hint: 'Depuis un fichier',
+    title: t('Image'),
+    hint: t('Depuis un fichier'),
     keywords: ['image', 'photo', 'picture', 'img'],
     run: (e, r) => {
       chain(e, r).run()
@@ -105,26 +108,26 @@ export const SLASH_ITEMS: SlashItem[] = [
     }
   },
   {
-    title: 'Tableau',
-    hint: 'Lignes et colonnes',
-    keywords: ['table', 'tableau', 'grille'],
+    title: t('Tableau'),
+    hint: t('Lignes et colonnes'),
+    keywords: ['table', 'tableau', 'grille', 'grid'],
     run: (e, r) => chain(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
   },
   {
-    title: 'Toggle',
-    hint: 'Contenu repliable',
-    keywords: ['toggle', 'details', 'replier', 'accordeon'],
+    title: t('Toggle'),
+    hint: t('Contenu repliable'),
+    keywords: ['toggle', 'details', 'replier', 'accordeon', 'collapse', 'accordion'],
     run: (e, r) => chain(e, r).setDetails().run()
   },
   {
-    title: 'Callout',
-    hint: 'Encadré avec icône',
+    title: t('Callout'),
+    hint: t('Encadré avec icône'),
     keywords: ['callout', 'encadre', 'note', 'aside'],
     run: (e, r) => chain(e, r).setCallout().run()
   },
   {
-    title: 'Base de données',
-    hint: 'Base affichée dans la page',
+    title: t('Base de données'),
+    hint: t('Base affichée dans la page'),
     keywords: ['database', 'base', 'table', 'bdd', 'tableau'],
     run: (e, r) => {
       chain(e, r).run()
@@ -135,82 +138,82 @@ export const SLASH_ITEMS: SlashItem[] = [
     }
   },
   {
-    title: 'Vue liée de base de données',
-    hint: 'Une base existante, avec ses propres vues',
-    keywords: ['linked', 'vue', 'liee', 'base', 'database'],
+    title: t('Vue liée de base de données'),
+    hint: t('Une base existante, avec ses propres vues'),
+    keywords: ['linked', 'vue', 'liee', 'base', 'database', 'view'],
     run: (e, r) => {
       chain(e, r).run()
       useStore
         .getState()
         .pickPage(
-          'Vue liée : choisir une base de données',
+          t('Vue liée : choisir une base de données'),
           (id) => e.chain().focus().insertLinkedView(id).run(),
           'database'
         )
     }
   },
   {
-    title: 'Équation',
-    hint: 'Bloc LaTeX',
-    keywords: ['equation', 'math', 'latex', 'formule', 'tex'],
+    title: t('Équation'),
+    hint: t('Bloc LaTeX'),
+    keywords: ['equation', 'math', 'latex', 'formule', 'formula', 'tex'],
     run: (e, r) => {
       chain(e, r).run()
       window.dispatchEvent(new CustomEvent('notionix:insert-math', { detail: false }))
     }
   },
   {
-    title: 'Équation en ligne',
-    hint: 'LaTeX dans le texte',
-    keywords: ['inline', 'math', 'latex', 'formule'],
+    title: t('Équation en ligne'),
+    hint: t('LaTeX dans le texte'),
+    keywords: ['inline', 'math', 'latex', 'formule', 'formula', 'equation'],
     run: (e, r) => {
       chain(e, r).run()
       window.dispatchEvent(new CustomEvent('notionix:insert-math', { detail: true }))
     }
   },
   {
-    title: 'Séparateur',
-    hint: 'Ligne horizontale',
-    keywords: ['divider', 'hr', 'separateur'],
+    title: t('Séparateur'),
+    hint: t('Ligne horizontale'),
+    keywords: ['divider', 'hr', 'separateur', 'separator', 'line'],
     run: (e, r) => chain(e, r).setHorizontalRule().run()
   },
   {
-    title: '2 colonnes',
-    hint: 'Blocs côte à côte',
+    title: t('2 colonnes'),
+    hint: t('Blocs côte à côte'),
     keywords: ['columns', 'colonnes', 'layout'],
     run: (e, r) => chain(e, r).insertColumns(2).run()
   },
   {
-    title: '3 colonnes',
-    hint: 'Blocs côte à côte',
+    title: t('3 colonnes'),
+    hint: t('Blocs côte à côte'),
     keywords: ['columns', 'colonnes', 'layout'],
     run: (e, r) => chain(e, r).insertColumns(3).run()
   },
   ...[1, 2, 3].map((level): SlashItem => ({
-    title: `Titre ${level} repliable`,
-    hint: 'Titre qui replie son contenu',
-    keywords: ['toggle', 'heading', 'titre', 'repliable', `h${level}`],
+    title: t('Titre {level} repliable', { level }),
+    hint: t('Titre qui replie son contenu'),
+    keywords: ['toggle', 'heading', 'titre', 'repliable', 'title', 'collapsible', `h${level}`],
     run: (e, r) => chain(e, r).setDetails().setToggleHeading(level).run()
   })),
   {
-    title: 'Table des matières',
-    hint: 'Titres de la page',
-    keywords: ['toc', 'sommaire', 'table', 'matieres'],
+    title: t('Table des matières'),
+    hint: t('Titres de la page'),
+    keywords: ['toc', 'sommaire', 'table', 'matieres', 'contents'],
     run: (e, r) => chain(e, r).insertTableOfContents().run()
   },
   {
-    title: 'Lien vers une page',
-    hint: 'Bloc menant à une autre page',
+    title: t('Lien vers une page'),
+    hint: t('Bloc menant à une autre page'),
     keywords: ['link', 'page', 'lien'],
     run: (e, r) => {
       chain(e, r).run()
       useStore
         .getState()
-        .pickPage('Lien vers une page', (id) => e.chain().focus().insertPageLink(id).run())
+        .pickPage(t('Lien vers une page'), (id) => e.chain().focus().insertPageLink(id).run())
     }
   },
   {
-    title: 'Fichier',
-    hint: 'PDF, document, archive…',
+    title: t('Fichier'),
+    hint: t('PDF, document, archive…'),
     keywords: ['file', 'fichier', 'pdf', 'piece', 'jointe', 'attachment'],
     run: (e, r) => {
       chain(e, r).run()
@@ -218,27 +221,27 @@ export const SLASH_ITEMS: SlashItem[] = [
     }
   },
   {
-    title: 'Vidéo',
-    hint: 'Lecteur vidéo',
-    keywords: ['video', 'film', 'mp4'],
+    title: t('Vidéo'),
+    hint: t('Lecteur vidéo'),
+    keywords: ['video', 'film', 'mp4', 'movie'],
     run: (e, r) => {
       chain(e, r).run()
       pickFiles(e, 'video/*')
     }
   },
   {
-    title: 'Audio',
-    hint: 'Lecteur audio',
-    keywords: ['audio', 'son', 'mp3', 'musique'],
+    title: t('Audio'),
+    hint: t('Lecteur audio'),
+    keywords: ['audio', 'son', 'mp3', 'musique', 'sound', 'music'],
     run: (e, r) => {
       chain(e, r).run()
       pickFiles(e, 'audio/*')
     }
   },
   {
-    title: 'Bloc synchronisé',
-    hint: 'Même contenu à plusieurs endroits',
-    keywords: ['synced', 'synchronise', 'sync', 'reutiliser'],
+    title: t('Bloc synchronisé'),
+    hint: t('Même contenu à plusieurs endroits'),
+    keywords: ['synced', 'synchronise', 'sync', 'reutiliser', 'reuse'],
     run: (e, r) => {
       chain(e, r).run()
       const parentId = useStore.getState().currentId
@@ -246,15 +249,17 @@ export const SLASH_ITEMS: SlashItem[] = [
         .create(parentId, undefined, 'synced')
         .then((page) => e.chain().focus().insertSyncedBlock(page.id).run())
         .catch((err) =>
-          useStore
-            .getState()
-            .showNotice(`Bloc non créé : ${err instanceof Error ? err.message : err}`)
+          useStore.getState().showNotice(
+            t('Bloc non créé : {error}', {
+              error: err instanceof Error ? err.message : String(err)
+            })
+          )
         )
     }
   },
   {
-    title: 'Bouton',
-    hint: 'Insère des blocs ou ajoute une ligne',
+    title: t('Bouton'),
+    hint: t('Insère des blocs ou ajoute une ligne'),
     keywords: ['button', 'bouton', 'action'],
     run: (e, r) => chain(e, r).insertButtonBlock().run()
   }
@@ -271,7 +276,7 @@ function SlashMenu({ items, selected, onHover, onPick }: MenuProps): React.JSX.E
   if (items.length === 0) {
     return (
       <div className="slash-menu">
-        <div className="slash-empty">Aucun résultat</div>
+        <div className="slash-empty">{t('Aucun résultat')}</div>
       </div>
     )
   }

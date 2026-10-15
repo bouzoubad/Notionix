@@ -8,6 +8,7 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { PageIcon } from './PageIcon'
 import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
+import { LANGUAGES, language, setLanguage, t, type Language } from '../../../shared/i18n'
 
 /**
  * Keyboard of a tree row (WAI-ARIA tree): Enter opens, ↑/↓ move between
@@ -112,7 +113,7 @@ export function Sidebar(): React.JSX.Element {
   const rowProps = { drag, setDrag, drop, setDrop, dropOn }
 
   return (
-    <aside className="sidebar" aria-label="Barre latérale">
+    <aside className="sidebar" aria-label={t('Barre latérale')}>
       <div className="sidebar-drag" />
       <div className="sidebar-brand">
         <Logo variant="wordmark" className="logo-sidebar" />
@@ -120,21 +121,23 @@ export function Sidebar(): React.JSX.Element {
       {session && <WorkspaceSwitcher workspaces={session.workspaces} />}
       <div className="sidebar-actions">
         <button onClick={() => setSearchOpen(true)}>
-          Rechercher <kbd>⌘K</kbd>
+          {t('Rechercher')} <kbd>⌘K</kbd>
         </button>
         <button onClick={() => setInboxOpen(true)}>
-          Boîte de réception
+          {t('Boîte de réception')}
           {unread > 0 && <span className="badge">{unread}</span>}
         </button>
-        {canCreate && <button onClick={() => void createPage(null)}>+ Nouvelle page</button>}
+        {canCreate && <button onClick={() => void createPage(null)}>+ {t('Nouvelle page')}</button>}
         {canCreate && (
-          <button onClick={() => void createDatabase(null)}>+ Nouvelle base de données</button>
+          <button onClick={() => void createDatabase(null)}>
+            + {t('Nouvelle base de données')}
+          </button>
         )}
       </div>
       <div className="sidebar-sections">
         {favorites.length > 0 && (
-          <section role="tree" aria-label="Favoris">
-            <h4>Favoris</h4>
+          <section role="tree" aria-label={t('Favoris')}>
+            <h4>{t('Favoris')}</h4>
             {favorites.map((p) => (
               <Row
                 key={p.id}
@@ -153,7 +156,7 @@ export function Sidebar(): React.JSX.Element {
         {spaces.map((space) => (
           <TreeSection
             key={space.id}
-            title={`${iconText(space.icon, '👥')} ${space.title || 'Espace sans titre'}`}
+            title={`${iconText(space.icon, '👥')} ${space.title || t('Espace sans titre')}`}
             onTitle={() => open(space.id)}
             onAdd={space.level !== 'read' ? () => void createPage(space.id) : undefined}
             pages={childrenOf(pages, space.id)}
@@ -162,51 +165,69 @@ export function Sidebar(): React.JSX.Element {
         ))}
         {(canCreate || team.length > 0) && (
           <TreeSection
-            title={web ? 'Espace d’équipe' : 'Pages'}
+            title={web ? t('Espace d’équipe') : t('Pages')}
             onAdd={canCreate ? () => void createPage(null) : undefined}
             pages={team}
             rowProps={rowProps}
-            empty="Aucune page. Créez-en une."
+            empty={t('Aucune page. Créez-en une.')}
           />
         )}
         {web && canCreate && (
           <TreeSection
-            title="Privé"
+            title={t('Privé')}
             onAdd={() => void createPage(null, 'restricted')}
             pages={mine}
             rowProps={rowProps}
-            empty="Vos pages visibles par vous seul."
+            empty={t('Vos pages visibles par vous seul.')}
           />
         )}
         {shared.length > 0 && (
-          <TreeSection title="Partagé avec moi" pages={shared} rowProps={rowProps} />
+          <TreeSection title={t('Partagé avec moi')} pages={shared} rowProps={rowProps} />
         )}
       </div>
       <div className="sidebar-footer">
-        {canCreate && <button onClick={() => setTemplatesOpen(true)}>Modèles</button>}
+        {canCreate && <button onClick={() => setTemplatesOpen(true)}>{t('Modèles')}</button>}
         {templatesOpen && <TemplatesDialog onClose={() => setTemplatesOpen(false)} />}
-        <button onClick={() => setTransferOpen(true)}>Importer / Exporter</button>
-        <button onClick={() => setTrashOpen(true)}>Corbeille</button>
+        <button onClick={() => setTransferOpen(true)}>{t('Importer / Exporter')}</button>
+        <button onClick={() => setTrashOpen(true)}>{t('Corbeille')}</button>
         {session && (
           <button onClick={() => useStore.getState().openFeedback()}>
-            {session.user.role === 'admin' ? 'Feedback des utilisateurs' : 'Feedback : bug ou idée'}
+            {session.user.role === 'admin'
+              ? t('Feedback des utilisateurs')
+              : t('Feedback : bug ou idée')}
           </button>
         )}
         {session && (
           <div className="sidebar-account" title={session.user.email}>
             <span className="account-name">
               {session.user.name}
-              {session.user.role === 'reader' ? ' (lecture seule)' : ''}
+              {session.user.role === 'reader' ? t(' (lecture seule)') : ''}
             </span>
             <span className="account-buttons">
               <button onClick={() => setSettingsOpen(true)}>
-                {session.user.role === 'admin' ? 'Administration' : 'Mon compte'}
+                {session.user.role === 'admin' ? t('Administration') : t('Mon compte')}
               </button>
-              <button onClick={() => void session.logout()}>Se déconnecter</button>
+              <button onClick={() => void session.logout()}>{t('Se déconnecter')}</button>
             </span>
           </div>
         )}
         {session && settingsOpen && <session.Settings onClose={() => setSettingsOpen(false)} />}
+        <select
+          className="language-select"
+          style={{ alignSelf: 'flex-start', margin: '4px 10px', fontSize: 12 }}
+          aria-label={t('Langue')}
+          value={language()}
+          onChange={(e) => {
+            setLanguage(e.target.value as Language)
+            location.reload()
+          }}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </select>
       </div>
     </aside>
   )
@@ -240,8 +261,8 @@ function TreeSection({
         {onAdd && (
           <button
             className="tree-add"
-            title="Nouvelle page"
-            aria-label="Nouvelle page"
+            title={t('Nouvelle page')}
+            aria-label={t('Nouvelle page')}
             onClick={onAdd}
           >
             +
@@ -263,7 +284,7 @@ interface RowProps {
   drag: string | null
   setDrag: (id: string | null) => void
   drop: DropTarget
-  setDrop: (t: DropTarget) => void
+  setDrop: (target: DropTarget) => void
   dropOn: (target: PageSummary, where: 'before' | 'inside' | 'after') => void
 }
 
@@ -305,7 +326,7 @@ function Row(props: RowProps): React.JSX.Element {
     .filter(Boolean)
     .join(' ')
 
-  const label = page.title || 'Sans titre'
+  const label = page.title || t('Sans titre')
   return (
     <div role="none">
       <div
@@ -372,17 +393,21 @@ function Row(props: RowProps): React.JSX.Element {
         {!flat && (
           <span className="row-actions" onClick={(e) => e.stopPropagation()}>
             <button
-              title="Plus"
+              title={t('Plus')}
               tabIndex={-1}
-              aria-label={`Plus d’actions pour ${label}`}
+              aria-label={t('Plus d’actions pour {label}', { label })}
               onClick={() => setMenu(!menu)}
             >
               ⋯
             </button>
             <button
               tabIndex={-1}
-              aria-label={`${page.kind === 'database' ? 'Nouvelle ligne dans' : 'Nouvelle sous-page dans'} ${label}`}
-              title={page.kind === 'database' ? 'Nouvelle ligne' : 'Sous-page'}
+              aria-label={
+                page.kind === 'database'
+                  ? t('Nouvelle ligne dans {label}', { label })
+                  : t('Nouvelle sous-page dans {label}', { label })
+              }
+              title={page.kind === 'database' ? t('Nouvelle ligne') : t('Sous-page')}
               onClick={() =>
                 void (page.kind === 'database' ? createRow(page.id) : createPage(page.id))
               }
@@ -395,7 +420,7 @@ function Row(props: RowProps): React.JSX.Element {
           <div
             className="menu"
             role="menu"
-            aria-label={`Actions pour ${label}`}
+            aria-label={t('Actions pour {label}', { label })}
             onMouseLeave={() => setMenu(false)}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
@@ -410,14 +435,16 @@ function Row(props: RowProps): React.JSX.Element {
             <button
               onClick={() => (setMenu(false), void patch(page.id, { favorite: !page.favorite }))}
             >
-              {page.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+              {page.favorite ? t('Retirer des favoris') : t('Ajouter aux favoris')}
             </button>
-            <button onClick={() => (setMenu(false), void duplicate(page.id))}>Dupliquer</button>
+            <button onClick={() => (setMenu(false), void duplicate(page.id))}>
+              {t('Dupliquer')}
+            </button>
             <button onClick={() => (setMenu(false), void exportPage(page.id))}>
-              Exporter en Markdown
+              {t('Exporter en Markdown')}
             </button>
             <button onClick={() => (setMenu(false), void trash(page.id))}>
-              Mettre à la corbeille
+              {t('Mettre à la corbeille')}
             </button>
           </div>
         )}

@@ -3,6 +3,8 @@
  * document per page, plus the workspace channel announcing changes to pages
  * and databases.
  */
+import { t } from './i18n'
+
 export const WORKSPACE_DOCUMENT = 'workspace:main'
 
 /** Field holding the page in its Yjs document (TipTap's Collaboration default). */
@@ -72,6 +74,9 @@ export interface AdminOverview {
 
 /** The workspace every account belongs to, holding the pages from before workspaces. */
 export const MAIN_WORKSPACE = 'main'
+/** Header giving the language of the person, for what the server creates for them. */
+export const LANGUAGE_HEADER = 'X-Notionix-Language'
+
 /** Header naming the workspace a request is about (the main one when absent). */
 export const WORKSPACE_HEADER = 'X-Notionix-Workspace'
 
@@ -89,11 +94,11 @@ export type FeedbackKind = 'bug' | 'idea'
 export type FeedbackStatus = 'new' | 'planned' | 'in_progress' | 'done' | 'declined'
 
 export const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
-  new: 'Nouveau',
-  planned: 'Prévu',
-  in_progress: 'En cours',
-  done: 'Fait',
-  declined: 'Non retenu'
+  new: t('Nouveau'),
+  planned: t('Prévu'),
+  in_progress: t('En cours'),
+  done: t('Fait'),
+  declined: t('Non retenu')
 }
 
 /** A bug report or an idea sent from the app to the administrators. */

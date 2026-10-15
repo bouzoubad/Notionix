@@ -6,6 +6,7 @@ import { unzipSync } from 'fflate'
 import { createDocumentExtensions, pageLinkHref } from '../../../shared/editorExtensions'
 import type { PageId } from '../../../shared/types'
 import { md5Hex } from './md5'
+import { t } from '../../../shared/i18n'
 
 /** What an import of documents created, and what it left out. */
 export interface DocumentImportSummary {
@@ -33,7 +34,7 @@ const baseName = (path: string): string =>
   (path.split('/').pop() ?? path)
     .replace(/\.[^.]+$/, '')
     .replace(/[_-]+/g, ' ')
-    .trim() || 'Sans titre'
+    .trim() || t('Sans titre')
 
 function base64Bytes(data: string): Uint8Array {
   const binary = atob(data.replace(/\s+/g, ''))
@@ -232,14 +233,15 @@ class Importer {
    */
   async enex(parentId: PageId | null, text: string, name: string): Promise<void> {
     const xml = new DOMParser().parseFromString(text, 'application/xml')
-    if (xml.querySelector('parsererror')) throw new Error(`${name} : fichier Evernote illisible.`)
+    if (xml.querySelector('parsererror'))
+      throw new Error(t('{name} : fichier Evernote illisible.', { name }))
     const notes = Array.from(xml.getElementsByTagName('note'))
     const parent =
       notes.length > 1
         ? await this.createPage(parentId, baseName(name), emptyDoc(), '🐘')
         : parentId
     for (const note of notes) {
-      const title = note.getElementsByTagName('title')[0]?.textContent?.trim() || 'Sans titre'
+      const title = note.getElementsByTagName('title')[0]?.textContent?.trim() || t('Sans titre')
       const resources = new Map<string, { bytes: Uint8Array; mime: string; name: string }>()
       for (const resource of Array.from(note.getElementsByTagName('resource'))) {
         const data = resource.getElementsByTagName('data')[0]?.textContent ?? ''
@@ -308,7 +310,8 @@ class Importer {
     const pages = Object.keys(entries).filter(
       (p) => /\.html?$/i.test(p) && !p.startsWith('__MACOSX')
     )
-    if (!pages.length) throw new Error(`${file.name} : aucune page HTML dans l’archive.`)
+    if (!pages.length)
+      throw new Error(t('{name} : aucune page HTML dans l’archive.', { name: file.name }))
     const index = pages.find((p) => /(^|\/)index\.html?$/i.test(p))
     const dirOf = (path: string): string => path.slice(0, path.lastIndexOf('/') + 1)
     const join = (dir: string, href: string): string => {

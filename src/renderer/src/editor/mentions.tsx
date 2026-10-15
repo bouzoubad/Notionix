@@ -11,6 +11,7 @@ import { platform } from '../platform'
 import { createMenuController, type SlashItem } from './slashCommands'
 import { PageIcon } from '../components/PageIcon'
 import { iconText } from '../icons'
+import { locale, t } from '../../../shared/i18n'
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 const isoDay = (d: Date): string =>
@@ -18,6 +19,9 @@ const isoDay = (d: Date): string =>
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 const WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+const WEEKDAYS_EN = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+/** Words that name a day, in both interface languages, so either finds it. */
+const said = (q: string, ...words: string[]): boolean => words.some((w) => w.startsWith(q))
 
 /** Days a typed text may name: today, tomorrow, a weekday, 15/10, 15/10/2026, 2026-10-15. */
 export function datesFor(query: string, today = new Date()): { label: string; day: string }[] {
@@ -28,40 +32,41 @@ export function datesFor(query: string, today = new Date()): { label: string; da
   const add = (label: string, d: Date): void => {
     if (!out.some((o) => o.day === isoDay(d))) out.push({ label, day: isoDay(d) })
   }
-  if (!q || 'aujourdhui'.startsWith(q.replace(/['’ ]/g, ''))) add('Aujourd’hui', at(0))
-  if (!q || 'demain'.startsWith(q)) add('Demain', at(1))
-  if (q && 'hier'.startsWith(q)) add('Hier', at(-1))
+  if (!q || said(q.replace(/['’ ]/g, ''), 'aujourdhui', 'today')) add(t('Aujourd’hui'), at(0))
+  if (!q || said(q, 'demain', 'tomorrow')) add(t('Demain'), at(1))
+  if (q && said(q, 'hier', 'yesterday')) add(t('Hier'), at(-1))
   if (q.length >= 2)
     WEEKDAYS.forEach((name, i) => {
-      if (!name.startsWith(q)) return
+      if (!said(q, name, WEEKDAYS_EN[i])) return
       const ahead = (i - today.getDay() + 7) % 7 || 7
-      add(`${name[0].toUpperCase()}${name.slice(1)} prochain`, at(ahead))
+      const day = at(ahead).toLocaleDateString(locale(), { weekday: 'long' })
+      add(t('{day} prochain', { day: `${day[0].toUpperCase()}${day.slice(1)}` }), at(ahead))
     })
   const fr = /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/.exec(q)
   if (fr) {
     const year = fr[3] ? Number(fr[3].length === 2 ? `20${fr[3]}` : fr[3]) : today.getFullYear()
     const d = new Date(year, Number(fr[2]) - 1, Number(fr[1]))
-    if (d.getDate() === Number(fr[1])) add(d.toLocaleDateString('fr-FR'), d)
+    if (d.getDate() === Number(fr[1])) add(d.toLocaleDateString(locale()), d)
   }
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(q)
   if (iso) {
     const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
-    if (d.getDate() === Number(iso[3])) add(d.toLocaleDateString('fr-FR'), d)
+    if (d.getDate() === Number(iso[3])) add(d.toLocaleDateString(locale()), d)
   }
   return out
 }
 
 /** Readable date of a mention: "15 oct. 2026" or "15 oct. 2026 à 09:00". */
 export function formatMentionDate(date: string | null): string {
-  if (!date) return 'Date'
+  if (!date) return t('Date')
   const [day, time] = date.split('T')
   const [y, m, d] = day.split('-').map(Number)
-  const text = new Date(y, m - 1, d).toLocaleDateString('fr-FR', {
+  const text = new Date(y, m - 1, d).toLocaleDateString(locale(), {
     day: 'numeric',
     month: 'short',
     year: 'numeric'
   })
-  return time ? `${text} à ${time}` : text
+  return time ? t('{date} à {time}', { date: text, time }) : text
 }
 
 /** Time of a date mention's reminder: its time, or 9:00 that day. */
@@ -82,7 +87,7 @@ function mentionItems(query: string): SlashItem[] {
       if (p.disabled || (q && !fold(p.name).includes(q) && !fold(p.email).startsWith(q))) continue
       items.push({
         icon: '👤',
-        title: p.name + (p.id === me ? ' (vous)' : ''),
+        title: p.id === me ? t('{name} (vous)', { name: p.name }) : p.name,
         hint: p.email,
         keywords: [],
         run: (e, r) =>
@@ -112,8 +117,8 @@ function mentionItems(query: string): SlashItem[] {
     })
     items.push({
       icon: '⏰',
-      title: `Rappel ${fold(d.label) === 'aujourdhui' ? 'aujourd’hui' : d.label.toLowerCase()} 9:00`,
-      hint: 'Notification à cette heure',
+      title: t('Rappel {day} 9:00', { day: `${d.label[0].toLowerCase()}${d.label.slice(1)}` }),
+      hint: t('Notification à cette heure'),
       keywords: [],
       run: (e, r) =>
         e
@@ -135,15 +140,15 @@ function mentionItems(query: string): SlashItem[] {
     if (p.trashedAt || p.id === currentId || (q && !fold(p.title).includes(q))) continue
     items.push({
       icon: iconText(p.icon, p.kind === 'database' ? '🗃️' : '📄'),
-      title: p.title || 'Sans titre',
-      hint: 'Lien vers la page',
+      title: p.title || t('Sans titre'),
+      hint: t('Lien vers la page'),
       keywords: [],
       run: (e, r) =>
         e
           .chain()
           .focus()
           .deleteRange(r)
-          .insertMention({ kind: 'page', id: p.id, label: p.title || 'Sans titre' })
+          .insertMention({ kind: 'page', id: p.id, label: p.title || t('Sans titre') })
           .run()
     })
     if (++shown >= 6) break
@@ -193,15 +198,15 @@ export const PageLinkSuggestion = Extension.create({
             .slice(0, 10)
             .map((p) => ({
               icon: iconText(p.icon, p.kind === 'database' ? '🗃️' : '📄'),
-              title: p.title || 'Sans titre',
-              hint: 'Lien vers la page',
+              title: p.title || t('Sans titre'),
+              hint: t('Lien vers la page'),
               keywords: [],
               run: (e, r) =>
                 e
                   .chain()
                   .focus()
                   .deleteRange(r)
-                  .insertMention({ kind: 'page', id: p.id, label: p.title || 'Sans titre' })
+                  .insertMention({ kind: 'page', id: p.id, label: p.title || t('Sans titre') })
                   .run()
             }))
         },
@@ -240,9 +245,14 @@ function MentionView({
   useEffect(() => {
     if (attrs.kind !== 'date' || !pageId || !editor.isEditable) return
     const at = attrs.reminder && attrs.date ? reminderTime(attrs.date) : null
-    const title = useStore.getState().pages.find((p) => p.id === pageId)?.title || 'Sans titre'
+    const title = useStore.getState().pages.find((p) => p.id === pageId)?.title || t('Sans titre')
     void window.api.reminders
-      .set(pageId, attrs.id, at, `Rappel : ${title} (${formatMentionDate(attrs.date)})`)
+      .set(
+        pageId,
+        attrs.id,
+        at,
+        t('Rappel : {title} ({date})', { title, date: formatMentionDate(attrs.date) })
+      )
       .catch(() => undefined)
   }, [attrs.kind, attrs.id, attrs.date, attrs.reminder, pageId, editor])
 
@@ -254,10 +264,10 @@ function MentionView({
         <span className="mention-icon">
           <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
         </span>
-        {page.title || 'Sans titre'}
+        {page.title || t('Sans titre')}
       </>
     ) : (
-      <span className="mention-missing">{attrs.label || 'Page inaccessible'}</span>
+      <span className="mention-missing">{attrs.label || t('Page inaccessible')}</span>
     )
   else
     content = (
@@ -306,7 +316,7 @@ function DateEditor({
     if (!nextDay) return
     const date = nextTime ? `${nextDay}T${nextTime}` : nextDay
     const [y, m, d] = nextDay.split('-').map(Number)
-    onChange({ date, reminder, label: new Date(y, m - 1, d).toLocaleDateString('fr-FR') })
+    onChange({ date, reminder, label: new Date(y, m - 1, d).toLocaleDateString(locale()) })
   }
   return (
     <span className="mention-date-editor" contentEditable={false} onMouseLeave={onClose}>
@@ -318,9 +328,9 @@ function DateEditor({
           checked={attrs.reminder}
           onChange={(e) => set(day, time || (e.target.checked ? '09:00' : ''), e.target.checked)}
         />
-        Rappel
+        {t('Rappel')}
       </label>
-      <button onClick={onDelete}>Supprimer</button>
+      <button onClick={onDelete}>{t('Supprimer')}</button>
     </span>
   )
 }

@@ -5,11 +5,12 @@ import type { PageSummary, PageVersion } from '../../../shared/types'
 import { createDocumentExtensions } from '../../../shared/editorExtensions'
 import { useStore } from '../store'
 import { canEditPage, platform } from '../platform'
+import { locale, t } from '../../../shared/i18n'
 
 const lowlight = createLowlight(common)
 
 const when = (ms: number): string =>
-  new Date(ms).toLocaleString('fr-FR', {
+  new Date(ms).toLocaleString(locale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -57,8 +58,8 @@ export function HistoryDialog({
   }, [selected])
 
   const names = (ids: string[]): string =>
-    ids.map((id) => people.find((p) => p.id === id)?.name ?? 'Compte supprimé').join(', ') ||
-    'Inconnu'
+    ids.map((id) => people.find((p) => p.id === id)?.name ?? t('Compte supprimé')).join(', ') ||
+    t('Inconnu')
 
   const restore = async (): Promise<void> => {
     if (selected === null) return
@@ -66,10 +67,14 @@ export function HistoryDialog({
     try {
       await window.api.pages.restoreVersion(page.id, selected)
       reloadContent()
-      showNotice('Version restaurée.')
+      showNotice(t('Version restaurée.'))
       onClose()
     } catch (e) {
-      showNotice(`Restauration impossible : ${e instanceof Error ? e.message : String(e)}`)
+      showNotice(
+        t('Restauration impossible : {error}', {
+          error: e instanceof Error ? e.message : String(e)
+        })
+      )
       setBusy(false)
     }
   }
@@ -83,13 +88,15 @@ export function HistoryDialog({
           ) : (
             <p className="history-empty">
               {versions?.length === 0
-                ? 'Aucune version enregistrée pour l’instant : elles apparaissent dès les premières modifications.'
-                : 'Chargement…'}
+                ? t(
+                    'Aucune version enregistrée pour l’instant : elles apparaissent dès les premières modifications.'
+                  )
+                : t('Chargement…')}
             </p>
           )}
         </div>
         <aside className="history-list">
-          <h3>Historique</h3>
+          <h3>{t('Historique')}</h3>
           {versions?.map((v, i) => (
             <button
               key={v.id}
@@ -98,13 +105,13 @@ export function HistoryDialog({
             >
               <span className="history-date">
                 {when(v.createdAt)}
-                {i === 0 ? ' · actuelle' : ''}
+                {i === 0 ? t(' · actuelle') : ''}
               </span>
               <span className="history-authors">{names(v.authors)}</span>
             </button>
           ))}
           <div className="history-actions">
-            <button onClick={onClose}>Fermer</button>
+            <button onClick={onClose}>{t('Fermer')}</button>
             <button
               className="primary"
               disabled={
@@ -112,7 +119,7 @@ export function HistoryDialog({
               }
               onClick={() => void restore()}
             >
-              Restaurer cette version
+              {t('Restaurer cette version')}
             </button>
           </div>
         </aside>

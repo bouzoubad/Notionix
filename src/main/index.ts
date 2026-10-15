@@ -29,6 +29,7 @@ import { docHasMention } from '../core/db/text'
 import { DatabaseRepository } from '../core/db/databaseRepository'
 import { AssetStore } from '../core/assets'
 import { ASSET_SCHEME } from '../shared/assets'
+import { setLanguage, t, type Language } from '../shared/i18n'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -45,14 +46,18 @@ function buildMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     ...(mac ? [{ role: 'appMenu' as const }] : []),
     {
-      label: 'Fichier',
+      label: t('Fichier'),
       submenu: [
-        { label: 'Nouvel onglet', accelerator: 'CmdOrCtrl+T', click: send('tab:new') },
-        { label: 'Fermer l’onglet', accelerator: 'CmdOrCtrl+W', click: send('tab:close') },
-        { label: 'Onglet suivant', accelerator: 'Ctrl+Tab', click: send('tab:next') },
-        { label: 'Onglet précédent', accelerator: 'Ctrl+Shift+Tab', click: send('tab:previous') },
+        { label: t('Nouvel onglet'), accelerator: 'CmdOrCtrl+T', click: send('tab:new') },
+        { label: t('Fermer l’onglet'), accelerator: 'CmdOrCtrl+W', click: send('tab:close') },
+        { label: t('Onglet suivant'), accelerator: 'Ctrl+Tab', click: send('tab:next') },
+        {
+          label: t('Onglet précédent'),
+          accelerator: 'Ctrl+Shift+Tab',
+          click: send('tab:previous')
+        },
         { type: 'separator' },
-        { label: 'Fermer la fenêtre', accelerator: 'CmdOrCtrl+Shift+W', role: 'close' },
+        { label: t('Fermer la fenêtre'), accelerator: 'CmdOrCtrl+Shift+W', role: 'close' },
         ...(mac ? [] : [{ role: 'quit' as const }])
       ]
     },
@@ -97,6 +102,12 @@ function createWindow(): void {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.notionix')
   buildMenu()
+  // The page tells its language: the menu and the file dialogs follow it.
+  ipcMain.on('app:language', (_e, lang: Language) => {
+    if (lang !== 'fr' && lang !== 'en') return
+    setLanguage(lang)
+    buildMenu()
+  })
   if (process.platform === 'darwin') app.dock?.setIcon(icon)
 
   const db = openDatabase(join(app.getPath('userData'), 'notionix.db'))

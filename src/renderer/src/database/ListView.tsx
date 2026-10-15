@@ -12,6 +12,7 @@ import {
   subGroupProperty,
   type ViewProps
 } from './viewTypes'
+import { t } from '../../../shared/i18n'
 
 export function ListView({
   schema,
@@ -37,14 +38,14 @@ export function ListView({
         {...drag.target(row, list, values)}
       >
         {reorder && (
-          <span className="row-drag" title="Glisser pour déplacer" {...drag.handle(row.id)}>
+          <span className="row-drag" title={t('Glisser pour déplacer')} {...drag.handle(row.id)}>
             ⋮⋮
           </span>
         )}
         <button className="list-item" onClick={() => onOpenRow(row.id)}>
           <span className="list-title">
             <PageIcon icon={row.icon} fallback="📄" />{' '}
-            {row.title || <span className="muted">Sans titre</span>}
+            {row.title || <span className="muted">{t('Sans titre')}</span>}
           </span>
           <RowSummary
             schema={schema}
@@ -98,7 +99,7 @@ export function ListView({
           })
         : items(rows)}
       <button className="add-row" onClick={() => onAddRow()} {...drag.end()}>
-        + Nouvelle ligne
+        {t('+ Nouvelle ligne')}
       </button>
     </div>
   )

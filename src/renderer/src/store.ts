@@ -7,6 +7,7 @@ import type {
   Person,
   PersonGroup
 } from '../../shared/types'
+import { t } from '../../shared/i18n'
 import { platform, type Presence } from './platform'
 
 interface State {
@@ -98,13 +99,13 @@ const api = (): Window['api']['pages'] => window.api.pages
 
 type Theme = 'system' | 'light' | 'dark'
 function storedTheme(): Theme {
-  let t: string | null = null
+  let saved: string | null = null
   try {
-    t = localStorage.getItem('theme')
+    saved = localStorage.getItem('theme')
   } catch {
-    t = null
+    saved = null
   }
-  const theme: Theme = t === 'light' || t === 'dark' ? t : 'system'
+  const theme: Theme = saved === 'light' || saved === 'dark' ? saved : 'system'
   if (theme !== 'system') document.documentElement.dataset.theme = theme
   return theme
 }
@@ -184,7 +185,7 @@ function initialTabs(current: PageId | null): { tabs: (PageId | null)[]; tab: nu
       tab?: unknown
     } | null
     const tabs = Array.isArray(saved?.tabs)
-      ? saved.tabs.filter((t): t is string | null => t === null || typeof t === 'string')
+      ? saved.tabs.filter((x): x is string | null => x === null || typeof x === 'string')
       : []
     if (tabs.length) {
       const i = tabs.indexOf(current)
@@ -431,9 +432,13 @@ export const useStore = create<State>((set, get) => ({
   exportPage: async (id) => {
     try {
       const result = await window.api.transfer.exportMarkdown(id)
-      if (result) notify(set, `${result.pages} page(s) exportée(s) : ${result.path}`)
+      if (result)
+        notify(set, t('{n} page(s) exportée(s) : {path}', { n: result.pages, path: result.path }))
     } catch (e) {
-      notify(set, `Export impossible : ${e instanceof Error ? e.message : String(e)}`)
+      notify(
+        set,
+        t('Export impossible : {error}', { error: e instanceof Error ? e.message : String(e) })
+      )
     }
   }
 }))

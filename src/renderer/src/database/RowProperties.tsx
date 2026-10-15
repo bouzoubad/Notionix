@@ -9,6 +9,7 @@ import type { RowData } from '../../../shared/types'
 import { useStore } from '../store'
 import { Cell } from './Cell'
 import { TYPE_ICONS } from './viewTypes'
+import { t } from '../../../shared/i18n'
 
 /** Properties of a database row, shown under the title of its page. */
 export function RowProperties({ rowId }: { rowId: string }): React.JSX.Element | null {
@@ -32,7 +33,11 @@ export function RowProperties({ rowId }: { rowId: string }): React.JSX.Element |
       const row = await window.api.databases.updateRow(rowId, values)
       setData((d) => (d ? { ...d, row } : d))
     } catch (e) {
-      showNotice(`Modification impossible : ${e instanceof Error ? e.message : String(e)}`)
+      showNotice(
+        t('Modification impossible : {error}', {
+          error: e instanceof Error ? e.message : String(e)
+        })
+      )
     }
   }
   const createOption = async (prop: PropertyDef, option: SelectOption): Promise<void> => {
@@ -72,7 +77,7 @@ export function RowProperties({ rowId }: { rowId: string }): React.JSX.Element |
           checked={data.row.isTemplate}
           onChange={(e) => void toggleTemplate(e.target.checked)}
         />
-        Modèle (masqué des vues, proposé dans « Nouveau »)
+        {t('Modèle (masqué des vues, proposé dans « Nouveau »)')}
       </label>
     </div>
   )

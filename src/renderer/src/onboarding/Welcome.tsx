@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store'
 import { platform } from '../platform'
 import { gettingStartedPage } from './gettingStarted'
+import { t } from '../../../shared/i18n'
 
 const KEY = 'welcomeDismissed'
 const dismissed = (): boolean => {
@@ -42,34 +43,38 @@ export function Welcome({
       await load()
       open(page.id)
     } catch (e) {
-      showNotice(`Page non créée : ${e instanceof Error ? e.message : String(e)}`)
+      showNotice(
+        t('Page non créée : {error}', { error: e instanceof Error ? e.message : String(e) })
+      )
     }
   }
   return (
     <section className="welcome" aria-labelledby="welcome-title">
-      <h2 id="welcome-title">Bien démarrer</h2>
+      <h2 id="welcome-title">{t('Bien démarrer')}</h2>
       <ul>
         <li>
-          <button onClick={onTour}>🧭 Visite guidée (1 minute)</button>
+          <button onClick={onTour}>{t('🧭 Visite guidée (1 minute)')}</button>
         </li>
         {canCreate && (
           <li>
-            <button onClick={() => void createGuide()}>👋 Créer la page « Bien démarrer »</button>
+            <button onClick={() => void createGuide()}>
+              {t('👋 Créer la page « Bien démarrer »')}
+            </button>
           </li>
         )}
         {canCreate && (
           <li>
             <button onClick={() => setTransferOpen(true)}>
-              📦 Importer depuis Notion, Word, Evernote…
+              {t('📦 Importer depuis Notion, Word, Evernote…')}
             </button>
           </li>
         )}
         <li>
-          <button onClick={onShortcuts}>⌨️ Les raccourcis clavier</button>
+          <button onClick={onShortcuts}>{t('⌨️ Les raccourcis clavier')}</button>
         </li>
       </ul>
       <button className="welcome-close" onClick={hide}>
-        Ne plus afficher
+        {t('Ne plus afficher')}
       </button>
     </section>
   )

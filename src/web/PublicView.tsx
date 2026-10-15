@@ -3,6 +3,7 @@ import type { PublicPage } from '../shared/types'
 import { coverStyle } from '../renderer/src/components/covers'
 import { SubEditor } from '../renderer/src/editor/SubEditor'
 import { json } from './http'
+import { t } from '../shared/i18n'
 import { PageIcon } from '../renderer/src/components/PageIcon'
 
 /** A published page, read-only, for anyone with its link: /p/<token>[/<page id>]. */
@@ -24,7 +25,7 @@ export function PublicView({
       .then(({ page }) => {
         if (cancelled) return
         setPage(page)
-        document.title = `${page.title || 'Sans titre'} · Notionix`
+        document.title = `${page.title || t('Sans titre')} · Notionix`
       })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
     return () => {
@@ -33,16 +34,16 @@ export function PublicView({
   }, [token, pageId])
 
   if (error) return <div className="web-error">{error}</div>
-  if (!page) return <div className="web-error">Chargement…</div>
+  if (!page) return <div className="web-error">{t('Chargement…')}</div>
   const link = (id: string): string =>
     id === page.root.id ? `/p/${token}` : `/p/${token}/${encodeURIComponent(id)}`
   return (
     <div className="public-page">
       <header className="public-bar">
         {page.id !== page.root.id && (
-          <a href={link(page.root.id)}>← {page.root.title || 'Sans titre'}</a>
+          <a href={link(page.root.id)}>← {page.root.title || t('Sans titre')}</a>
         )}
-        <span className="public-badge">Page publique, en lecture seule</span>
+        <span className="public-badge">{t('Page publique, en lecture seule')}</span>
       </header>
       {page.cover && <div className="page-cover" style={coverStyle(page.cover, page.coverY)} />}
       <div className="page-body">
@@ -51,7 +52,7 @@ export function PublicView({
             <PageIcon icon={page.icon} className="large" />
           </div>
         )}
-        <h1 className="public-title">{page.title || 'Sans titre'}</h1>
+        <h1 className="public-title">{page.title || t('Sans titre')}</h1>
         {page.table ? (
           <div className="table-view">
             <table className="db-table">
@@ -70,7 +71,7 @@ export function PublicView({
                     {r.cells.map((c, i) => (
                       <td key={i}>
                         <div className="cell">
-                          {i === 0 ? <a href={link(r.id)}>{c || 'Sans titre'}</a> : c}
+                          {i === 0 ? <a href={link(r.id)}>{c || t('Sans titre')}</a> : c}
                         </div>
                       </td>
                     ))}
@@ -86,7 +87,7 @@ export function PublicView({
           <nav className="public-children">
             {page.children.map((c) => (
               <a key={c.id} href={link(c.id)}>
-                <PageIcon icon={c.icon} fallback="📄" /> {c.title || 'Sans titre'}
+                <PageIcon icon={c.icon} fallback="📄" /> {c.title || t('Sans titre')}
               </a>
             ))}
           </nav>

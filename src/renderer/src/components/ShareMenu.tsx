@@ -3,12 +3,13 @@ import type { PageAccess, PageShare, PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
 import { platform } from '../platform'
 import { Popover } from '../database/Popover'
+import { t } from '../../../shared/i18n'
 
 const LEVEL_LABELS: Record<PageShare['level'], string> = {
-  full: 'Accès complet',
-  edit: 'Peut modifier',
-  comment: 'Peut commenter',
-  read: 'Peut lire'
+  full: t('Accès complet'),
+  edit: t('Peut modifier'),
+  comment: t('Peut commenter'),
+  read: t('Peut lire')
 }
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
@@ -46,14 +47,14 @@ export function ShareMenu({
       setShares(await window.api.pages.shares(page.id))
       await load()
     } catch (e) {
-      showNotice(`Partage impossible : ${message(e)}`)
+      showNotice(t('Partage impossible : {error}', { error: message(e) }))
     }
   }
   const nameOf = (id: string): string => {
     const g = groups.find((x) => x.id === id)
     if (g) return `👥 ${g.name} (${g.memberIds.length})`
     const p = people.find((x) => x.id === id)
-    return p ? `${p.name}${p.id === me ? ' (vous)' : ''}` : 'Compte supprimé'
+    return p ? `${p.name}${p.id === me ? t(' (vous)') : ''}` : t('Compte supprimé')
   }
   const candidates = people.filter(
     (p) => !p.disabled && p.id !== me && !shares?.some((s) => s.userId === p.id)
@@ -63,7 +64,7 @@ export function ShareMenu({
 
   return (
     <Popover onClose={onClose} align="right" className="share-menu">
-      <h5>Accès général</h5>
+      <h5>{t('Accès général')}</h5>
       <select
         disabled={!manage}
         value={general}
@@ -71,23 +72,23 @@ export function ShareMenu({
           void run(() => window.api.pages.setAccess(page.id, e.target.value as PageAccess))
         }
       >
-        {!top && <option value="inherit">Comme la page parente</option>}
-        <option value="workspace">Tous les membres de l’espace</option>
-        <option value="restricted">Restreint : seulement les personnes invitées</option>
+        {!top && <option value="inherit">{t('Comme la page parente')}</option>}
+        <option value="workspace">{t('Tous les membres de l’espace')}</option>
+        <option value="restricted">{t('Restreint : seulement les personnes invitées')}</option>
       </select>
       <p className="share-hint">
         {general === 'restricted'
-          ? 'Visible par son créateur et les personnes ci-dessous.'
+          ? t('Visible par son créateur et les personnes ci-dessous.')
           : general === 'workspace'
-            ? 'Visible par tous les membres (pas les invités), en plus des personnes ci-dessous.'
-            : 'Mêmes accès que la page parente, plus les personnes ci-dessous.'}
+            ? t('Visible par tous les membres (pas les invités), en plus des personnes ci-dessous.')
+            : t('Mêmes accès que la page parente, plus les personnes ci-dessous.')}
       </p>
 
-      <h5>Personnes et groupes invités</h5>
+      <h5>{t('Personnes et groupes invités')}</h5>
       {shares === null ? (
-        <p className="share-hint">Chargement…</p>
+        <p className="share-hint">{t('Chargement…')}</p>
       ) : shares.length === 0 ? (
-        <p className="share-hint">Personne pour l’instant.</p>
+        <p className="share-hint">{t('Personne pour l’instant.')}</p>
       ) : (
         <ul className="share-list">
           {shares.map((s) => (
@@ -114,7 +115,7 @@ export function ShareMenu({
               </select>
               {manage && (
                 <button
-                  title="Retirer"
+                  title={t('Retirer')}
                   onClick={() => void run(() => window.api.pages.setShare(page.id, s.userId, null))}
                 >
                   ✕
@@ -129,19 +130,23 @@ export function ShareMenu({
           <select value={invite} onChange={(e) => setInvite(e.target.value)}>
             <option value="">
               {groupCandidates.length
-                ? 'Inviter une personne ou un groupe…'
-                : 'Inviter une personne…'}
+                ? t('Inviter une personne ou un groupe…')
+                : t('Inviter une personne…')}
             </option>
             {groupCandidates.length > 0 && (
-              <optgroup label="Groupes">
+              <optgroup label={t('Groupes')}>
                 {groupCandidates.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.name} ({g.memberIds.length} personne{g.memberIds.length > 1 ? 's' : ''})
+                    {g.name} (
+                    {g.memberIds.length > 1
+                      ? t('{n} personnes', { n: g.memberIds.length })
+                      : t('{n} personne', { n: g.memberIds.length })}
+                    )
                   </option>
                 ))}
               </optgroup>
             )}
-            <optgroup label="Personnes">
+            <optgroup label={t('Personnes')}>
               {candidates.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.email})
@@ -165,12 +170,12 @@ export function ShareMenu({
               })
             }
           >
-            Inviter
+            {t('Inviter')}
           </button>
         </div>
       )}
 
-      <h5>Publier sur le web</h5>
+      <h5>{t('Publier sur le web')}</h5>
       <label className="share-space publish">
         <input
           type="checkbox"
@@ -178,7 +183,7 @@ export function ShareMenu({
           checked={page.publicToken !== null}
           onChange={(e) => void run(() => window.api.pages.publish(page.id, e.target.checked))}
         />
-        Lien public en lecture seule (la page et ses sous-pages)
+        {t('Lien public en lecture seule (la page et ses sous-pages)')}
       </label>
       {page.publicToken && (
         <div className="share-public-link">
@@ -188,7 +193,7 @@ export function ShareMenu({
             onFocus={(e) => e.target.select()}
           />
           <a href={`/p/${page.publicToken}`} target="_blank" rel="noreferrer">
-            Ouvrir
+            {t('Ouvrir')}
           </a>
         </div>
       )}
@@ -199,11 +204,13 @@ export function ShareMenu({
             checked={page.isSpace}
             onChange={(e) => void run(() => window.api.pages.setSpace(page.id, e.target.checked))}
           />
-          Afficher comme espace d’équipe dans la barre latérale
+          {t('Afficher comme espace d’équipe dans la barre latérale')}
         </label>
       )}
       {!manage && (
-        <p className="share-hint">Seules les personnes ayant un accès complet gèrent le partage.</p>
+        <p className="share-hint">
+          {t('Seules les personnes ayant un accès complet gèrent le partage.')}
+        </p>
       )}
     </Popover>
   )

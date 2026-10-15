@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import katex from 'katex'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 /** Edits a LaTeX equation with a live preview; an empty equation is removed. */
 export function MathDialog(): React.JSX.Element | null {
@@ -19,7 +20,7 @@ export function MathDialog(): React.JSX.Element | null {
   return (
     <div className="overlay" onMouseDown={() => done(latex)}>
       <div className="dialog math-dialog" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>{edit.inline ? 'Équation en ligne' : 'Équation'}</h3>
+        <h3>{edit.inline ? t('Équation en ligne') : t('Équation')}</h3>
         <textarea
           autoFocus
           aria-label="LaTeX"
@@ -37,10 +38,12 @@ export function MathDialog(): React.JSX.Element | null {
         />
         <div className="math-preview" dangerouslySetInnerHTML={{ __html: preview }} />
         <div className="math-actions">
-          <span className="muted">{edit.inline ? 'Entrée' : '⌘ Entrée'} pour valider</span>
-          <button onClick={() => done('')}>Supprimer</button>
+          <span className="muted">
+            {edit.inline ? t('Entrée pour valider') : t('⌘ Entrée pour valider')}
+          </span>
+          <button onClick={() => done('')}>{t('Supprimer')}</button>
           <button className="primary" onClick={() => done(latex)}>
-            Valider
+            {t('Valider')}
           </button>
         </div>
       </div>

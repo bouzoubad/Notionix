@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PageIcon } from './PageIcon'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
@@ -32,7 +33,7 @@ export function PagePicker(): React.JSX.Element | null {
         <h3>{picker.title}</h3>
         <input
           autoFocus
-          placeholder="Rechercher une page…"
+          placeholder={t('Rechercher une page…')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -45,11 +46,11 @@ export function PagePicker(): React.JSX.Element | null {
             <button key={p.id} className="hit" onClick={() => pick(p.id)}>
               <span>
                 <PageIcon icon={p.icon} fallback={p.kind === 'database' ? '🗃️' : '📄'} />{' '}
-                {p.title || 'Sans titre'}
+                {p.title || t('Sans titre')}
               </span>
             </button>
           ))}
-          {matches.length === 0 && <p className="inbox-empty">Aucune page.</p>}
+          {matches.length === 0 && <p className="inbox-empty">{t('Aucune page.')}</p>}
         </div>
       </div>
     </div>

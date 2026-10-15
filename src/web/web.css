@@ -525,3 +525,10 @@
   max-width: 220px;
   overflow-wrap: anywhere;
 }
+
+/* Language choice on the login page */
+.login-language {
+  align-self: center;
+  font-size: 12px;
+  margin-top: 4px;
+}

@@ -6,6 +6,7 @@ import { platform } from '../platform'
 import { ShareMenu } from './ShareMenu'
 import { HistoryDialog } from './HistoryDialog'
 import { PageOptionsMenu } from './PageOptionsMenu'
+import { t } from '../../../shared/i18n'
 
 /** Breadcrumbs of a page, and its actions (sharing…), above its content. */
 export function PageTopBar({
@@ -35,32 +36,32 @@ export function PageTopBar({
     <div className="breadcrumbs">
       {crumbs.map((c) => (
         <button key={c.id} onClick={() => open(c.id)}>
-          <PageIcon icon={c.icon} /> {c.title || 'Sans titre'}
+          <PageIcon icon={c.icon} /> {c.title || t('Sans titre')}
         </button>
       ))}
       {page.options.locked && (
-        <span className="lock-badge" title="Page verrouillée">
+        <span className="lock-badge" title={t('Page verrouillée')}>
           🔒
         </span>
       )}
       <span className="crumb-current">
         <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : ''} />{' '}
-        {title || 'Sans titre'}
+        {title || t('Sans titre')}
       </span>
       <div className="topbar-actions">
         <Avatars people={here} />
         {page.kind === 'page' && (
           <button
             className={commentsOpen ? 'active' : ''}
-            title="Commentaires"
+            title={t('Commentaires')}
             onClick={() => (commentsOpen ? closeComments() : openComments())}
           >
             💬
           </button>
         )}
         {page.kind === 'page' && (
-          <button title="Historique des versions" onClick={() => setMenu('history')}>
-            Historique
+          <button title={t('Historique des versions')} onClick={() => setMenu('history')}>
+            {t('Historique')}
           </button>
         )}
         {menu === 'history' && <HistoryDialog page={page} onClose={() => setMenu(null)} />}
@@ -70,14 +71,14 @@ export function PageTopBar({
               className={menu === 'share' ? 'active' : ''}
               onClick={() => setMenu(menu === 'share' ? null : 'share')}
             >
-              {shared ? '🔒 Partager' : 'Partager'}
+              {shared ? `🔒 ${t('Partager')}` : t('Partager')}
             </button>
             {menu === 'share' && <ShareMenu page={page} onClose={() => setMenu(null)} />}
           </span>
         )}
         <span className="topbar-anchor">
           <button
-            title="Options de la page"
+            title={t('Options de la page')}
             className={menu === 'options' ? 'active' : ''}
             onClick={() => setMenu(menu === 'options' ? null : 'options')}
           >
@@ -113,7 +114,7 @@ export function Avatars({
           key={p.userId}
           className="avatar"
           style={{ background: p.color }}
-          title={`${p.name} est sur cette page`}
+          title={t('{name} est sur cette page', { name: p.name })}
         >
           {initials(p.name)}
         </span>

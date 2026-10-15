@@ -19,6 +19,7 @@ import type { ViewProps } from './viewTypes'
 import { Toolbar } from './Toolbar'
 import type { DatabaseApi } from './useDatabase'
 import { VIEW_COMPONENTS } from './views'
+import { t } from '../../../shared/i18n'
 
 const AVAILABLE_VIEWS = Object.keys(VIEW_COMPONENTS) as ViewType[]
 
@@ -70,13 +71,17 @@ export function DatabaseViewer({
         const result = await window.api.databases.importCsv(databaseId, await file.text())
         await source.reload()
         notice(
-          `${result.rows} ligne(s) importée(s)` +
-            (result.propertiesAdded.length
-              ? `, propriétés ajoutées : ${result.propertiesAdded.join(', ')}`
-              : '.')
+          result.propertiesAdded.length
+            ? t('{n} ligne(s) importée(s), propriétés ajoutées : {properties}', {
+                n: result.rows,
+                properties: result.propertiesAdded.join(', ')
+              })
+            : t('{n} ligne(s) importée(s).', { n: result.rows })
         )
       } catch (e) {
-        notice(`Import impossible : ${e instanceof Error ? e.message : String(e)}`)
+        notice(
+          t('Import impossible : {error}', { error: e instanceof Error ? e.message : String(e) })
+        )
       }
     }
     input.click()
@@ -185,7 +190,7 @@ export function DatabaseViewer({
                 <Popover onClose={() => setViewMenu(null)}>
                   <input
                     autoFocus
-                    aria-label="Nom de la vue"
+                    aria-label={t('Nom de la vue')}
                     defaultValue={v.name}
                     onBlur={(e) =>
                       e.target.value.trim() && patchView(v.id, { name: e.target.value.trim() })
@@ -209,7 +214,7 @@ export function DatabaseViewer({
                         })
                       }}
                     >
-                      Supprimer la vue
+                      {t('Supprimer la vue')}
                     </button>
                   )}
                 </Popover>
@@ -217,25 +222,25 @@ export function DatabaseViewer({
             </span>
           ))}
           {locked && (
-            <span className="db-locked-badge" title="Vues et propriétés verrouillées">
-              🔒 Verrouillée
+            <span className="db-locked-badge" title={t('Vues et propriétés verrouillées')}>
+              🔒 {t('Verrouillée')}
             </span>
           )}
           {!locked && (
             <span className="toolbar-anchor">
               <button
                 className="view-tab"
-                aria-label="Ajouter une vue"
+                aria-label={t('Ajouter une vue')}
                 onClick={() => setAddingView(true)}
               >
                 +
               </button>
               {addingView && (
                 <Popover onClose={() => setAddingView(false)}>
-                  <div className="menu-label">Nouvelle vue</div>
-                  {AVAILABLE_VIEWS.map((t) => (
-                    <button key={t} className="menu-item" onClick={() => addView(t)}>
-                      {VIEW_TYPE_LABELS[t]}
+                  <div className="menu-label">{t('Nouvelle vue')}</div>
+                  {AVAILABLE_VIEWS.map((type) => (
+                    <button key={type} className="menu-item" onClick={() => addView(type)}>
+                      {VIEW_TYPE_LABELS[type]}
                     </button>
                   ))}
                 </Popover>
@@ -246,24 +251,26 @@ export function DatabaseViewer({
         <span className="toolbar-anchor">
           <button
             className="view-tab"
-            title="Réglages de la base"
+            title={t('Réglages de la base')}
             onClick={() => setSettings(true)}
           >
             ⚙
           </button>
           {settings && (
             <Popover onClose={() => setSettings(false)} align="right">
-              <div className="menu-label">Réglages de la base</div>
+              <div className="menu-label">{t('Réglages de la base')}</div>
               <label className="menu-row">
                 <input
                   type="checkbox"
                   checked={locked}
                   onChange={(e) => void db.saveSchema({ ...schema, locked: e.target.checked })}
                 />
-                Verrouiller les vues et les propriétés
+                {t('Verrouiller les vues et les propriétés')}
               </label>
               <p className="hint">
-                Les lignes restent modifiables ; filtres, tris, colonnes et vues ne changent plus.
+                {t(
+                  'Les lignes restent modifiables ; filtres, tris, colonnes et vues ne changent plus.'
+                )}
               </p>
               <div className="menu-sep" />
               <label className="menu-row">
@@ -273,7 +280,7 @@ export function DatabaseViewer({
                   disabled={!!schema.subItems}
                   onChange={() => void nest('subItems')}
                 />
-                Sous-éléments (lignes imbriquées)
+                {t('Sous-éléments (lignes imbriquées)')}
               </label>
               <label className="menu-row">
                 <input
@@ -282,12 +289,14 @@ export function DatabaseViewer({
                   disabled={!!schema.dependencies}
                   onChange={() => void nest('dependencies')}
                 />
-                Dépendances (« Bloqué par » / « Bloque »)
+                {t('Dépendances (« Bloqué par » / « Bloque »)')}
               </label>
-              <p className="hint">Pour les retirer, supprimez leurs deux propriétés de relation.</p>
+              <p className="hint">
+                {t('Pour les retirer, supprimez leurs deux propriétés de relation.')}
+              </p>
               <div className="menu-sep" />
               <button className="menu-item" onClick={() => void importCsv()}>
-                Importer un fichier CSV…
+                {t('Importer un fichier CSV…')}
               </button>
             </Popover>
           )}
@@ -322,12 +331,12 @@ function ViewSettings({
     return (
       <>
         <label className="menu-row">
-          Grouper par
+          {t('Grouper par')}
           <select
             value={view.groupBy ?? ''}
             onChange={(e) => onPatch({ groupBy: e.target.value || null })}
           >
-            <option value="">{view.type === 'board' ? 'Choisir…' : 'Aucun groupe'}</option>
+            <option value="">{view.type === 'board' ? t('Choisir…') : t('Aucun groupe')}</option>
             {groupable.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -337,12 +346,12 @@ function ViewSettings({
         </label>
         {view.type !== 'board' && view.groupBy && (
           <label className="menu-row">
-            Sous-groupes par
+            {t('Sous-groupes par')}
             <select
               value={view.subGroupBy ?? ''}
               onChange={(e) => onPatch({ subGroupBy: e.target.value || null })}
             >
-              <option value="">Aucun</option>
+              <option value="">{t('Aucun')}</option>
               {groupable
                 .filter((p) => p.id !== view.groupBy)
                 .map((p) => (
@@ -361,7 +370,7 @@ function ViewSettings({
                 checked={!!view.wrap}
                 onChange={(e) => onPatch({ wrap: e.target.checked })}
               />
-              Retour à la ligne dans les cellules
+              {t('Retour à la ligne dans les cellules')}
             </label>
             <label className="menu-row">
               <input
@@ -369,7 +378,7 @@ function ViewSettings({
                 checked={!!view.freezeTitle}
                 onChange={(e) => onPatch({ freezeTitle: e.target.checked })}
               />
-              Figer la colonne du titre
+              {t('Figer la colonne du titre')}
             </label>
           </>
         )}
@@ -379,12 +388,12 @@ function ViewSettings({
   if (view.type === 'calendar' || view.type === 'timeline') {
     return (
       <label className="menu-row">
-        Date affichée
+        {t('Date affichée')}
         <select
           value={view.dateProperty ?? ''}
           onChange={(e) => onPatch({ dateProperty: e.target.value || null })}
         >
-          <option value="">Choisir…</option>
+          <option value="">{t('Choisir…')}</option>
           {schema.properties
             .filter((p) => ['date', 'created_time', 'last_edited_time'].includes(p.type))
             .map((p) => (

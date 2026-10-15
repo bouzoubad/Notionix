@@ -1,5 +1,6 @@
 import { useStore } from '../store'
 import { PageIcon } from './PageIcon'
+import { t } from '../../../shared/i18n'
 
 export function TrashDialog(): React.JSX.Element {
   const pages = useStore((s) => s.pages)
@@ -16,30 +17,30 @@ export function TrashDialog(): React.JSX.Element {
   return (
     <div className="overlay" onMouseDown={() => setOpen(false)}>
       <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Corbeille</h3>
+        <h3>{t('Corbeille')}</h3>
         <p className="trash-note">
-          Les pages sont supprimées définitivement 30 jours après leur mise à la corbeille.
+          {t('Les pages sont supprimées définitivement 30 jours après leur mise à la corbeille.')}
         </p>
         <div className="results">
           {trashed.map((p) => (
             <div key={p.id} className="hit trash-item">
               <span>
-                <PageIcon icon={p.icon} fallback="📄" /> {p.title || 'Sans titre'}
+                <PageIcon icon={p.icon} fallback="📄" /> {p.title || t('Sans titre')}
               </span>
               <span>
-                <button onClick={() => void restore(p.id)}>Restaurer</button>
+                <button onClick={() => void restore(p.id)}>{t('Restaurer')}</button>
                 <button
                   onClick={() => {
-                    if (confirm('Supprimer définitivement cette page et ses sous-pages ?'))
+                    if (confirm(t('Supprimer définitivement cette page et ses sous-pages ?')))
                       void deleteForever(p.id)
                   }}
                 >
-                  Supprimer
+                  {t('Supprimer')}
                 </button>
               </span>
             </div>
           ))}
-          {trashed.length === 0 && <p className="empty">La corbeille est vide.</p>}
+          {trashed.length === 0 && <p className="empty">{t('La corbeille est vide.')}</p>}
         </div>
       </div>
     </div>

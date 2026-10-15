@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react'
 import type { AdminOverview, AuditEntry, SessionUser } from '../shared/collab'
 import { json } from './http'
+import { locale, t, tx } from '../shared/i18n'
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 const bytes = (n: number): string =>
   n === 0
-    ? '0 Ko'
+    ? t('{n} Ko', { n: 0 })
     : n < 1024 * 1024
-      ? `${Math.max(1, Math.round(n / 1024))} Ko`
+      ? t('{n} Ko', { n: Math.max(1, Math.round(n / 1024)) })
       : n < 1024 ** 3
-        ? `${(n / 1024 / 1024).toFixed(1)} Mo`
-        : `${(n / 1024 ** 3).toFixed(2)} Go`
+        ? t('{n} Mo', { n: (n / 1024 / 1024).toFixed(1) })
+        : t('{n} Go', { n: (n / 1024 ** 3).toFixed(2) })
 const when = (ms: number): string =>
-  new Date(ms).toLocaleString('fr-FR', {
+  new Date(ms).toLocaleString(locale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -22,35 +23,35 @@ const when = (ms: number): string =>
 
 /** What each audited action means, for the log. */
 const ACTIONS: Record<string, string> = {
-  login: 'Connexion',
-  'login.failed': 'Connexion refusée',
-  'user.create': 'Compte créé',
-  'user.update': 'Compte modifié',
-  'user.activation': 'Lien d’activation créé',
-  'user.activated': 'Compte activé',
-  'user.password': 'Mot de passe provisoire créé',
-  'user.transfer': 'Pages transférées',
-  'sessions.end': 'Sessions fermées',
-  'token.create': 'Jeton d’API créé',
-  'token.revoke': 'Jeton d’API révoqué',
-  'group.create': 'Groupe créé',
-  'group.update': 'Groupe modifié',
-  'group.delete': 'Groupe supprimé',
-  'workspace.create': 'Espace créé',
-  'workspace.update': 'Espace modifié',
-  'workspace.archive': 'Espace archivé',
-  'workspace.restore': 'Espace restauré',
-  'workspace.delete': 'Espace supprimé',
-  'pages.setShare': 'Partage d’une page',
-  'pages.setAccess': 'Accès d’une page',
-  'pages.publish': 'Publication web',
-  'pages.trash': 'Page à la corbeille',
-  'pages.restore': 'Page restaurée',
-  'pages.deleteForever': 'Page supprimée définitivement',
-  'pages.restoreVersion': 'Version restaurée',
-  'databases.importCsv': 'Import CSV',
-  'transfer.import': 'Import Notion',
-  'transfer.export': 'Export'
+  login: t('Connexion'),
+  'login.failed': t('Connexion refusée'),
+  'user.create': t('Compte créé'),
+  'user.update': t('Compte modifié'),
+  'user.activation': t('Lien d’activation créé'),
+  'user.activated': t('Compte activé'),
+  'user.password': t('Mot de passe provisoire créé'),
+  'user.transfer': t('Pages transférées'),
+  'sessions.end': t('Sessions fermées'),
+  'token.create': t('Jeton d’API créé'),
+  'token.revoke': t('Jeton d’API révoqué'),
+  'group.create': t('Groupe créé'),
+  'group.update': t('Groupe modifié'),
+  'group.delete': t('Groupe supprimé'),
+  'workspace.create': t('Espace créé'),
+  'workspace.update': t('Espace modifié'),
+  'workspace.archive': t('Espace archivé'),
+  'workspace.restore': t('Espace restauré'),
+  'workspace.delete': t('Espace supprimé'),
+  'pages.setShare': t('Partage d’une page'),
+  'pages.setAccess': t('Accès d’une page'),
+  'pages.publish': t('Publication web'),
+  'pages.trash': t('Page à la corbeille'),
+  'pages.restore': t('Page restaurée'),
+  'pages.deleteForever': t('Page supprimée définitivement'),
+  'pages.restoreVersion': t('Version restaurée'),
+  'databases.importCsv': t('Import CSV'),
+  'transfer.import': t('Import Notion'),
+  'transfer.export': t('Export')
 }
 
 interface Account extends SessionUser {
@@ -90,46 +91,50 @@ export function AdminDashboard(): React.JSX.Element {
     id === null ? '—' : (accounts.find((a) => a.id === id)?.name ?? id)
 
   if (error) return <p className="error">{error}</p>
-  if (!overview) return <p className="settings-note">Chargement…</p>
+  if (!overview) return <p className="settings-note">{t('Chargement…')}</p>
   const { users } = overview
   return (
     <div className="admin-dashboard">
       <div className="admin-cards">
         <div className="admin-card">
           <strong>{users.active}</strong>
-          <span>comptes actifs</span>
+          <span>{t('comptes actifs')}</span>
           <small>
-            {users.admins} admin · {users.disabled} désactivé(s) · {users.pending} à activer
+            {t('{admins} admin · {disabled} désactivé(s) · {pending} à activer', {
+              admins: users.admins,
+              disabled: users.disabled,
+              pending: users.pending
+            })}
           </small>
         </div>
         <div className="admin-card">
           <strong>{overview.online.length}</strong>
-          <span>connecté(s) maintenant</span>
-          <small>{overview.online.map(name).join(', ') || 'personne'}</small>
+          <span>{t('connecté(s) maintenant')}</span>
+          <small>{overview.online.map(name).join(', ') || tx('aucun', 'personne')}</small>
         </div>
         <div className="admin-card">
           <strong>{bytes(overview.totalBytes)}</strong>
-          <span>de données</span>
-          <small>bases et fichiers, tous espaces</small>
+          <span>{t('de données')}</span>
+          <small>{t('bases et fichiers, tous espaces')}</small>
         </div>
         <div className="admin-card">
           <strong>{overview.feedbackOpen}</strong>
-          <span>retour(s) à traiter</span>
-          <small>bugs et idées</small>
+          <span>{t('retour(s) à traiter')}</span>
+          <small>{t('bugs et idées')}</small>
         </div>
       </div>
 
-      <h4>Espaces de travail</h4>
+      <h4>{t('Espaces de travail')}</h4>
       <table className="accounts-table">
         <thead>
           <tr>
-            <th>Espace</th>
-            <th>Pages</th>
-            <th>Bases</th>
-            <th>Corbeille</th>
-            <th>Membres</th>
-            <th>Base</th>
-            <th>Fichiers</th>
+            <th>{t('Espace')}</th>
+            <th>{t('Pages')}</th>
+            <th>{t('Bases')}</th>
+            <th>{t('Corbeille')}</th>
+            <th>{t('Membres')}</th>
+            <th>{t('Base')}</th>
+            <th>{t('Fichiers')}</th>
           </tr>
         </thead>
         <tbody>
@@ -137,12 +142,12 @@ export function AdminDashboard(): React.JSX.Element {
             <tr key={w.id} className={w.archived ? 'disabled' : ''}>
               <td>
                 {w.name}
-                {w.archived && <span className="account-badge">archivé</span>}
+                {w.archived && <span className="account-badge">{t('archivé')}</span>}
               </td>
               <td>{w.pages}</td>
               <td>{w.databases}</td>
               <td>{w.trashed}</td>
-              <td>{w.members ?? 'tous'}</td>
+              <td>{w.members ?? t('tous')}</td>
               <td>{bytes(w.databaseBytes)}</td>
               <td>
                 {w.files} · {bytes(w.fileBytes)}
@@ -152,16 +157,16 @@ export function AdminDashboard(): React.JSX.Element {
         </tbody>
       </table>
 
-      <h4>Sessions ouvertes</h4>
+      <h4>{t('Sessions ouvertes')}</h4>
       {overview.sessions.length === 0 ? (
-        <p className="settings-note">Aucune.</p>
+        <p className="settings-note">{t('Aucune.')}</p>
       ) : (
         <table className="accounts-table">
           <thead>
             <tr>
-              <th>Personne</th>
-              <th>Sessions</th>
-              <th>Dernière connexion</th>
+              <th>{t('Personne')}</th>
+              <th>{t('Sessions')}</th>
+              <th>{t('Dernière connexion')}</th>
               <th />
             </tr>
           </thead>
@@ -174,14 +179,15 @@ export function AdminDashboard(): React.JSX.Element {
                 <td className="account-actions">
                   <button
                     onClick={async () => {
-                      if (!confirm(`Fermer les sessions de ${name(s.userId)} ?`)) return
+                      if (!confirm(t('Fermer les sessions de {name} ?', { name: name(s.userId) })))
+                        return
                       await json(`/api/admin/sessions/${encodeURIComponent(s.userId)}`, {
                         method: 'DELETE'
                       })
                       await reload()
                     }}
                   >
-                    Déconnecter
+                    {t('Déconnecter')}
                   </button>
                 </td>
               </tr>
@@ -240,18 +246,18 @@ function AuditLog({
 
   return (
     <>
-      <h4>Journal d’audit</h4>
+      <h4>{t('Journal d’audit')}</h4>
       <div className="feedback-filters">
-        <select aria-label="Action" value={action} onChange={(e) => setAction(e.target.value)}>
-          <option value="">Toutes les actions</option>
+        <select aria-label={t('Action')} value={action} onChange={(e) => setAction(e.target.value)}>
+          <option value="">{t('Toutes les actions')}</option>
           {Object.entries(ACTIONS).map(([k, label]) => (
             <option key={k} value={k}>
               {label}
             </option>
           ))}
         </select>
-        <select aria-label="Personne" value={actor} onChange={(e) => setActor(e.target.value)}>
-          <option value="">Tout le monde</option>
+        <select aria-label={t('Personne')} value={actor} onChange={(e) => setActor(e.target.value)}>
+          <option value="">{t('Tout le monde')}</option>
           {accounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -260,18 +266,18 @@ function AuditLog({
         </select>
       </div>
       {entries === null ? (
-        <p className="settings-note">Chargement…</p>
+        <p className="settings-note">{t('Chargement…')}</p>
       ) : entries.length === 0 ? (
-        <p className="settings-note">Rien à afficher.</p>
+        <p className="settings-note">{t('Rien à afficher.')}</p>
       ) : (
         <table className="accounts-table audit-table">
           <thead>
             <tr>
-              <th>Quand</th>
-              <th>Qui</th>
-              <th>Action</th>
-              <th>Sur</th>
-              <th>Détail</th>
+              <th>{t('Quand')}</th>
+              <th>{t('Qui')}</th>
+              <th>{t('Action')}</th>
+              <th>{t('Sur')}</th>
+              <th>{t('Détail')}</th>
             </tr>
           </thead>
           <tbody>
@@ -287,8 +293,8 @@ function AuditLog({
           </tbody>
         </table>
       )}
-      {more && <button onClick={() => void loadMore()}>Plus ancien…</button>}
-      <p className="settings-note">Conservé un an.</p>
+      {more && <button onClick={() => void loadMore()}>{t('Plus ancien…')}</button>}
+      <p className="settings-note">{t('Conservé un an.')}</p>
     </>
   )
 }

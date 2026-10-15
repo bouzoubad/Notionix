@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { json } from './http'
+import { t, tx } from '../shared/i18n'
 
 interface Field {
   id: string
@@ -23,19 +24,19 @@ export function PublicForm({ token }: { token: string }): React.JSX.Element {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [token])
   if (error && !form) return <div className="web-error">{error}</div>
-  if (!form) return <div className="web-error">Chargement…</div>
+  if (!form) return <div className="web-error">{t('Chargement…')}</div>
   if (state === 'sent')
     return (
       <div className="public-form">
         <h1>{form.title}</h1>
-        <p>Merci, votre réponse a été enregistrée.</p>
+        <p>{t('Merci, votre réponse a été enregistrée.')}</p>
         <button
           onClick={() => {
             setValues({})
             setState('idle')
           }}
         >
-          Envoyer une autre réponse
+          {t('Envoyer une autre réponse')}
         </button>
       </div>
     )
@@ -67,7 +68,7 @@ export function PublicForm({ token }: { token: string }): React.JSX.Element {
         type="submit"
         disabled={state === 'sending' || !String(values.title ?? '').trim()}
       >
-        {state === 'sending' ? 'Envoi…' : 'Envoyer'}
+        {state === 'sending' ? t('Envoi…') : tx('formulaire', 'Envoyer')}
       </button>
     </form>
   )
@@ -111,7 +112,7 @@ function FieldInput({
     case 'status':
       return (
         <select value={String(value ?? '')} onChange={(e) => onChange(e.target.value || null)}>
-          <option value="">Choisir…</option>
+          <option value="">{t('Choisir…')}</option>
           {field.options?.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}

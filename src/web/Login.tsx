@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { SessionUser } from '../shared/collab'
 import { Logo } from '../renderer/src/components/Logo'
 import { json } from './http'
+import { LANGUAGES, language, setLanguage, t, type Language } from '../shared/i18n'
 
 export function Login({
   onSignedIn
@@ -33,7 +34,7 @@ export function Login({
       <form className="login-card" onSubmit={(e) => void submit(e)}>
         <Logo variant="wordmark" className="login-logo" />
         <label>
-          E-mail
+          {t('E-mail')}
           <input
             type="email"
             autoComplete="username"
@@ -44,7 +45,7 @@ export function Login({
           />
         </label>
         <label>
-          Mot de passe
+          {t('Mot de passe')}
           <input
             type="password"
             autoComplete="current-password"
@@ -55,14 +56,29 @@ export function Login({
         </label>
         {error && <p className="error">{error}</p>}
         <button className="primary" type="submit" disabled={busy}>
-          {busy ? 'Connexion…' : 'Se connecter'}
+          {busy ? t('Connexion…') : t('Se connecter')}
         </button>
         {location.protocol === 'http:' &&
           !['localhost', '127.0.0.1'].includes(location.hostname) && (
             <p className="login-warning">
-              Connexion non chiffrée (HTTP) : réservée aux essais sur le réseau local.
+              {t('Connexion non chiffrée (HTTP) : réservée aux essais sur le réseau local.')}
             </p>
           )}
+        <select
+          className="login-language"
+          aria-label={t('Langue')}
+          value={language()}
+          onChange={(e) => {
+            setLanguage(e.target.value as Language)
+            location.reload()
+          }}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </select>
       </form>
     </div>
   )

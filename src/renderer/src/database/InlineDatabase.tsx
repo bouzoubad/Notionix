@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { DatabaseViewer } from './DatabaseViewer'
 import { useDatabase } from './useDatabase'
 import type { ViewDef } from '../../../shared/database'
+import { t } from '../../../shared/i18n'
 
 function InlineDatabaseView({ node, updateAttributes }: ReactNodeViewProps): React.JSX.Element {
   const databaseId = String(node.attrs.databaseId ?? '')
@@ -19,12 +20,15 @@ function InlineDatabaseView({ node, updateAttributes }: ReactNodeViewProps): Rea
       data-database-id={databaseId}
     >
       {!page || page.trashedAt ? (
-        <div className="inline-database-missing">Base de données supprimée ou introuvable.</div>
+        <div className="inline-database-missing">
+          {t('Base de données supprimée ou introuvable.')}
+        </div>
       ) : (
         <>
           <button className="inline-database-title" onClick={() => open(databaseId)}>
             {linked && <span className="linked-mark">↗ </span>}
-            <PageIcon icon={page.icon} fallback="🗃️" /> {page.title || 'Base de données sans titre'}
+            <PageIcon icon={page.icon} fallback="🗃️" />{' '}
+            {page.title || t('Base de données sans titre')}
           </button>
           <DatabaseViewer
             databaseId={databaseId}

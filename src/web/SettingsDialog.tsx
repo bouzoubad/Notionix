@@ -4,6 +4,7 @@ import { json } from './http'
 import { Groups, Workspaces } from './TeamSettings'
 import { KeeperShare, type SignInKey } from './KeeperShare'
 import { AdminDashboard } from './AdminDashboard'
+import { locale, t } from '../shared/i18n'
 
 type Role = SessionUser['role']
 
@@ -14,10 +15,10 @@ interface Account extends SessionUser {
 }
 
 const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Administrateur',
-  editor: 'Éditeur',
-  reader: 'Lecture seule',
-  guest: 'Invité (pages partagées)'
+  admin: t('Administrateur'),
+  editor: t('Éditeur'),
+  reader: t('Lecture seule'),
+  guest: t('Invité (pages partagées)')
 }
 const MIN_PASSWORD = 10
 
@@ -37,14 +38,14 @@ export function SettingsDialog({
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="dialog settings" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Paramètres</h3>
+        <h3>{t('Paramètres')}</h3>
         <div className="settings-tabs">
           {user.role === 'admin' && (
             <button
               className={tab === 'dashboard' ? 'active' : ''}
               onClick={() => setTab('dashboard')}
             >
-              Tableau de bord
+              {t('Tableau de bord')}
             </button>
           )}
           {user.role === 'admin' && (
@@ -52,12 +53,12 @@ export function SettingsDialog({
               className={tab === 'accounts' ? 'active' : ''}
               onClick={() => setTab('accounts')}
             >
-              Comptes de l’équipe
+              {t('Comptes de l’équipe')}
             </button>
           )}
           {user.role === 'admin' && (
             <button className={tab === 'groups' ? 'active' : ''} onClick={() => setTab('groups')}>
-              Groupes
+              {t('Groupes')}
             </button>
           )}
           {user.role === 'admin' && (
@@ -65,14 +66,14 @@ export function SettingsDialog({
               className={tab === 'workspaces' ? 'active' : ''}
               onClick={() => setTab('workspaces')}
             >
-              Espaces de travail
+              {t('Espaces de travail')}
             </button>
           )}
           <button className={tab === 'me' ? 'active' : ''} onClick={() => setTab('me')}>
-            Mon compte
+            {t('Mon compte')}
           </button>
           <button className={tab === 'tokens' ? 'active' : ''} onClick={() => setTab('tokens')}>
-            Jetons d’API
+            {t('Jetons d’API')}
           </button>
         </div>
         <div className="settings-body">
@@ -111,13 +112,13 @@ export function MyAccount({
 
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (next !== again) return setError('Les deux nouveaux mots de passe diffèrent.')
+    if (next !== again) return setError(t('Les deux nouveaux mots de passe diffèrent.'))
     setBusy(true)
     setError(null)
     try {
       await json('/api/me/password', { json: { current, next } })
       // Changing the password ends every session, this one included.
-      alert('Mot de passe changé. Reconnectez-vous avec le nouveau.')
+      alert(t('Mot de passe changé. Reconnectez-vous avec le nouveau.'))
       location.reload()
     } catch (err) {
       setError(message(err))
@@ -132,11 +133,11 @@ export function MyAccount({
       </p>
       {required && (
         <p className="settings-notice">
-          Votre mot de passe est provisoire : choisissez le vôtre pour continuer.
+          {t('Votre mot de passe est provisoire : choisissez le vôtre pour continuer.')}
         </p>
       )}
       <label>
-        Mot de passe actuel
+        {t('Mot de passe actuel')}
         <input
           type="password"
           autoComplete="current-password"
@@ -146,7 +147,7 @@ export function MyAccount({
         />
       </label>
       <label>
-        Nouveau mot de passe ({MIN_PASSWORD} caractères minimum)
+        {t('Nouveau mot de passe ({n} caractères minimum)', { n: MIN_PASSWORD })}
         <input
           type="password"
           autoComplete="new-password"
@@ -157,7 +158,7 @@ export function MyAccount({
         />
       </label>
       <label>
-        Nouveau mot de passe, à nouveau
+        {t('Nouveau mot de passe, à nouveau')}
         <input
           type="password"
           autoComplete="new-password"
@@ -168,7 +169,7 @@ export function MyAccount({
       </label>
       {error && <p className="error">{error}</p>}
       <button className="primary" type="submit" disabled={busy}>
-        Changer le mot de passe
+        {t('Changer le mot de passe')}
       </button>
     </form>
   )
@@ -254,14 +255,14 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
       {notice && <p className="settings-notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
       {accounts === null ? (
-        <p className="settings-note">Chargement…</p>
+        <p className="settings-note">{t('Chargement…')}</p>
       ) : (
         <table className="accounts-table">
           <thead>
             <tr>
-              <th>Nom</th>
-              <th>E-mail</th>
-              <th>Rôle</th>
+              <th>{t('Nom')}</th>
+              <th>{t('E-mail')}</th>
+              <th>{t('Rôle')}</th>
               <th />
             </tr>
           </thead>
@@ -270,8 +271,8 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
               <tr key={a.id} className={a.disabled ? 'disabled' : ''}>
                 <td>
                   {a.name}
-                  {a.id === self.id ? ' (vous)' : ''}
-                  {a.pendingActivation && <span className="account-badge">à activer</span>}
+                  {a.id === self.id ? t(' (vous)') : ''}
+                  {a.pendingActivation && <span className="account-badge">{t('à activer')}</span>}
                 </td>
                 <td>{a.email}</td>
                 <td>
@@ -288,7 +289,7 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
                 </td>
                 <td className="account-actions">
                   <select
-                    aria-label={`Actions pour ${a.email}`}
+                    aria-label={t('Actions pour {email}', { email: a.email })}
                     value=""
                     onChange={(e) => {
                       const action = e.target.value
@@ -299,16 +300,22 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
                         void change(
                           a,
                           { disabled: !a.disabled },
-                          a.disabled ? `${a.email} réactivé.` : `${a.email} désactivé.`
+                          a.disabled
+                            ? t('{email} réactivé.', { email: a.email })
+                            : t('{email} désactivé.', { email: a.email })
                         )
                     }}
                   >
-                    <option value="">Actions…</option>
-                    <option value="link">Nouveau lien d’activation (Keeper)</option>
-                    <option value="password">Mot de passe provisoire (Keeper)</option>
-                    {a.id !== self.id && <option value="transfer">Transférer ses pages…</option>}
+                    <option value="">{t('Actions…')}</option>
+                    <option value="link">{t('Nouveau lien d’activation (Keeper)')}</option>
+                    <option value="password">{t('Mot de passe provisoire (Keeper)')}</option>
                     {a.id !== self.id && (
-                      <option value="toggle">{a.disabled ? 'Réactiver' : 'Désactiver'}</option>
+                      <option value="transfer">{t('Transférer ses pages…')}</option>
+                    )}
+                    {a.id !== self.id && (
+                      <option value="toggle">
+                        {a.disabled ? t('Réactiver') : t('Désactiver')}
+                      </option>
                     )}
                   </select>
                 </td>
@@ -318,9 +325,9 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
         </table>
       )}
       <p className="settings-note">
-        Un compte désactivé ne peut plus se connecter ; ses pages restent. Un mot de passe
-        provisoire ferme les sessions ouvertes de la personne et doit être changé à sa connexion. Un
-        lien d’activation sert aussi en cas de mot de passe oublié.
+        {t(
+          'Un compte désactivé ne peut plus se connecter ; ses pages restent. Un mot de passe provisoire ferme les sessions ouvertes de la personne et doit être changé à sa connexion. Un lien d’activation sert aussi en cas de mot de passe oublié.'
+        )}
       </p>
     </div>
   )
@@ -350,7 +357,17 @@ function TransferPages({
       )
       const recipient = accounts.find((a) => a.id === to)?.name ?? ''
       onDone(
-        `${pages} page(s) privée(s) de ${account.name} confiée(s) à ${recipient}${disable ? ', compte désactivé' : ''}.`
+        disable
+          ? t('{n} page(s) privée(s) de {name} confiée(s) à {recipient}, compte désactivé.', {
+              n: pages,
+              name: account.name,
+              recipient
+            })
+          : t('{n} page(s) privée(s) de {name} confiée(s) à {recipient}.', {
+              n: pages,
+              name: account.name,
+              recipient
+            })
       )
     } catch (err) {
       setError(message(err))
@@ -358,14 +375,15 @@ function TransferPages({
   }
   return (
     <form className="new-account transfer-pages" onSubmit={(e) => void submit(e)}>
-      <h4>Départ de {account.name}</h4>
+      <h4>{t('Départ de {name}', { name: account.name })}</h4>
       <p className="settings-note">
-        Ses pages privées (et leurs sous-pages), dans tous les espaces, passent à la personne
-        choisie. Les pages partagées avec tout l’espace ne changent pas.
+        {t(
+          'Ses pages privées (et leurs sous-pages), dans tous les espaces, passent à la personne choisie. Les pages partagées avec tout l’espace ne changent pas.'
+        )}
       </p>
       <div className="new-account-fields">
         <select required value={to} onChange={(e) => setTo(e.target.value)}>
-          <option value="">Confier ses pages à…</option>
+          <option value="">{t('Confier ses pages à…')}</option>
           {accounts
             .filter((a) => a.id !== account.id && !a.disabled)
             .map((a) => (
@@ -376,13 +394,13 @@ function TransferPages({
         </select>
         <label className="inline-check">
           <input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} />
-          Désactiver le compte
+          {t('Désactiver le compte')}
         </label>
         <button className="primary" type="submit" disabled={!to}>
-          Transférer
+          {t('Transférer')}
         </button>
         <button type="button" onClick={onCancel}>
-          Annuler
+          {t('Annuler')}
         </button>
       </div>
       {error && <p className="error">{error}</p>}
@@ -429,18 +447,18 @@ function NewAccount({
 
   return (
     <form className="new-account" onSubmit={(e) => void submit(e)}>
-      <h4>Ajouter un compte</h4>
+      <h4>{t('Ajouter un compte')}</h4>
       <div className="new-account-fields">
         <input
           type="text"
-          placeholder="Prénom Nom"
+          placeholder={t('Prénom Nom')}
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
           type="email"
-          placeholder="e-mail"
+          placeholder={t('e-mail')}
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -453,17 +471,17 @@ function NewAccount({
           ))}
         </select>
         <button className="primary" type="submit" disabled={busy}>
-          Créer
+          {t('Créer')}
         </button>
       </div>
       <div className="new-account-mode">
         <label>
           <input type="radio" checked={mode === 'link'} onChange={() => setMode('link')} />
-          Lien d’activation : la personne choisit son mot de passe (recommandé)
+          {t('Lien d’activation : la personne choisit son mot de passe (recommandé)')}
         </label>
         <label>
           <input type="radio" checked={mode === 'password'} onChange={() => setMode('password')} />
-          Mot de passe provisoire généré, à changer à la première connexion
+          {t('Mot de passe provisoire généré, à changer à la première connexion')}
         </label>
       </div>
       {error && <p className="error">{error}</p>}
@@ -508,29 +526,31 @@ function Tokens(): React.JSX.Element {
       setError(message(err))
     }
   }
-  const when = (ms: number | null): string => (ms ? new Date(ms).toLocaleString('fr-FR') : 'jamais')
+  const when = (ms: number | null): string =>
+    ms ? new Date(ms).toLocaleString(locale()) : t('jamais')
   return (
     <div className="accounts">
       <p className="settings-note">
-        Un jeton permet à un script d’utiliser l’API de Notionix avec vos droits (en-tête «
-        Authorization: Bearer … »). Documentation : docs/api.md du dépôt.
+        {t(
+          'Un jeton permet à un script d’utiliser l’API de Notionix avec vos droits (en-tête « Authorization: Bearer … »). Documentation : docs/api.md du dépôt.'
+        )}
       </p>
       <form className="new-account" onSubmit={(e) => void create(e)}>
         <div className="new-account-fields">
           <input
-            placeholder="Nom du jeton (ex. Import tableur)"
+            placeholder={t('Nom du jeton (ex. Import tableur)')}
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <button className="primary" type="submit">
-            Créer un jeton
+            {t('Créer un jeton')}
           </button>
         </div>
       </form>
       {created && (
         <p className="settings-notice">
-          Copiez ce jeton maintenant, il ne sera plus affiché :{' '}
+          {t('Copiez ce jeton maintenant, il ne sera plus affiché :')}{' '}
           <code className="token">{created}</code>
         </p>
       )}
@@ -538,28 +558,31 @@ function Tokens(): React.JSX.Element {
       <table className="accounts-table">
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Créé le</th>
-            <th>Dernière utilisation</th>
+            <th>{t('Nom')}</th>
+            <th>{t('Créé le')}</th>
+            <th>{t('Dernière utilisation')}</th>
             <th />
           </tr>
         </thead>
         <tbody>
-          {tokens?.map((t) => (
-            <tr key={t.id}>
-              <td>{t.name}</td>
-              <td>{when(t.createdAt)}</td>
-              <td>{when(t.lastUsedAt)}</td>
+          {tokens?.map((token) => (
+            <tr key={token.id}>
+              <td>{token.name}</td>
+              <td>{when(token.createdAt)}</td>
+              <td>{when(token.lastUsedAt)}</td>
               <td className="account-actions">
                 <span>
                   <button
                     onClick={async () => {
-                      if (!confirm(`Révoquer le jeton « ${t.name} » ?`)) return
-                      await json(`/api/tokens/${encodeURIComponent(t.id)}`, { method: 'DELETE' })
+                      if (!confirm(t('Révoquer le jeton « {name} » ?', { name: token.name })))
+                        return
+                      await json(`/api/tokens/${encodeURIComponent(token.id)}`, {
+                        method: 'DELETE'
+                      })
                       await reload()
                     }}
                   >
-                    Révoquer
+                    {t('Révoquer')}
                   </button>
                 </span>
               </td>

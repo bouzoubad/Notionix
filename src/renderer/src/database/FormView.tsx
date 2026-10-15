@@ -11,6 +11,7 @@ import { Cell } from './Cell'
 import { platform } from '../platform'
 import { copyText } from '../clipboard'
 import { TYPE_ICONS, visibleProperties, type ViewProps } from './viewTypes'
+import { t, tx } from '../../../shared/i18n'
 
 const emptyRow = (): DatabaseRow => ({
   id: 'form',
@@ -66,12 +67,12 @@ export function FormView({
         <div className="form-share">
           <label>
             <input type="checkbox" checked={!!link} onChange={(e) => share(e.target.checked)} />{' '}
-            Formulaire public : n’importe qui ayant le lien peut répondre, sans compte
+            {t('Formulaire public : n’importe qui ayant le lien peut répondre, sans compte')}
           </label>
           {link && (
             <span className="share-public-link">
               <input readOnly value={link} onFocus={(e) => e.target.select()} />
-              <button onClick={() => void copyText(link)}>Copier</button>
+              <button onClick={() => void copyText(link)}>{t('Copier')}</button>
             </span>
           )}
         </div>
@@ -93,9 +94,9 @@ export function FormView({
       ))}
       <div className="form-actions">
         <button className="primary" onClick={submit} disabled={!draft.title.trim()}>
-          Envoyer
+          {tx('formulaire', 'Envoyer')}
         </button>
-        {sent > 0 && <span className="muted">Réponse ajoutée à la base.</span>}
+        {sent > 0 && <span className="muted">{t('Réponse ajoutée à la base.')}</span>}
       </div>
     </div>
   )

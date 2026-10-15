@@ -8,10 +8,15 @@ import {
   type RecurrenceUnit
 } from '../../../shared/recurrence'
 import { useStore } from '../store'
+import { locale, t, tx } from '../../../shared/i18n'
 
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+/** One-letter weekday names from Monday (« L », « M »…). */
+const dayLetters = (): string[] =>
+  Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 1 + i).toLocaleDateString(locale(), { weekday: 'narrow' })
+  )
 const when = (ms: number): string =>
-  new Date(ms).toLocaleString('fr-FR', {
+  new Date(ms).toLocaleString(locale(), {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -65,12 +70,19 @@ export function RecurrenceEditor({
       setCurrent(saved)
       showNotice(
         saved
-          ? `« ${template.title || 'Sans titre'} » : prochaine création ${when(saved.nextAt)}.`
-          : 'Répétition arrêtée.'
+          ? t('« {title} » : prochaine création {when}.', {
+              title: template.title || t('Sans titre'),
+              when: when(saved.nextAt)
+            })
+          : t('Répétition arrêtée.')
       )
       onClose()
     } catch (e) {
-      showNotice(`Répétition impossible : ${e instanceof Error ? e.message : String(e)}`)
+      showNotice(
+        t('Répétition impossible : {error}', {
+          error: e instanceof Error ? e.message : String(e)
+        })
+      )
     }
   }
   const rule = (): RecurrenceRule => ({
@@ -83,17 +95,22 @@ export function RecurrenceEditor({
     ...(dateProperty ? { dateProperty } : {})
   })
 
-  if (current === undefined) return <div className="recurrence-editor">Chargement…</div>
+  if (current === undefined) return <div className="recurrence-editor">{t('Chargement…')}</div>
   return (
     <div className="recurrence-editor">
-      <div className="menu-label">Répéter « {template.title || 'Sans titre'} »</div>
+      <div className="menu-label">
+        {t('Répéter « {title} »', { title: template.title || t('Sans titre') })}
+      </div>
       {current && (
         <p className="hint">
-          {describeRule(current.rule)}. Prochaine : {when(current.nextAt)}.
+          {t('{rule}. Prochaine : {when}.', {
+            rule: describeRule(current.rule),
+            when: when(current.nextAt)
+          })}
         </p>
       )}
       <label className="menu-row">
-        Tous les
+        {t('Tous les')}
         <input
           type="number"
           min={1}
@@ -110,8 +127,8 @@ export function RecurrenceEditor({
         </select>
       </label>
       {every === 'week' && (
-        <div className="recurrence-days" role="group" aria-label="Jours">
-          {WEEKDAYS.map((d, i) => (
+        <div className="recurrence-days" role="group" aria-label={t('Jours')}>
+          {dayLetters().map((d, i) => (
             <button
               key={i}
               type="button"
@@ -131,12 +148,12 @@ export function RecurrenceEditor({
         </div>
       )}
       <label className="menu-row">
-        À
+        {t('À')}
         <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
       </label>
       {dates.length > 0 && (
         <label className="menu-row">
-          Date de la ligne
+          {t('Date de la ligne')}
           <select value={dateProperty} onChange={(e) => setDateProperty(e.target.value)}>
             <option value="">—</option>
             {dates.map((p) => (
@@ -148,9 +165,9 @@ export function RecurrenceEditor({
         </label>
       )}
       <div className="recurrence-actions">
-        {current && <button onClick={() => void save(null)}>Arrêter</button>}
+        {current && <button onClick={() => void save(null)}>{t('Arrêter')}</button>}
         <button className="primary" onClick={() => void save(rule())}>
-          {current ? 'Modifier' : 'Répéter'}
+          {current ? tx('enregistrer', 'Modifier') : t('Répéter')}
         </button>
       </div>
     </div>

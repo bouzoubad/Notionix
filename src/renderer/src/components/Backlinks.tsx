@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 /** "N rétroliens": the pages linking to this one, listed on demand. */
 export function Backlinks({ pageId }: { pageId: string }): React.JSX.Element | null {
@@ -24,14 +25,17 @@ export function Backlinks({ pageId }: { pageId: string }): React.JSX.Element | n
   return (
     <div className="backlinks">
       <button className="backlinks-toggle" onClick={() => setShown(!shown)}>
-        ↙ {links.length} rétrolien{links.length > 1 ? 's' : ''}
+        ↙{' '}
+        {links.length > 1
+          ? t('{n} rétroliens', { n: links.length })
+          : t('{n} rétrolien', { n: links.length })}
       </button>
       {shown && (
         <div className="backlinks-list">
           {links.map((p) => (
             <button key={p.id} onClick={() => open(p.id)}>
               <PageIcon icon={p.icon} fallback={p.kind === 'database' ? '🗃️' : '📄'} />{' '}
-              {p.title || 'Sans titre'}
+              {p.title || t('Sans titre')}
             </button>
           ))}
         </div>

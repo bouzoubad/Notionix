@@ -24,6 +24,7 @@ import { PageTopBar } from '../components/PageTopBar'
 import { pageOptionClasses } from '../pageOptions'
 import { CommentsPanel } from '../components/CommentsPanel'
 import { Backlinks } from '../components/Backlinks'
+import { t, tx } from '../../../shared/i18n'
 
 const lowlight = createLowlight(common)
 
@@ -163,7 +164,7 @@ function LoadedEditor({
       BlockHandle,
       Placeholder.configure({
         placeholder: ({ node }) =>
-          node.type.name === 'heading' ? 'Titre' : "Tapez '/' pour insérer un bloc"
+          node.type.name === 'heading' ? tx('bloc', 'Titre') : t("Tapez '/' pour insérer un bloc")
       }),
       SlashCommands,
       MentionSuggestion,
@@ -174,7 +175,7 @@ function LoadedEditor({
       attributes: {
         role: 'textbox',
         'aria-multiline': 'true',
-        'aria-label': 'Contenu de la page'
+        'aria-label': t('Contenu de la page')
       },
       handleClick: (_view, _pos, event) => {
         // Clicking discussed text shows its discussion.
@@ -219,10 +220,10 @@ function LoadedEditor({
         <input
           ref={titleInput}
           className="page-title"
-          aria-label="Titre de la page"
+          aria-label={t('Titre de la page')}
           value={title}
           readOnly={!editable}
-          placeholder="Sans titre"
+          placeholder={t('Sans titre')}
           autoFocus={!page.title}
           onChange={(e) => {
             setTitle(e.target.value)

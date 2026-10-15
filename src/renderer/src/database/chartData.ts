@@ -8,16 +8,20 @@ import {
   type PropertyDef
 } from '../../../shared/database'
 import { nameOf } from './viewTypes'
+import { locale, t } from '../../../shared/i18n'
 
 const PALETTE = ['blue', 'orange', 'green', 'purple', 'pink', 'yellow', 'red', 'brown', 'gray']
 
 export const AGGREGATE_LABELS: Record<Exclude<ChartAggregate, 'count'>, string> = {
-  sum: 'Somme',
-  average: 'Moyenne',
-  median: 'Médiane',
-  min: 'Minimum',
-  max: 'Maximum'
+  sum: t('Somme'),
+  average: t('Moyenne'),
+  median: t('Médiane'),
+  min: t('Minimum'),
+  max: t('Maximum')
 }
+
+/** Label of the rows without a value. */
+const empty = (): string => t('Vide')
 
 export interface Bucket {
   label: string
@@ -33,12 +37,12 @@ const isDateProp = (p: PropertyDef | undefined): boolean =>
 /** Labels a row falls under: options, people, a month (with its sort key), or its text. */
 function labelsOf(prop: PropertyDef, row: DatabaseRow): { label: string; key?: number }[] {
   const value = rowValue(row, prop)
-  if (value === null || isComputedError(value)) return [{ label: 'Vide' }]
+  if (value === null || isComputedError(value)) return [{ label: empty() }]
   if (isDateProp(prop)) {
     const [y, m] = (value as { start: string }).start.split('-').map(Number)
     return [
       {
-        label: new Date(y, m - 1, 1).toLocaleDateString('fr-FR', {
+        label: new Date(y, m - 1, 1).toLocaleDateString(locale(), {
           month: 'short',
           year: 'numeric'
         }),
@@ -54,9 +58,9 @@ function labelsOf(prop: PropertyDef, row: DatabaseRow): { label: string; key?: n
           : (nameOf(v) ?? '')
       )
       .filter(Boolean)
-    return names.length ? names.map((label) => ({ label })) : [{ label: 'Vide' }]
+    return names.length ? names.map((label) => ({ label })) : [{ label: empty() }]
   }
-  return [{ label: displayValue(prop, value, nameOf) || 'Vide' }]
+  return [{ label: displayValue(prop, value, nameOf) || empty() }]
 }
 
 /** The aggregate of a bucket's numbers (its rows counted for 'count'). */
@@ -80,13 +84,13 @@ function aggregate(kind: ChartAggregate, count: number, numbers: number[]): numb
   }
 }
 
-/** Position of a label among the property's options; others after, 'Vide' last. */
+/** Position of a label among the property's options; others after, empty last. */
 const optionOrder =
   (prop: PropertyDef | undefined) =>
   (l: string): number => {
     const options = prop?.options ?? []
     const i = options.findIndex((o) => o.name === l)
-    return i < 0 ? options.length + (l === 'Vide' ? 1 : 0) : i
+    return i < 0 ? options.length + (l === empty() ? 1 : 0) : i
   }
 const colorOf = (prop: PropertyDef | undefined, label: string, i: number): string =>
   `var(--nx-${prop?.options?.find((o) => o.name === label)?.color ?? PALETTE[i % PALETTE.length]})`
@@ -115,7 +119,7 @@ export function chartData(
   const stackSeen = new Set<string>()
   for (const row of rows) {
     const n = measure ? rowValue(row, measure) : null
-    for (const { label, key } of group ? labelsOf(group, row) : [{ label: 'Total' }]) {
+    for (const { label, key } of group ? labelsOf(group, row) : [{ label: t('Total') }]) {
       if (key !== undefined) keys.set(label, key)
       for (const { label: part } of stack ? labelsOf(stack, row) : [{ label: '' }]) {
         stackSeen.add(part)

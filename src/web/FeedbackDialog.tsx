@@ -9,10 +9,11 @@ import {
 import { assetNameFromSrc, assetWebPath } from '../shared/assets'
 import { json } from './http'
 import { webApi } from './api'
+import { locale, t } from '../shared/i18n'
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 const when = (ms: number): string =>
-  new Date(ms).toLocaleString('fr-FR', {
+  new Date(ms).toLocaleString(locale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -56,13 +57,13 @@ export function FeedbackDialog({
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="dialog settings feedback" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Feedback</h3>
+        <h3>{t('Feedback')}</h3>
         <div className="settings-tabs">
           <button className={tab === 'send' ? 'active' : ''} onClick={() => setTab('send')}>
-            Signaler un bug ou proposer une idée
+            {t('Signaler un bug ou proposer une idée')}
           </button>
           <button className={tab === 'list' ? 'active' : ''} onClick={() => setTab('list')}>
-            {admin ? 'Tous les retours' : 'Mes retours'}
+            {admin ? t('Tous les retours') : t('Mes retours')}
             {items ? ` (${items.length})` : ''}
           </button>
         </div>
@@ -124,20 +125,21 @@ function SendForm({ onSent }: { onSent: () => Promise<void> }): React.JSX.Elemen
     <form className="settings-form feedback-form" onSubmit={(e) => void submit(e)}>
       <div className="feedback-kinds">
         <label className={kind === 'bug' ? 'active' : ''}>
-          <input type="radio" checked={kind === 'bug'} onChange={() => setKind('bug')} /> 🐞 Un bug
+          <input type="radio" checked={kind === 'bug'} onChange={() => setKind('bug')} /> 🐞{' '}
+          {t('Un bug')}
         </label>
         <label className={kind === 'idea' ? 'active' : ''}>
-          <input type="radio" checked={kind === 'idea'} onChange={() => setKind('idea')} /> 💡 Une
-          idée d’amélioration
+          <input type="radio" checked={kind === 'idea'} onChange={() => setKind('idea')} /> 💡{' '}
+          {t('Une idée d’amélioration')}
         </label>
       </div>
       <label>
-        Titre
+        {t('Titre')}
         <input
           required
           maxLength={200}
           placeholder={
-            kind === 'bug' ? 'Ex. : la recherche ne trouve pas…' : 'Ex. : pouvoir trier par…'
+            kind === 'bug' ? t('Ex. : la recherche ne trouve pas…') : t('Ex. : pouvoir trier par…')
           }
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -145,12 +147,12 @@ function SendForm({ onSent }: { onSent: () => Promise<void> }): React.JSX.Elemen
       </label>
       <label>
         {kind === 'bug'
-          ? 'Ce qui s’est passé, et ce que vous attendiez'
-          : 'Votre idée, et à quoi elle servirait'}
+          ? t('Ce qui s’est passé, et ce que vous attendiez')
+          : t('Votre idée, et à quoi elle servirait')}
         <textarea rows={6} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>
       <label>
-        Capture d’écran (facultatif)
+        {t('Capture d’écran (facultatif)')}
         <input
           type="file"
           accept="image/png,image/jpeg,image/gif,image/webp"
@@ -158,11 +160,11 @@ function SendForm({ onSent }: { onSent: () => Promise<void> }): React.JSX.Elemen
         />
       </label>
       <p className="settings-note">
-        La page ouverte et le navigateur utilisé sont joints automatiquement.
+        {t('La page ouverte et le navigateur utilisé sont joints automatiquement.')}
       </p>
       {error && <p className="error">{error}</p>}
       <button className="primary" type="submit" disabled={busy || !title.trim()}>
-        {busy ? 'Envoi…' : 'Envoyer'}
+        {busy ? t('Envoi…') : t('Envoyer')}
       </button>
     </form>
   )
@@ -181,7 +183,7 @@ function FeedbackList({
 }): React.JSX.Element {
   const [kind, setKind] = useState<FeedbackKind | 'all'>('all')
   const [status, setStatus] = useState<FeedbackStatus | 'open' | 'all'>(admin ? 'open' : 'all')
-  if (items === null) return <p className="settings-note">Chargement…</p>
+  if (items === null) return <p className="settings-note">{t('Chargement…')}</p>
   const open = (s: FeedbackStatus): boolean => s !== 'done' && s !== 'declined'
   const shown = items.filter(
     (i) =>
@@ -193,16 +195,16 @@ function FeedbackList({
     <div>
       <div className="feedback-filters">
         <select value={kind} onChange={(e) => setKind(e.target.value as FeedbackKind | 'all')}>
-          <option value="all">Bugs et idées</option>
-          <option value="bug">Bugs</option>
-          <option value="idea">Idées</option>
+          <option value="all">{t('Bugs et idées')}</option>
+          <option value="bug">{t('Bugs')}</option>
+          <option value="idea">{t('Idées')}</option>
         </select>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as FeedbackStatus | 'open' | 'all')}
         >
-          <option value="open">À traiter</option>
-          <option value="all">Tous les statuts</option>
+          <option value="open">{t('À traiter')}</option>
+          <option value="all">{t('Tous les statuts')}</option>
           {Object.entries(FEEDBACK_STATUS_LABELS).map(([k, label]) => (
             <option key={k} value={k}>
               {label}
@@ -210,7 +212,7 @@ function FeedbackList({
           ))}
         </select>
       </div>
-      {shown.length === 0 && <p className="settings-note">Aucun retour ici.</p>}
+      {shown.length === 0 && <p className="settings-note">{t('Aucun retour ici.')}</p>}
       {shown.map((item) => (
         <FeedbackItem
           key={item.id}
@@ -262,12 +264,12 @@ function FeedbackItem({
       {item.body && <p className="feedback-body">{item.body}</p>}
       {shot && (
         <a href={assetWebPath(shot)} target="_blank" rel="noreferrer">
-          <img className="feedback-shot" src={assetWebPath(shot)} alt="Capture jointe" />
+          <img className="feedback-shot" src={assetWebPath(shot)} alt={t('Capture jointe')} />
         </a>
       )}
       {admin && Object.keys(item.context).length > 0 && (
         <details className="feedback-context">
-          <summary>Contexte</summary>
+          <summary>{t('Contexte')}</summary>
           {Object.entries(item.context).map(([k, v]) => (
             <div key={k}>
               <strong>{k}</strong> : {v}
@@ -286,28 +288,28 @@ function FeedbackItem({
           </select>
           <textarea
             rows={2}
-            placeholder="Réponse à l’auteur (il est prévenu)"
+            placeholder={t('Réponse à l’auteur (il est prévenu)')}
             value={reply}
             onChange={(e) => setReply(e.target.value)}
           />
           <button disabled={reply === (item.reply ?? '')} onClick={() => void patch({ reply })}>
-            Répondre
+            {t('Répondre')}
           </button>
           <button
             className="danger"
             onClick={async () => {
-              if (!confirm('Supprimer ce retour ?')) return
+              if (!confirm(t('Supprimer ce retour ?'))) return
               await json(`/api/feedback/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
               await onChanged()
             }}
           >
-            Supprimer
+            {t('Supprimer')}
           </button>
         </div>
       ) : (
         item.reply && (
           <p className="feedback-reply">
-            <strong>Réponse :</strong> {item.reply}
+            <strong>{t('Réponse :')}</strong> {item.reply}
           </p>
         )
       )}

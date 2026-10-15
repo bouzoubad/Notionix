@@ -2,6 +2,7 @@ import { coverStyle } from '../components/covers'
 import { PageIcon } from '../components/PageIcon'
 import { RowSummary } from './RowSummary'
 import type { ViewProps } from './viewTypes'
+import { t } from '../../../shared/i18n'
 
 export function GalleryView({
   schema,
@@ -22,13 +23,13 @@ export function GalleryView({
             )}
           </span>
           <span className="card-title">
-            {row.title || <span className="muted">Sans titre</span>}
+            {row.title || <span className="muted">{t('Sans titre')}</span>}
           </span>
           <RowSummary schema={schema} view={view} row={row} />
         </button>
       ))}
       <button className="gallery-card gallery-add" onClick={() => onAddRow()}>
-        + Nouveau
+        {t('+ Nouveau')}
       </button>
     </div>
   )

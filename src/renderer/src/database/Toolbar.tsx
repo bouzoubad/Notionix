@@ -15,6 +15,7 @@ import {
 } from '../../../shared/database'
 import { Popover } from './Popover'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 /** Filters, sorts, visible properties and the "new row" button of a view. */
 export function Toolbar({
@@ -52,23 +53,23 @@ export function Toolbar({
         <button
           className={view.filters.length + groups.length ? 'active' : ''}
           disabled={locked}
-          title={locked ? 'Base verrouillée' : undefined}
+          title={locked ? t('Base verrouillée') : undefined}
           onClick={() => setOpen('filter')}
         >
-          Filtrer
+          {t('Filtrer')}
           {view.filters.length + groups.length ? ` (${view.filters.length + groups.length})` : ''}
         </button>
         {open === 'filter' && (
           <Popover onClose={close} align="right" className="filter-popover">
             {view.filters.length + groups.length > 1 && (
               <label className="menu-row">
-                Lignes qui respectent
+                {t('Lignes qui respectent')}
                 <select
                   value={view.filterMode}
                   onChange={(e) => patchView({ filterMode: e.target.value as 'and' | 'or' })}
                 >
-                  <option value="and">toutes les conditions</option>
-                  <option value="or">au moins une condition</option>
+                  <option value="and">{t('toutes les conditions')}</option>
+                  <option value="or">{t('au moins une condition')}</option>
                 </select>
               </label>
             )}
@@ -89,15 +90,15 @@ export function Toolbar({
               <div key={g.id} className="filter-group">
                 <div className="filter-group-head">
                   <select
-                    aria-label="Groupe"
+                    aria-label={t('Groupe')}
                     value={g.mode}
                     onChange={(e) => setGroup(g.id, { mode: e.target.value as 'and' | 'or' })}
                   >
-                    <option value="and">Groupe : toutes ces conditions</option>
-                    <option value="or">Groupe : au moins une de ces conditions</option>
+                    <option value="and">{t('Groupe : toutes ces conditions')}</option>
+                    <option value="or">{t('Groupe : au moins une de ces conditions')}</option>
                   </select>
                   <button
-                    title="Retirer le groupe"
+                    title={t('Retirer le groupe')}
                     onClick={() => patchView({ filterGroups: groups.filter((x) => x.id !== g.id) })}
                   >
                     ×
@@ -122,7 +123,7 @@ export function Toolbar({
                   className="menu-item"
                   onClick={() => setGroup(g.id, { filters: [...g.filters, blankFilter()] })}
                 >
-                  + Condition dans le groupe
+                  {t('+ Condition dans le groupe')}
                 </button>
               </div>
             ))}
@@ -130,7 +131,7 @@ export function Toolbar({
               className="menu-item"
               onClick={() => patchView({ filters: [...view.filters, blankFilter()] })}
             >
-              + Ajouter un filtre
+              {t('+ Ajouter un filtre')}
             </button>
             <button
               className="menu-item"
@@ -143,7 +144,7 @@ export function Toolbar({
                 })
               }
             >
-              + Ajouter un groupe de filtres
+              {t('+ Ajouter un groupe de filtres')}
             </button>
           </Popover>
         )}
@@ -152,17 +153,18 @@ export function Toolbar({
         <button
           className={view.sorts.length ? 'active' : ''}
           disabled={locked}
-          title={locked ? 'Base verrouillée' : undefined}
+          title={locked ? t('Base verrouillée') : undefined}
           onClick={() => setOpen('sort')}
         >
-          Trier{view.sorts.length ? ` (${view.sorts.length})` : ''}
+          {t('Trier')}
+          {view.sorts.length ? ` (${view.sorts.length})` : ''}
         </button>
         {open === 'sort' && (
           <Popover onClose={close} align="right">
             {view.sorts.map((s, i) => (
               <div key={`${s.propertyId}-${i}`} className="filter-row">
                 <select
-                  aria-label="Propriété"
+                  aria-label={t('Propriété')}
                   value={s.propertyId}
                   onChange={(e) =>
                     patchView({
@@ -179,7 +181,7 @@ export function Toolbar({
                   ))}
                 </select>
                 <select
-                  aria-label="Ordre"
+                  aria-label={t('Ordre')}
                   value={s.direction}
                   onChange={(e) =>
                     patchView({
@@ -189,11 +191,11 @@ export function Toolbar({
                     })
                   }
                 >
-                  <option value="asc">Croissant</option>
-                  <option value="desc">Décroissant</option>
+                  <option value="asc">{t('Croissant')}</option>
+                  <option value="desc">{t('Décroissant')}</option>
                 </select>
                 <button
-                  title="Retirer le tri"
+                  title={t('Retirer le tri')}
                   onClick={() => patchView({ sorts: view.sorts.filter((_, j) => j !== i) })}
                 >
                   ×
@@ -208,7 +210,7 @@ export function Toolbar({
                 })
               }
             >
-              + Ajouter un tri
+              {t('+ Ajouter un tri')}
             </button>
           </Popover>
         )}
@@ -216,10 +218,10 @@ export function Toolbar({
       <span className="toolbar-anchor">
         <button
           disabled={locked}
-          title={locked ? 'Base verrouillée' : undefined}
+          title={locked ? t('Base verrouillée') : undefined}
           onClick={() => setOpen('props')}
         >
-          Propriétés
+          {t('Propriétés')}
         </button>
         {open === 'props' && (
           <Popover onClose={close} align="right">
@@ -241,24 +243,26 @@ export function Toolbar({
                   {p.name}
                 </label>
               ))}
-            {schema.properties.length === 1 && <p className="hint">Aucune autre propriété.</p>}
+            {schema.properties.length === 1 && (
+              <p className="hint">{t('Aucune autre propriété.')}</p>
+            )}
           </Popover>
         )}
       </span>
       <span className="toolbar-anchor new-row">
         <button className="primary" onClick={() => onNewRow()}>
-          Nouveau
+          {t('Nouveau')}
         </button>
         <button
           className="primary split"
-          aria-label="Choisir un modèle"
+          aria-label={t('Choisir un modèle')}
           onClick={() => setOpen('new')}
         >
           ▾
         </button>
         {open === 'new' && (
           <Popover onClose={close} align="right">
-            <div className="menu-label">Modèles</div>
+            <div className="menu-label">{t('Modèles')}</div>
             {repeating ? (
               <RecurrenceEditor
                 databaseId={databaseId}
@@ -267,16 +271,17 @@ export function Toolbar({
                 onClose={() => (setRepeating(null), close())}
               />
             ) : (
-              templates.map((t) => (
-                <div key={t.id} className="template-item">
-                  <button className="menu-item" onClick={() => (close(), onNewRow(t.id))}>
-                    <PageIcon icon={t.icon} fallback="📄" /> {t.title || 'Sans titre'}
+              templates.map((template) => (
+                <div key={template.id} className="template-item">
+                  <button className="menu-item" onClick={() => (close(), onNewRow(template.id))}>
+                    <PageIcon icon={template.icon} fallback="📄" />{' '}
+                    {template.title || t('Sans titre')}
                   </button>
                   <button
                     className="template-repeat"
-                    title="Répéter ce modèle"
-                    aria-label={`Répéter ${t.title || 'Sans titre'}`}
-                    onClick={() => setRepeating(t)}
+                    title={t('Répéter ce modèle')}
+                    aria-label={t('Répéter {title}', { title: template.title || t('Sans titre') })}
+                    onClick={() => setRepeating(template)}
                   >
                     ↻
                   </button>
@@ -285,7 +290,7 @@ export function Toolbar({
             )}
             {templates.length === 0 && (
               <p className="hint">
-                Aucun modèle. Ouvrez une ligne et cochez « Modèle » pour en créer un.
+                {t('Aucun modèle. Ouvrez une ligne et cochez « Modèle » pour en créer un.')}
               </p>
             )}
           </Popover>
@@ -319,7 +324,7 @@ function FilterRow({
   return (
     <div className="filter-row">
       <select
-        aria-label="Propriété"
+        aria-label={t('Propriété')}
         value={filter.propertyId}
         onChange={(e) => {
           const next = schema.properties.find((p) => p.id === e.target.value)!
@@ -333,7 +338,7 @@ function FilterRow({
         ))}
       </select>
       <select
-        aria-label="Condition"
+        aria-label={t('Condition')}
         value={filter.operator}
         onChange={(e) => onChange({ operator: e.target.value as Filter['operator'] })}
       >
@@ -344,7 +349,7 @@ function FilterRow({
         ))}
       </select>
       <FilterValue prop={prop} filter={filter} onValue={(value) => onChange({ value })} />
-      <button title="Retirer le filtre" onClick={onRemove}>
+      <button title={t('Retirer le filtre')} onClick={onRemove}>
         ×
       </button>
     </div>
@@ -365,11 +370,11 @@ function FilterValue({
   if (['person', 'created_by', 'last_edited_by'].includes(prop.type)) {
     return (
       <select
-        aria-label="Valeur"
+        aria-label={t('Valeur')}
         value={String(filter.value ?? '')}
         onChange={(e) => onValue(e.target.value || null)}
       >
-        <option value="">Choisir…</option>
+        <option value="">{t('Choisir…')}</option>
         {useStore.getState().people.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}
@@ -381,11 +386,11 @@ function FilterValue({
   if (prop.type === 'select' || prop.type === 'multi_select' || prop.type === 'status') {
     return (
       <select
-        aria-label="Valeur"
+        aria-label={t('Valeur')}
         value={String(filter.value ?? '')}
         onChange={(e) => onValue(e.target.value || null)}
       >
-        <option value="">Choisir…</option>
+        <option value="">{t('Choisir…')}</option>
         {(prop.options ?? []).map((o) => (
           <option key={o.id} value={o.id}>
             {o.name}
@@ -401,11 +406,11 @@ function FilterValue({
     return (
       <span className="filter-date">
         <select
-          aria-label="Date"
+          aria-label={t('Date')}
           value={relative ? String(filter.value) : 'exact'}
           onChange={(e) => onValue(e.target.value === 'exact' ? null : e.target.value)}
         >
-          <option value="exact">Date précise</option>
+          <option value="exact">{t('Date précise')}</option>
           {Object.entries(RELATIVE_DATES).map(([k, label]) => (
             <option key={k} value={k}>
               {label}
@@ -414,7 +419,7 @@ function FilterValue({
         </select>
         {!relative && (
           <input
-            aria-label="Valeur"
+            aria-label={t('Valeur')}
             type="date"
             value={filter.value ?? ''}
             onChange={(e) => onValue(e.target.value || null)}
@@ -425,7 +430,7 @@ function FilterValue({
   }
   return (
     <input
-      aria-label="Valeur"
+      aria-label={t('Valeur')}
       type={isDate ? 'date' : prop.type === 'number' ? 'number' : 'text'}
       value={filter.value ?? ''}
       onChange={(e) =>

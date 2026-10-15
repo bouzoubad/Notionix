@@ -19,6 +19,7 @@ import { platform } from '../platform'
 import { OptionTag } from './OptionTag'
 import { ComputedValue } from './ComputedEditors'
 import { Popover } from './Popover'
+import { locale, t, tx } from '../../../shared/i18n'
 
 export interface CellProps {
   prop: PropertyDef
@@ -77,7 +78,7 @@ function TextCell({ prop, row, onChange }: CellProps): React.JSX.Element {
   const value = rowValue(row, prop)
   const shown =
     prop.type === 'number' && typeof value === 'number'
-      ? value.toLocaleString('fr-FR')
+      ? value.toLocaleString(locale())
       : displayValue(prop, value)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -137,7 +138,8 @@ function TextCell({ prop, row, onChange }: CellProps): React.JSX.Element {
           {shown}
         </a>
       ) : (
-        shown || (prop.type === 'title' ? <span className="placeholder">Sans titre</span> : '')
+        shown ||
+        (prop.type === 'title' ? <span className="placeholder">{t('Sans titre')}</span> : '')
       )}
     </div>
   )
@@ -190,7 +192,9 @@ function SelectCell({ prop, row, onChange, onCreateOption }: CellProps): React.J
             })}
             <input
               autoFocus
-              placeholder={options.length ? 'Rechercher ou créer une option' : 'Créer une option'}
+              placeholder={
+                options.length ? t('Rechercher ou créer une option') : t('Créer une option')
+              }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -217,7 +221,7 @@ function SelectCell({ prop, row, onChange, onCreateOption }: CellProps): React.J
             ))}
             {query.trim() && !exact && prop.type !== 'status' && (
               <button className="select-option" onClick={() => void create()}>
-                Créer{' '}
+                {t('Créer')}{' '}
                 <OptionTag
                   option={{
                     id: 'new',
@@ -253,7 +257,7 @@ function DateCell({ prop, row, onChange }: CellProps): React.JSX.Element {
       {open && (
         <Popover onClose={() => setOpen(false)} className="date-popover">
           <label>
-            Début
+            {t('Début')}
             <input
               type={kind}
               value={value?.start ?? ''}
@@ -262,7 +266,7 @@ function DateCell({ prop, row, onChange }: CellProps): React.JSX.Element {
           </label>
           {value?.end !== undefined && value?.end !== null ? (
             <label>
-              Fin
+              {t('Fin')}
               <input
                 type={kind}
                 value={value.end}
@@ -278,7 +282,7 @@ function DateCell({ prop, row, onChange }: CellProps): React.JSX.Element {
                 disabled={!value}
                 onChange={(e) => set({ end: e.target.checked ? value?.start : null })}
               />
-              Date de fin
+              {t('Date de fin')}
             </label>
             <label>
               <input
@@ -287,9 +291,9 @@ function DateCell({ prop, row, onChange }: CellProps): React.JSX.Element {
                 disabled={!value}
                 onChange={(e) => set({ time: e.target.checked })}
               />
-              Heure
+              {t('Heure')}
             </label>
-            <button onClick={() => (onChange(null), setOpen(false))}>Effacer</button>
+            <button onClick={() => (onChange(null), setOpen(false))}>{t('Effacer')}</button>
           </div>
         </Popover>
       )}
@@ -307,7 +311,7 @@ function RelationCell({ prop, row, onChange }: CellProps): React.JSX.Element {
   const selected: string[] = Array.isArray(raw) ? raw : []
   const titleOf = (id: string): string | undefined => {
     const page = pages.find((p) => p.id === id && !p.trashedAt)
-    return page ? page.title || 'Sans titre' : undefined
+    return page ? page.title || t('Sans titre') : undefined
   }
   useEffect(() => {
     if (!open || !prop.relationDatabaseId) return
@@ -344,27 +348,33 @@ function RelationCell({ prop, row, onChange }: CellProps): React.JSX.Element {
       {open && (
         <Popover onClose={() => setOpen(false)} className="select-popover">
           {!prop.relationDatabaseId ? (
-            <p className="hint">Choisissez la base liée dans le menu de la propriété.</p>
+            <p className="hint">{t('Choisissez la base liée dans le menu de la propriété.')}</p>
           ) : (
             <>
               <div className="select-current">
                 <input
                   autoFocus
-                  placeholder="Rechercher une page"
+                  placeholder={t('Rechercher une page')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </div>
               <div className="select-options">
                 {(targets ?? [])
-                  .filter((t) => t.title.toLowerCase().includes(query.trim().toLowerCase()))
-                  .map((t) => (
-                    <button key={t.id} className="select-option" onClick={() => toggle(t.id)}>
-                      <span>📄 {t.title || 'Sans titre'}</span>
-                      {selected.includes(t.id) && <span className="check">✓</span>}
+                  .filter((target) =>
+                    target.title.toLowerCase().includes(query.trim().toLowerCase())
+                  )
+                  .map((target) => (
+                    <button
+                      key={target.id}
+                      className="select-option"
+                      onClick={() => toggle(target.id)}
+                    >
+                      <span>📄 {target.title || t('Sans titre')}</span>
+                      {selected.includes(target.id) && <span className="check">✓</span>}
                     </button>
                   ))}
-                {targets?.length === 0 && <p className="hint">La base liée est vide.</p>}
+                {targets?.length === 0 && <p className="hint">{t('La base liée est vide.')}</p>}
               </div>
             </>
           )}
@@ -392,7 +402,7 @@ export function People({ ids }: { ids: string[] }): React.JSX.Element {
         return (
           <span key={id} className="person-chip">
             <span className="person-avatar">{initials(p?.name ?? '?')}</span>
-            {p?.name ?? 'Compte supprimé'}
+            {p?.name ?? t('Compte supprimé')}
           </span>
         )
       })}
@@ -421,7 +431,7 @@ function PersonCell({ prop, row, onChange }: CellProps): React.JSX.Element {
           <div className="select-current">
             <input
               autoFocus
-              placeholder="Rechercher une personne"
+              placeholder={t('Rechercher une personne')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && matching[0] && toggle(matching[0].id)}
@@ -433,7 +443,7 @@ function PersonCell({ prop, row, onChange }: CellProps): React.JSX.Element {
                 <span className="person-chip">
                   <span className="person-avatar">{initials(p.name)}</span>
                   {p.name}
-                  {p.id === (platform().session?.user.id ?? 'local') ? ' (vous)' : ''}
+                  {p.id === (platform().session?.user.id ?? 'local') ? t(' (vous)') : ''}
                 </span>
                 {selected.includes(p.id) && <span className="check">✓</span>}
               </button>
@@ -466,7 +476,12 @@ function FilesCell({ prop, row, onChange }: CellProps): React.JSX.Element {
           )
           added.push(fileValue(src, file.name))
         } catch (e) {
-          showNotice(`Fichier non ajouté (${file.name}) : ${e instanceof Error ? e.message : e}`)
+          showNotice(
+            t('Fichier non ajouté ({name}) : {error}', {
+              name: file.name,
+              error: e instanceof Error ? e.message : String(e)
+            })
+          )
         }
       }
       setBusy(false)
@@ -494,7 +509,7 @@ function FilesCell({ prop, row, onChange }: CellProps): React.JSX.Element {
                     📎 {name}
                   </button>
                   <button
-                    title="Retirer"
+                    title={t('Retirer')}
                     onClick={() => {
                       const next = files.filter((x) => x !== f)
                       onChange(next.length ? next : null)
@@ -506,7 +521,7 @@ function FilesCell({ prop, row, onChange }: CellProps): React.JSX.Element {
               )
             })}
             <button className="select-option" disabled={busy} onClick={add}>
-              {busy ? 'Envoi…' : '+ Ajouter un fichier'}
+              {busy ? tx('fichier', 'Envoi…') : t('+ Ajouter un fichier')}
             </button>
           </div>
         </Popover>

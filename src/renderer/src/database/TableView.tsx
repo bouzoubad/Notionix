@@ -31,6 +31,7 @@ import { OptionTag } from './OptionTag'
 import { useRowDrag } from './rowDrag'
 import { Popover } from './Popover'
 import { PropertyMenu } from './PropertyMenu'
+import { t } from '../../../shared/i18n'
 
 const DEFAULT_WIDTH = 180
 const TITLE_WIDTH = 260
@@ -144,7 +145,7 @@ export function TableView(props: ViewProps): React.JSX.Element {
       >
         <td className="drag-col">
           {reorder && (
-            <span className="row-drag" title="Glisser pour déplacer" {...drag.handle(row.id)}>
+            <span className="row-drag" title={t('Glisser pour déplacer')} {...drag.handle(row.id)}>
               ⋮⋮
             </span>
           )}
@@ -153,7 +154,7 @@ export function TableView(props: ViewProps): React.JSX.Element {
           <td key={p.id} className={p.id === TITLE_PROPERTY_ID ? 'title-col' : ''}>
             {p.id === TITLE_PROPERTY_ID && (
               <button className="open-row" onClick={() => props.onOpenRow(row.id)}>
-                Ouvrir
+                {t('Ouvrir')}
               </button>
             )}
             {p.id === TITLE_PROPERTY_ID && nesting ? (
@@ -268,7 +269,7 @@ export function TableView(props: ViewProps): React.JSX.Element {
                 {!props.locked && (
                   <span
                     className="col-resize"
-                    title="Glisser pour changer la largeur"
+                    title={t('Glisser pour changer la largeur')}
                     onPointerDown={(e) => startResize(e, p)}
                   />
                 )}
@@ -287,18 +288,19 @@ export function TableView(props: ViewProps): React.JSX.Element {
             ))}
             <th className="add-col">
               {!props.locked && (
-                <button aria-label="Ajouter une propriété" onClick={() => setAdding(true)}>
+                <button aria-label={t('Ajouter une propriété')} onClick={() => setAdding(true)}>
                   +
                 </button>
               )}
               {adding && (
                 <Popover onClose={() => setAdding(false)} align="right">
-                  <div className="menu-label">Nouvelle propriété</div>
+                  <div className="menu-label">{t('Nouvelle propriété')}</div>
                   {(Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[])
-                    .filter((t) => t !== 'title')
-                    .map((t) => (
-                      <button key={t} className="menu-item" onClick={() => addProperty(t)}>
-                        <span className="type-icon">{TYPE_ICONS[t]}</span> {PROPERTY_TYPE_LABELS[t]}
+                    .filter((type) => type !== 'title')
+                    .map((type) => (
+                      <button key={type} className="menu-item" onClick={() => addProperty(type)}>
+                        <span className="type-icon">{TYPE_ICONS[type]}</span>{' '}
+                        {PROPERTY_TYPE_LABELS[type]}
                       </button>
                     ))}
                 </Popover>
@@ -331,7 +333,7 @@ export function TableView(props: ViewProps): React.JSX.Element {
                         {calculate(shownRows, p, kind, nameOf)}
                       </>
                     ) : (
-                      <span className="calc-label">Calculer</span>
+                      <span className="calc-label">{t('Calculer')}</span>
                     )}
                   </button>
                   {calcMenu === p.id && (
@@ -345,7 +347,7 @@ export function TableView(props: ViewProps): React.JSX.Element {
                           setCalcMenu(null)
                         }}
                       >
-                        Aucun calcul
+                        {t('Aucun calcul')}
                       </button>
                       {calculationsFor(p.type).map((k: CalcKind) => (
                         <button
@@ -369,12 +371,12 @@ export function TableView(props: ViewProps): React.JSX.Element {
         </tfoot>
       </table>
       <button className="add-row" onClick={() => props.onAddRow()} {...drag.end()}>
-        + Nouvelle ligne
+        {t('+ Nouvelle ligne')}
       </button>
       {!reorder && rows.length > 1 && (
-        <p className="hint">Retirez le tri pour réordonner les lignes à la main.</p>
+        <p className="hint">{t('Retirez le tri pour réordonner les lignes à la main.')}</p>
       )}
-      <div className="db-count">{rows.length} ligne(s)</div>
+      <div className="db-count">{t('{n} ligne(s)', { n: rows.length })}</div>
     </div>
   )
 }

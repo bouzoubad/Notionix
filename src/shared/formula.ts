@@ -52,7 +52,7 @@ interface Token {
 const MAX_LENGTH = 5000
 
 function tokenize(src: string): Token[] {
-  if (src.length > MAX_LENGTH) throw new FormulaError('Formule trop longue.')
+  if (src.length > MAX_LENGTH) throw new FormulaError(t('Formule trop longue.'))
   const tokens: Token[] = []
   let i = 0
   while (i < src.length) {
@@ -63,7 +63,7 @@ function tokenize(src: string): Token[] {
     }
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] ?? ''))) {
       const m = /^(\d+(\.\d+)?|\.\d+)([eE][+-]?\d+)?/.exec(src.slice(i))
-      if (!m) throw new FormulaError(`Nombre invalide à la position ${i + 1}.`)
+      if (!m) throw new FormulaError(t('Nombre invalide à la position {pos}.', { pos: i + 1 }))
       tokens.push({ type: 'number', value: m[0], pos: i })
       i += m[0].length
       continue
@@ -83,7 +83,7 @@ function tokenize(src: string): Token[] {
           j += 1
         }
       }
-      if (j >= src.length) throw new FormulaError('Texte non terminé (guillemet manquant).')
+      if (j >= src.length) throw new FormulaError(t('Texte non terminé (guillemet manquant).'))
       tokens.push({ type: 'string', value: out, pos: i })
       i = j + 1
       continue
@@ -105,7 +105,9 @@ function tokenize(src: string): Token[] {
       i += 1
       continue
     }
-    throw new FormulaError(`Caractère inattendu « ${c} » à la position ${i + 1}.`)
+    throw new FormulaError(
+      t('Caractère inattendu « {char} » à la position {pos}.', { char: c, pos: i + 1 })
+    )
   }
   tokens.push({ type: 'end', value: '', pos: src.length })
   return tokens
@@ -137,9 +139,11 @@ export function parseFormula(src: string): Node {
   const peek = (): Token => tokens[p]
   const next = (): Token => tokens[p++]
   const expect = (value: string): void => {
-    const t = next()
-    if (t.value !== value)
-      throw new FormulaError(`« ${value} » attendu à la position ${t.pos + 1}.`)
+    const tok = next()
+    if (tok.value !== value)
+      throw new FormulaError(
+        t('« {value} » attendu à la position {pos}.', { value, pos: tok.pos + 1 })
+      )
   }
   const binaryOf = (t: Token): string | null => {
     const key = t.type === 'ident' ? t.value.toLowerCase() : t.value
@@ -148,15 +152,15 @@ export function parseFormula(src: string): Node {
   }
 
   const primary = (): Node => {
-    const t = next()
-    if (t.type === 'number') return { kind: 'number', value: Number(t.value) }
-    if (t.type === 'string') return { kind: 'string', value: t.value }
-    if (t.type === 'op' && t.value === '(') {
+    const tok = next()
+    if (tok.type === 'number') return { kind: 'number', value: Number(tok.value) }
+    if (tok.type === 'string') return { kind: 'string', value: tok.value }
+    if (tok.type === 'op' && tok.value === '(') {
       const inner = expression(0)
       expect(')')
       return inner
     }
-    if (t.type === 'op' && t.value === '[') {
+    if (tok.type === 'op' && tok.value === '[') {
       // A list: [1, 2, 3]
       const items: Node[] = []
       if (peek().value !== ']') {
@@ -166,10 +170,12 @@ export function parseFormula(src: string): Node {
       expect(']')
       return { kind: 'list', items }
     }
-    if (t.type === 'op' && t.value === '-') return { kind: 'unary', op: '-', arg: expression(7) }
-    if (t.type === 'op' && t.value === '!') return { kind: 'unary', op: 'not', arg: expression(7) }
-    if (t.type === 'ident') {
-      const word = t.value.toLowerCase()
+    if (tok.type === 'op' && tok.value === '-')
+      return { kind: 'unary', op: '-', arg: expression(7) }
+    if (tok.type === 'op' && tok.value === '!')
+      return { kind: 'unary', op: 'not', arg: expression(7) }
+    if (tok.type === 'ident') {
+      const word = tok.value.toLowerCase()
       if (word === 'true' || word === 'false') return { kind: 'boolean', value: word === 'true' }
       if (word === 'not') return { kind: 'unary', op: 'not', arg: expression(7) }
       if (peek().value === '(') {
@@ -183,10 +189,12 @@ export function parseFormula(src: string): Node {
         return { kind: 'call', name: word, args }
       }
       // A variable: current and index (map, filter…), or a name given by let().
-      return { kind: 'var', name: t.value }
+      return { kind: 'var', name: tok.value }
     }
-    if (t.type === 'end') throw new FormulaError('Formule incomplète.')
-    throw new FormulaError(`« ${t.value} » inattendu à la position ${t.pos + 1}.`)
+    if (tok.type === 'end') throw new FormulaError(t('Formule incomplète.'))
+    throw new FormulaError(
+      t('« {value} » inattendu à la position {pos}.', { value: tok.value, pos: tok.pos + 1 })
+    )
   }
 
   /** A primary followed by method calls: x.f(a) is f(x, a). */
@@ -194,9 +202,11 @@ export function parseFormula(src: string): Node {
     let node = primary()
     while (peek().value === '.') {
       next()
-      const t = next()
-      if (t.type !== 'ident')
-        throw new FormulaError(`Nom de fonction attendu après « . » à la position ${t.pos + 1}.`)
+      const tok = next()
+      if (tok.type !== 'ident')
+        throw new FormulaError(
+          t('Nom de fonction attendu après « . » à la position {pos}.', { pos: tok.pos + 1 })
+        )
       const args: Node[] = [node]
       expect('(')
       if (peek().value !== ')') {
@@ -204,7 +214,7 @@ export function parseFormula(src: string): Node {
         while (peek().value === ',' && next())
       }
       expect(')')
-      node = { kind: 'call', name: t.value.toLowerCase(), args }
+      node = { kind: 'call', name: tok.value.toLowerCase(), args }
     }
     return node
   }
@@ -223,7 +233,9 @@ export function parseFormula(src: string): Node {
 
   const tree = expression(0)
   if (peek().type !== 'end')
-    throw new FormulaError(`« ${peek().value} » inattendu à la position ${peek().pos + 1}.`)
+    throw new FormulaError(
+      t('« {value} » inattendu à la position {pos}.', { value: peek().value, pos: peek().pos + 1 })
+    )
   return tree
 }
 
@@ -237,6 +249,8 @@ export interface FormulaContext {
   vars?: Map<string, FormulaValue>
 }
 
+import { t } from './i18n'
+
 const MAX_LIST = 10_000
 
 const isDate = (v: FormulaValue): v is Date => v instanceof Date
@@ -247,12 +261,12 @@ function toNumber(v: FormulaValue): number {
   if (v === null || v === '') return 0
   if (isDate(v)) return v.getTime()
   if (v instanceof FormulaPage || v instanceof FormulaPerson)
-    throw new FormulaError(`« ${toText(v)} » n’est pas un nombre.`)
+    throw new FormulaError(t('« {value} » n’est pas un nombre.', { value: toText(v) }))
   if (typeof v === 'string') {
     const n = Number(v.replace(',', '.'))
     if (Number.isFinite(n)) return n
   }
-  throw new FormulaError(`« ${toText(v)} » n’est pas un nombre.`)
+  throw new FormulaError(t('« {value} » n’est pas un nombre.', { value: toText(v) }))
 }
 
 export function toText(v: FormulaValue): string {
@@ -325,7 +339,9 @@ function unitOf(v: FormulaValue): string {
   const u = UNITS[toText(v).toLowerCase()]
   if (!u)
     throw new FormulaError(
-      `Unité inconnue « ${toText(v)} » (days, weeks, months, years, hours, minutes).`
+      t('Unité inconnue « {unit} » (days, weeks, months, years, hours, minutes).', {
+        unit: toText(v)
+      })
     )
   return u
 }
@@ -358,17 +374,17 @@ function between(a: Date, b: Date, unit: string): number {
 function propOf(v: FormulaValue, key: string): FormulaValue {
   if (v instanceof FormulaPage) return v.get(key)
   if (v === null) return null
-  throw new FormulaError(`.prop("${key}") s’applique à une page liée (relation).`)
+  throw new FormulaError(t('.prop("{key}") s’applique à une page liée (relation).', { key }))
 }
 
 /** A regular expression written in a formula; refused when invalid or too long. */
 function regex(v: FormulaValue, flags = ''): RegExp {
   const source = toText(v)
-  if (source.length > 200) throw new FormulaError('Expression régulière trop longue.')
+  if (source.length > 200) throw new FormulaError(t('Expression régulière trop longue.'))
   try {
     return new RegExp(source, flags)
   } catch {
-    throw new FormulaError(`Expression régulière invalide : ${source}`)
+    throw new FormulaError(t('Expression régulière invalide : {source}', { source }))
   }
 }
 
@@ -383,78 +399,78 @@ function parseDateText(t: string): Date | null {
 }
 
 function needDate(v: FormulaValue, fn: string): Date {
-  if (!isDate(v)) throw new FormulaError(`${fn} attend une date.`)
+  if (!isDate(v)) throw new FormulaError(t('{fn} attend une date.', { fn }))
   return v
 }
 
 /** Reference card shown in the formula editor. */
 export const FORMULA_HELP: { syntax: string; description: string }[] = [
-  { syntax: 'prop("Nom")', description: 'valeur d’une propriété' },
-  { syntax: '+ - * / % ^', description: 'calcul ; + concatène aussi du texte' },
-  { syntax: '== != > < >= <=, and, or, not', description: 'comparaisons et logique' },
-  { syntax: 'if(condition, si vrai, si faux)', description: 'condition' },
-  { syntax: 'empty(x), length(x)', description: 'vide ? longueur d’un texte ou d’une liste' },
-  { syntax: 'concat(a, b, …), join(liste, ", ")', description: 'assembler du texte' },
+  { syntax: 'prop("Nom")', description: t('valeur d’une propriété') },
+  { syntax: '+ - * / % ^', description: t('calcul ; + concatène aussi du texte') },
+  { syntax: '== != > < >= <=, and, or, not', description: t('comparaisons et logique') },
+  { syntax: 'if(condition, si vrai, si faux)', description: t('condition') },
+  { syntax: 'empty(x), length(x)', description: t('vide ? longueur d’un texte ou d’une liste') },
+  { syntax: 'concat(a, b, …), join(liste, ", ")', description: t('assembler du texte') },
   {
     syntax: 'contains(texte, "mot"), lower, upper, replace(t, a, b), slice(t, début, fin)',
-    description: 'texte'
+    description: t('texte')
   },
   {
     syntax: 'round(x, décimales), floor, ceil, abs, sqrt, min(…), max(…), sum(…)',
-    description: 'nombres'
+    description: t('nombres')
   },
-  { syntax: 'toNumber(x), format(x)', description: 'conversions' },
+  { syntax: 'toNumber(x), format(x)', description: t('conversions') },
   {
     syntax: 'now(), today(), dateAdd(d, n, "days"), dateSubtract(d, n, "months")',
-    description: 'dates'
+    description: t('dates')
   },
   {
     syntax:
       'dateBetween(fin, début, "days"), formatDate(d, "DD/MM/YYYY"), year(d), month(d), day(d)',
-    description: 'dates'
+    description: t('dates')
   },
   {
     syntax: 'let(x, valeur, x * 2), lets(a, 1, b, 2, a + b), ifs(c1, v1, c2, v2, sinon)',
-    description: 'variables et conditions multiples'
+    description: t('variables et conditions multiples')
   },
   {
     syntax: '[1, 2, 3], split("a, b"), at(liste, 0), first, last, slice(liste, 1, 3)',
-    description: 'listes'
+    description: t('listes')
   },
   {
     syntax:
       'map(liste, current * 2), filter(liste, current > 1), find, findIndex, some, every, count(liste, condition)',
-    description: 'parcourir une liste (current, index)'
+    description: t('parcourir une liste (current, index)')
   },
   {
     syntax: 'sort(liste), sort(liste, clé), reverse, unique, includes(liste, v), flat',
-    description: 'listes'
+    description: t('listes')
   },
   {
     syntax: 'x.f(a) pour f(x, a) : prop("Tags").length(), prop("Nom").upper()',
-    description: 'écriture à points (comme Notion 2.0)'
+    description: t('écriture à points (comme Notion 2.0)')
   },
   {
     syntax:
       'prop("Tâches").filter(current.prop("Fait")).length(), prop("Projet").first().prop("Statut")',
-    description: 'pages liées : leurs propriétés par .prop()'
+    description: t('pages liées : leurs propriétés par .prop()')
   },
   {
     syntax: 'prop("Responsable").name(), .email(), id(), id(page)',
-    description: 'personnes et identifiants'
+    description: t('personnes et identifiants')
   },
   {
     syntax:
       'trim, repeat, padStart, padEnd, startsWith, endsWith, test(t, "regex"), match, replaceAll',
-    description: 'texte'
+    description: t('texte')
   },
   {
     syntax: 'mean, median, mod, sign, exp, ln, log10, log2, cbrt, pi(), e()',
-    description: 'nombres'
+    description: t('nombres')
   },
   {
     syntax: 'hour, minute, week, weekday, timestamp, fromTimestamp, parseDate("2026-10-15")',
-    description: 'dates'
+    description: t('dates')
   }
 ]
 
@@ -486,7 +502,7 @@ export function evaluate(node: Node, ctx: FormulaContext): FormulaValue {
           return toNumber(a) * toNumber(b)
         case '/': {
           const d = toNumber(b)
-          if (d === 0) throw new FormulaError('Division par zéro.')
+          if (d === 0) throw new FormulaError(t('Division par zéro.'))
           return toNumber(a) / d
         }
         case '%':
@@ -516,7 +532,9 @@ export function evaluate(node: Node, ctx: FormulaContext): FormulaValue {
       const value = ctx.vars?.get(node.name)
       if (value === undefined)
         throw new FormulaError(
-          `« ${node.name} » inconnu : utilisez prop("${node.name}") pour une propriété.`
+          t('« {name} » inconnu : utilisez prop("{name}") pour une propriété.', {
+            name: node.name
+          })
         )
       return value
     }
@@ -546,7 +564,9 @@ function call(
   const arity = (min: number, max = min): void => {
     if (args.length < min || args.length > max) {
       throw new FormulaError(
-        `${name}() attend ${min === max ? min : `${min} à ${max}`} argument(s).`
+        min === max
+          ? t('{name}() attend {n} argument(s).', { name, n: min })
+          : t('{name}() attend {min} à {max} argument(s).', { name, min, max })
       )
     }
   }
@@ -554,7 +574,7 @@ function call(
   /** A variable's name, written as an identifier: let(x, …), not let("x", …). */
   const nameOf = (n: Node): string => {
     if (n.kind === 'var') return n.name
-    throw new FormulaError(`${name}() attend un nom de variable (sans guillemets).`)
+    throw new FormulaError(t('{name}() attend un nom de variable (sans guillemets).', { name }))
   }
   /** Runs `body` for every item of a list, with current and index set. */
   const each = <T>(
@@ -563,7 +583,7 @@ function call(
     fn: (item: FormulaValue, result: FormulaValue, i: number) => T
   ): T[] => {
     const list = asList(ev(listNode))
-    if (list.length > MAX_LIST) throw new FormulaError('Liste trop longue.')
+    if (list.length > MAX_LIST) throw new FormulaError(t('Liste trop longue.'))
     return list.map((item, i) =>
       fn(
         item,
@@ -581,7 +601,7 @@ function call(
       return withVars(args[2], ctx, [[nameOf(args[0]), ev(args[1])]])
     case 'lets': {
       if (args.length < 3 || args.length % 2 === 0)
-        throw new FormulaError('lets() attend des paires nom, valeur puis une expression.')
+        throw new FormulaError(t('lets() attend des paires nom, valeur puis une expression.'))
       const vars: [string, FormulaValue][] = []
       for (let i = 0; i < args.length - 1; i += 2) {
         const value = evaluate(args[i + 1], {
@@ -595,7 +615,7 @@ function call(
     case 'ifs': {
       if (args.length < 3 || args.length % 2 === 0)
         throw new FormulaError(
-          'ifs() attend des paires condition, valeur puis une valeur par défaut.'
+          t('ifs() attend des paires condition, valeur puis une valeur par défaut.')
         )
       for (let i = 0; i < args.length - 1; i += 2) if (truthy(ev(args[i]))) return ev(args[i + 1])
       return ev(args[args.length - 1])
@@ -682,7 +702,7 @@ function call(
       // prop("Nom") of the row, or page.prop("Nom") of a related page.
       const key = ev(args[args.length - 1])
       if (typeof key !== 'string')
-        throw new FormulaError('prop() attend un nom de propriété entre guillemets.')
+        throw new FormulaError(t('prop() attend un nom de propriété entre guillemets.'))
       if (args.length === 1) return ctx.prop(key)
       const page = ev(args[0])
       if (Array.isArray(page)) return page.map((p) => propOf(p, key))
@@ -713,7 +733,8 @@ function call(
     case 'repeat': {
       arity(2)
       const n = toNumber(ev(args[1]))
-      if (n < 0 || n > 10_000) throw new FormulaError('repeat() : nombre de répétitions invalide.')
+      if (n < 0 || n > 10_000)
+        throw new FormulaError(t('repeat() : nombre de répétitions invalide.'))
       return toText(ev(args[0])).repeat(n)
     }
     case 'padstart':
@@ -745,7 +766,7 @@ function call(
     case 'unstyle':
     case 'link':
       // Text styling (colors, links) is not shown in cells: the text stays.
-      if (args.length === 0) throw new FormulaError(`${name}() attend un texte.`)
+      if (args.length === 0) throw new FormulaError(t('{name}() attend un texte.', { name }))
       return toText(ev(args[0]))
     case 'sign':
       arity(1)
@@ -809,7 +830,10 @@ function call(
     case 'parsedate': {
       arity(1)
       const d = parseDateText(toText(ev(args[0])))
-      if (!d) throw new FormulaError(`parseDate() : date illisible « ${toText(ev(args[0]))} ».`)
+      if (!d)
+        throw new FormulaError(
+          t('parseDate() : date illisible « {text} ».', { text: toText(ev(args[0])) })
+        )
       return d
     }
     case 'if':
@@ -918,6 +942,6 @@ function call(
       arity(1)
       return needDate(ev(args[0]), name).getDate()
     default:
-      throw new FormulaError(`Fonction inconnue : ${name}().`)
+      throw new FormulaError(t('Fonction inconnue : {name}().', { name }))
   }
 }

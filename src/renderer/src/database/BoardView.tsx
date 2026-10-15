@@ -4,6 +4,7 @@ import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
 import { useRowDrag } from './rowDrag'
 import { canReorder, groupValues, nameOf, type ViewProps } from './viewTypes'
+import { t } from '../../../shared/i18n'
 
 /**
  * Kanban columns, one per option of the grouping property (select or
@@ -41,9 +42,9 @@ export function BoardView({
       <div className="view-empty">
         {choices.length ? (
           <label>
-            Grouper le board par{' '}
+            {t('Grouper le board par')}{' '}
             <select
-              aria-label="Grouper par"
+              aria-label={t('Grouper par')}
               value=""
               onChange={(e) =>
                 onSchema({
@@ -54,7 +55,7 @@ export function BoardView({
                 })
               }
             >
-              <option value="">Choisir une propriété…</option>
+              <option value="">{t('Choisir une propriété…')}</option>
               {choices.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -63,7 +64,9 @@ export function BoardView({
             </select>
           </label>
         ) : (
-          'Ajoutez une propriété « Sélection » ou « Case à cocher » pour organiser ce board en colonnes.'
+          t(
+            'Ajoutez une propriété « Sélection » ou « Case à cocher » pour organiser ce board en colonnes.'
+          )
         )}
       </div>
     )
@@ -104,13 +107,13 @@ export function BoardView({
                   ) : (
                     ''
                   )}
-                  {row.title || <span className="muted">Sans titre</span>}
+                  {row.title || <span className="muted">{t('Sans titre')}</span>}
                 </div>
                 <RowSummary schema={schema} view={view} row={row} skip={[prop.id]} />
               </div>
             ))}
             <button className="board-add" onClick={() => onAddRow(values)}>
-              + Nouveau
+              {t('+ Nouveau')}
             </button>
           </div>
         )

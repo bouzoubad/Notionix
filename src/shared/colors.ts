@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import { OPTION_COLORS, type OptionColor } from './database'
+import { t } from './i18n'
 
 /**
  * Text and background colors, stored as CSS variables (var(--nx-red)) so the
@@ -9,15 +10,15 @@ export const COLORS = OPTION_COLORS
 export type ColorName = OptionColor
 
 export const COLOR_LABELS: Record<ColorName, string> = {
-  gray: 'Gris',
-  brown: 'Marron',
-  orange: 'Orange',
-  yellow: 'Jaune',
-  green: 'Vert',
-  blue: 'Bleu',
-  purple: 'Violet',
-  pink: 'Rose',
-  red: 'Rouge'
+  gray: t('Gris'),
+  brown: t('Marron'),
+  orange: t('Orange'),
+  yellow: t('Jaune'),
+  green: t('Vert'),
+  blue: t('Bleu'),
+  purple: t('Violet'),
+  pink: t('Rose'),
+  red: t('Rouge')
 }
 
 export const textColor = (name: ColorName): string => `var(--nx-${name})`

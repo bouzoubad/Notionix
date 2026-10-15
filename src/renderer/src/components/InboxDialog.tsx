@@ -4,6 +4,7 @@ import { pendComments, useStore } from '../store'
 import { platform } from '../platform'
 import { ago } from '../time'
 import { iconText } from '../icons'
+import { t } from '../../../shared/i18n'
 
 const ICONS: Record<InboxItem['kind'], string> = {
   mention: '@',
@@ -14,12 +15,12 @@ const ICONS: Record<InboxItem['kind'], string> = {
 }
 
 const ACTIVITY: Record<ActivityItem['kind'], string> = {
-  created: 'a créé',
-  edited: 'a modifié',
-  commented: 'a commenté',
-  shared: 'a partagé',
-  restored: 'a restauré une version de',
-  trashed: 'a mis à la corbeille'
+  created: t('a créé'),
+  edited: t('a modifié'),
+  commented: t('a commenté'),
+  shared: t('a partagé'),
+  restored: t('a restauré une version de'),
+  trashed: t('a mis à la corbeille')
 }
 
 /** Notifications for this person, and recent changes in the workspace. */
@@ -45,7 +46,7 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
 
   const pageLabel = (id: string | null): string => {
     const p = pages.find((x) => x.id === id)
-    return p ? `${iconText(p.icon)} ${p.title || 'Sans titre'}` : 'Page supprimée'
+    return p ? `${iconText(p.icon)} ${p.title || t('Sans titre')}` : t('Page supprimée')
   }
   const go = async (item: InboxItem): Promise<void> => {
     if (!item.readAt) await window.api.inbox.markRead([item.id])
@@ -74,13 +75,13 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
         <div className="inbox-head">
           <div className="settings-tabs">
             <button className={tab === 'inbox' ? 'active' : ''} onClick={() => setTab('inbox')}>
-              Boîte de réception
+              {t('Boîte de réception')}
             </button>
             <button
               className={tab === 'activity' ? 'active' : ''}
               onClick={() => setTab('activity')}
             >
-              Activité
+              {t('Activité')}
             </button>
           </div>
           {tab === 'inbox' && items?.some((i) => !i.readAt) && (
@@ -92,19 +93,21 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
                 void refreshInbox()
               }}
             >
-              Tout marquer comme lu
+              {t('Tout marquer comme lu')}
             </button>
           )}
         </div>
         <div className="results">
           {tab === 'inbox' &&
             (items === null ? (
-              <p className="inbox-empty">Chargement…</p>
+              <p className="inbox-empty">{t('Chargement…')}</p>
             ) : items.length === 0 ? (
               <p className="inbox-empty">
                 {team
-                  ? 'Rien de nouveau. Les mentions, commentaires, partages et rappels arrivent ici.'
-                  : 'Rien de nouveau. Vos rappels arrivent ici.'}
+                  ? t(
+                      'Rien de nouveau. Les mentions, commentaires, partages et rappels arrivent ici.'
+                    )
+                  : t('Rien de nouveau. Vos rappels arrivent ici.')}
               </p>
             ) : (
               items.map((item) => (
@@ -130,9 +133,9 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
             ))}
           {tab === 'activity' &&
             (activity === null ? (
-              <p className="inbox-empty">Chargement…</p>
+              <p className="inbox-empty">{t('Chargement…')}</p>
             ) : activity.length === 0 ? (
-              <p className="inbox-empty">Aucune activité récente.</p>
+              <p className="inbox-empty">{t('Aucune activité récente.')}</p>
             ) : (
               activity.map((a) => (
                 <button
@@ -143,9 +146,11 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
                   <span className="inbox-icon">•</span>
                   <span className="inbox-text">
                     <span>
-                      <strong>{people.find((p) => p.id === a.actorId)?.name ?? 'Quelqu’un'}</strong>{' '}
+                      <strong>
+                        {people.find((p) => p.id === a.actorId)?.name ?? t('Quelqu’un')}
+                      </strong>{' '}
                       {ACTIVITY[a.kind]} {pageLabel(a.pageId)}
-                      {a.detail ? ` : « ${a.detail} »` : ''}
+                      {a.detail ? t(' : « {detail} »', { detail: a.detail }) : ''}
                     </span>
                     <small>{ago(a.at)}</small>
                   </span>

@@ -30,9 +30,11 @@ import { FeedbackError, FeedbackRepository } from './feedback'
 import {
   type AdminOverview,
   FEEDBACK_STATUS_LABELS,
+  LANGUAGE_HEADER,
   MAIN_WORKSPACE,
   WORKSPACE_HEADER
 } from '../../src/shared/collab'
+import { inLanguage } from '../../src/shared/i18n'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -677,7 +679,11 @@ export function createApi({
         if (call.readsContent) collab.flush()
         let result: unknown
         try {
-          result = await runCall(call, context(wsId, workspace, user, members))
+          // Default names of what is created (views, properties) in the caller's language.
+          const lang = req.headers[LANGUAGE_HEADER.toLowerCase()] === 'en' ? 'en' : 'fr'
+          result = await inLanguage(lang, () =>
+            runCall(call, context(wsId, workspace, user, members))
+          )
         } catch (e) {
           if (e instanceof RpcError) throw e
           if (e instanceof ForbiddenError) throw new HttpError(403, e.message)

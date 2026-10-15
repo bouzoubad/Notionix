@@ -84,7 +84,8 @@ const api: NotionixApi = {
       const handler = (_e: unknown, command: AppCommand): void => listener(command)
       ipcRenderer.on('app:command', handler)
       return () => ipcRenderer.removeListener('app:command', handler)
-    }
+    },
+    setLanguage: (language) => ipcRenderer.send('app:language', language)
   },
   transfer: {
     importNotion: () => call('transfer:importNotion'),

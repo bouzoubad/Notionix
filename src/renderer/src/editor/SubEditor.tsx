@@ -4,6 +4,7 @@ import type { Extensions } from '@tiptap/core'
 import { common, createLowlight } from 'lowlight'
 import { createDocumentExtensions } from '../../../shared/editorExtensions'
 import { platform, type SharedPage } from '../platform'
+import { t } from '../../../shared/i18n'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -46,8 +47,8 @@ export function PageSubEditor({
   }, [pageId, session])
 
   if (state === 'missing')
-    return <div className="synced-missing">Contenu synchronisé inaccessible.</div>
-  if (!state || state.id !== pageId) return <div className="synced-loading">Chargement…</div>
+    return <div className="synced-missing">{t('Contenu synchronisé inaccessible.')}</div>
+  if (!state || state.id !== pageId) return <div className="synced-loading">{t('Chargement…')}</div>
   return (
     <SubEditor
       key={pageId}

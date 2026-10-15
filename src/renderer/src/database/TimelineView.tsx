@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { type DateValue, type DatabaseRow } from '../../../shared/database'
 import type { ViewProps } from './viewTypes'
+import { locale, t } from '../../../shared/i18n'
 
 const DAY = 86_400_000
 const pad = (n: number): string => String(n).padStart(2, '0')
@@ -52,9 +53,9 @@ export function TimelineView({
       <div className="view-empty">
         {dates.length ? (
           <label>
-            Placer selon{' '}
+            {t('Placer selon')}{' '}
             <select value="" onChange={(e) => setView({ dateProperty: e.target.value })}>
-              <option value="">Choisir une propriété…</option>
+              <option value="">{t('Choisir une propriété…')}</option>
               {dates.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -63,7 +64,7 @@ export function TimelineView({
             </select>
           </label>
         ) : (
-          'Ajoutez une propriété « Date » (avec date de fin) pour afficher la chronologie.'
+          t('Ajoutez une propriété « Date » (avec date de fin) pour afficher la chronologie.')
         )}
       </div>
     )
@@ -133,15 +134,15 @@ export function TimelineView({
     <div className="timeline-view">
       <div className="timeline-tools">
         <select
-          aria-label="Échelle"
+          aria-label={t('Échelle')}
           value={view.timelineScale ?? 'week'}
           onChange={(e) => setView({ timelineScale: e.target.value })}
         >
-          <option value="week">Jours</option>
-          <option value="month">Mois</option>
+          <option value="week">{t('Jours')}</option>
+          <option value="month">{t('Mois')}</option>
         </select>
         <button onClick={() => onAddRow({ [prop.id]: { start: iso(today) } })}>
-          + Nouvelle ligne
+          {t('+ Nouvelle ligne')}
         </button>
       </div>
       <div
@@ -161,7 +162,7 @@ export function TimelineView({
               >
                 {view.timelineScale === 'month'
                   ? d.getDate() === 1
-                    ? d.toLocaleDateString('fr-FR', { month: 'short' })
+                    ? d.toLocaleDateString(locale(), { month: 'short' })
                     : ''
                   : d.getDate()}
               </span>
@@ -211,9 +212,9 @@ export function TimelineView({
                     setDrag({ rowId: row.id, mode: 'move', startX: e.clientX, delta: 0 })
                   }}
                   onDoubleClick={() => onOpenRow(row.id)}
-                  title="Glisser pour déplacer, double-cliquer pour ouvrir"
+                  title={t('Glisser pour déplacer, double-cliquer pour ouvrir')}
                 >
-                  <span className="timeline-title">{row.title || 'Sans titre'}</span>
+                  <span className="timeline-title">{row.title || t('Sans titre')}</span>
                   <span
                     className="timeline-handle"
                     onPointerDown={(e) => {
@@ -229,13 +230,13 @@ export function TimelineView({
       </div>
       {undated.length > 0 && (
         <div className="timeline-undated">
-          <span className="muted">Sans date :</span>
+          <span className="muted">{t('Sans date :')}</span>
           {undated.map((r) => (
             <button
               key={r.id}
               onClick={() => onUpdateRow(r.id, { [prop.id]: { start: iso(today) } })}
             >
-              {r.title || 'Sans titre'} → aujourd’hui
+              {t('{title} → aujourd’hui', { title: r.title || t('Sans titre') })}
             </button>
           ))}
         </div>

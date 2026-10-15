@@ -4,9 +4,10 @@ import { atLeast } from '../../../shared/types'
 import { pageUrl, useStore } from '../store'
 import { copyText } from '../clipboard'
 import { Popover } from '../database/Popover'
+import { locale, t } from '../../../shared/i18n'
 
 const FONTS: { value: NonNullable<PageOptions['font']>; label: string; sample: string }[] = [
-  { value: 'default', label: 'Par défaut', sample: 'Ag' },
+  { value: 'default', label: t('Par défaut'), sample: 'Ag' },
   { value: 'serif', label: 'Serif', sample: 'Ag' },
   { value: 'mono', label: 'Mono', sample: 'Ag' }
 ]
@@ -33,9 +34,11 @@ export function PageOptionsMenu({
         format === 'html'
           ? await window.api.transfer.exportHtml(page.id)
           : await window.api.transfer.exportPdf(page.id)
-      if (result) showNotice(`Exporté : ${result.path}`)
+      if (result) showNotice(t('Exporté : {path}', { path: result.path }))
     } catch (e) {
-      showNotice(`Export impossible : ${e instanceof Error ? e.message : String(e)}`)
+      showNotice(
+        t('Export impossible : {error}', { error: e instanceof Error ? e.message : String(e) })
+      )
     }
   }
   const options = page.options
@@ -60,7 +63,7 @@ export function PageOptionsMenu({
         </div>
       )}
       <label className="option-row">
-        Petit texte
+        {t('Petit texte')}
         <input
           type="checkbox"
           disabled={!canEdit || options.locked}
@@ -69,7 +72,7 @@ export function PageOptionsMenu({
         />
       </label>
       <label className="option-row">
-        Pleine largeur
+        {t('Pleine largeur')}
         <input
           type="checkbox"
           disabled={!canEdit || options.locked}
@@ -78,7 +81,7 @@ export function PageOptionsMenu({
         />
       </label>
       <label className="option-row">
-        Verrouiller la page
+        {t('Verrouiller la page')}
         <input
           type="checkbox"
           disabled={!canEdit}
@@ -87,7 +90,7 @@ export function PageOptionsMenu({
         />
       </label>
       <label className="option-row">
-        Enregistrer comme modèle
+        {t('Enregistrer comme modèle')}
         <input
           type="checkbox"
           disabled={!canEdit}
@@ -100,21 +103,27 @@ export function PageOptionsMenu({
         onClick={() => {
           onClose()
           void copyText(pageUrl(page.id)).then((ok) =>
-            showNotice(ok ? 'Lien de la page copié.' : `Lien : ${pageUrl(page.id)}`)
+            showNotice(
+              ok ? t('Lien de la page copié.') : t('Lien : {url}', { url: pageUrl(page.id) })
+            )
           )
         }}
       >
-        Copier le lien
+        {t('Copier le lien')}
       </button>
       <button onClick={() => (onClose(), void patch(page.id, { favorite: !page.favorite }))}>
-        {page.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+        {page.favorite ? t('Retirer des favoris') : t('Ajouter aux favoris')}
       </button>
-      <button onClick={() => (onClose(), void duplicate(page.id))}>Dupliquer</button>
-      <button onClick={() => (onClose(), void exportPage(page.id))}>Exporter en Markdown</button>
-      <button onClick={() => (onClose(), void exportAs('html'))}>Exporter en HTML</button>
-      <button onClick={() => (onClose(), void exportAs('pdf'))}>Exporter en PDF</button>
+      <button onClick={() => (onClose(), void duplicate(page.id))}>{t('Dupliquer')}</button>
+      <button onClick={() => (onClose(), void exportPage(page.id))}>
+        {t('Exporter en Markdown')}
+      </button>
+      <button onClick={() => (onClose(), void exportAs('html'))}>{t('Exporter en HTML')}</button>
+      <button onClick={() => (onClose(), void exportAs('pdf'))}>{t('Exporter en PDF')}</button>
       {canEdit && (
-        <button onClick={() => (onClose(), void trash(page.id))}>Mettre à la corbeille</button>
+        <button onClick={() => (onClose(), void trash(page.id))}>
+          {t('Mettre à la corbeille')}
+        </button>
       )}
       <hr />
       <ViewStats pageId={page.id} />
@@ -123,7 +132,7 @@ export function PageOptionsMenu({
 }
 
 const when = (ms: number): string =>
-  new Date(ms).toLocaleString('fr-FR', {
+  new Date(ms).toLocaleString(locale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -144,21 +153,21 @@ function ViewStats({ pageId }: { pageId: string }): React.JSX.Element {
       cancelled = true
     }
   }, [pageId])
-  if (!stats) return <div className="page-stats muted">Statistiques…</div>
+  if (!stats) return <div className="page-stats muted">{t('Statistiques…')}</div>
   const max = Math.max(1, ...stats.days)
-  const name = (id: string): string => people.find((p) => p.id === id)?.name ?? 'Ancien compte'
+  const name = (id: string): string => people.find((p) => p.id === id)?.name ?? t('Ancien compte')
   return (
     <div className="page-stats">
       <div className="page-stats-head">
-        <strong>{stats.views}</strong> vue{stats.views > 1 ? 's' : ''}
+        <strong>{stats.views}</strong> {stats.views > 1 ? t('vues') : t('vue')}
         {people.length > 0 && (
           <>
             {' · '}
-            <strong>{stats.viewers}</strong> personne{stats.viewers > 1 ? 's' : ''}
+            <strong>{stats.viewers}</strong> {stats.viewers > 1 ? t('personnes') : t('personne')}
           </>
         )}
       </div>
-      <div className="page-stats-bars" title="Vues des 28 derniers jours">
+      <div className="page-stats-bars" title={t('Vues des 28 derniers jours')}>
         {stats.days.map((n, i) => (
           <span key={i} style={{ height: `${(n / max) * 100}%` }} title={`${n}`} />
         ))}

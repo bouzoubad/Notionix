@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { WorkspaceInfo } from '../../../shared/collab'
 import type { ServerSession } from '../platform'
 import { Popover } from '../database/Popover'
+import { t } from '../../../shared/i18n'
 
 /** The workspace open now, and the others this person can switch to. */
 export function WorkspaceSwitcher({
@@ -28,12 +29,12 @@ export function WorkspaceSwitcher({
     <div className="workspace-switcher">
       <button className="workspace-current" onClick={() => setOpen(!open)}>
         <span className="workspace-icon">{current?.icon || '🏢'}</span>
-        <span className="workspace-name">{current?.name ?? 'Espace'}</span>
+        <span className="workspace-name">{current?.name ?? t('Espace')}</span>
         <span className="workspace-caret">▾</span>
       </button>
       {open && (
         <Popover onClose={() => setOpen(false)} className="workspace-menu">
-          <div className="menu-label">Espaces de travail</div>
+          <div className="menu-label">{t('Espaces de travail')}</div>
           {list.map((w) => (
             <button
               key={w.id}

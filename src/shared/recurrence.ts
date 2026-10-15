@@ -6,6 +6,8 @@
  * still creates the row at their 8:00.
  */
 
+import { t } from './i18n'
+
 export type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
 
 export interface RecurrenceRule {
@@ -32,35 +34,35 @@ export interface Recurrence {
 }
 
 export const UNIT_LABELS: Record<RecurrenceUnit, string> = {
-  day: 'jour(s)',
-  week: 'semaine(s)',
-  month: 'mois',
-  year: 'an(s)'
+  day: t('jour(s)'),
+  week: t('semaine(s)'),
+  month: t('mois'),
+  year: t('an(s)')
 }
 const MAX_INTERVAL: Record<RecurrenceUnit, number> = { day: 365, week: 52, month: 24, year: 5 }
 
 /** A rule from untrusted input; throws with a readable message. */
 export function parseRule(raw: unknown): RecurrenceRule {
-  if (typeof raw !== 'object' || raw === null) throw new Error('Règle de répétition invalide.')
+  if (typeof raw !== 'object' || raw === null) throw new Error(t('Règle de répétition invalide.'))
   const r = raw as Record<string, unknown>
   const every = r.every
   if (every !== 'day' && every !== 'week' && every !== 'month' && every !== 'year')
-    throw new Error('Fréquence inconnue.')
+    throw new Error(t('Fréquence inconnue.'))
   const interval = Number(r.interval ?? 1)
   if (!Number.isInteger(interval) || interval < 1 || interval > MAX_INTERVAL[every])
-    throw new Error(`Intervalle invalide (1 à ${MAX_INTERVAL[every]}).`)
+    throw new Error(t('Intervalle invalide (1 à {max}).', { max: MAX_INTERVAL[every] }))
   const time =
     typeof r.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) ? r.time : null
-  if (!time) throw new Error('Heure invalide (HH:mm).')
+  if (!time) throw new Error(t('Heure invalide (HH:mm).'))
   const utcOffset = Number(r.utcOffset ?? 0)
   if (!Number.isInteger(utcOffset) || Math.abs(utcOffset) > 14 * 60)
-    throw new Error('Fuseau horaire invalide.')
+    throw new Error(t('Fuseau horaire invalide.'))
   const rule: RecurrenceRule = { every, interval, time, utcOffset }
   if (every === 'week') {
     const days = Array.isArray(r.weekdays)
       ? [...new Set(r.weekdays.filter((d): d is number => Number.isInteger(d) && d >= 1 && d <= 7))]
       : []
-    if (!days.length) throw new Error('Choisissez au moins un jour de la semaine.')
+    if (!days.length) throw new Error(t('Choisissez au moins un jour de la semaine.'))
     rule.weekdays = days.sort()
   }
   if (typeof r.dateProperty === 'string' && r.dateProperty) rule.dateProperty = r.dateProperty
@@ -134,21 +136,27 @@ export function occurrenceDay(rule: RecurrenceRule, at: number): string {
 
 /** "Toutes les 2 semaines, lun. et jeu., à 08:00" */
 export function describeRule(rule: RecurrenceRule): string {
-  const names = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.']
+  const names = [t('lun.'), t('mar.'), t('mer.'), t('jeu.'), t('ven.'), t('sam.'), t('dim.')]
+  const n = rule.interval
   const every =
-    rule.interval === 1
+    n === 1
       ? {
-          day: 'Tous les jours',
-          week: 'Toutes les semaines',
-          month: 'Tous les mois',
-          year: 'Tous les ans'
+          day: t('Tous les jours'),
+          week: t('Toutes les semaines'),
+          month: t('Tous les mois'),
+          year: t('Tous les ans')
         }[rule.every]
-      : rule.every === 'week'
-        ? `Toutes les ${rule.interval} semaines`
-        : `Tous les ${rule.interval} ${{ day: 'jours', month: 'mois', year: 'ans' }[rule.every]}`
+      : {
+          day: t('Tous les {n} jours', { n }),
+          week: t('Toutes les {n} semaines', { n }),
+          month: t('Tous les {n} mois', { n }),
+          year: t('Tous les {n} ans', { n })
+        }[rule.every]
   const days =
     rule.every === 'week' && rule.weekdays?.length
-      ? `, ${rule.weekdays.map((d) => names[d - 1]).join(' et ')}`
+      ? rule.weekdays.map((d) => names[d - 1]).join(t(' et '))
       : ''
-  return `${every}${days}, à ${rule.time}`
+  return days
+    ? t('{every}, {days}, à {time}', { every, days, time: rule.time })
+    : t('{every}, à {time}', { every, time: rule.time })
 }

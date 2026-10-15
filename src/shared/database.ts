@@ -4,6 +4,7 @@
  * is pure so that the main process (storage, import, export) and the renderer
  * (views) interpret values the same way.
  */
+import { locale, t } from './i18n'
 
 export type PropertyType =
   | 'title'
@@ -51,9 +52,9 @@ export interface SelectOption {
 
 export type StatusGroup = 'todo' | 'in_progress' | 'done'
 export const STATUS_GROUP_LABELS: Record<StatusGroup, string> = {
-  todo: 'À faire',
-  in_progress: 'En cours',
-  done: 'Terminé'
+  todo: t('À faire'),
+  in_progress: t('En cours'),
+  done: t('Terminé')
 }
 
 export interface PropertyDef {
@@ -99,21 +100,21 @@ export interface RollupConfig {
 }
 
 export const ROLLUP_LABELS: Record<RollupAggregate, string> = {
-  show_original: 'Afficher les valeurs',
-  count: 'Nombre de lignes',
-  count_values: 'Nombre de valeurs',
-  count_unique: 'Nombre de valeurs uniques',
-  count_empty: 'Nombre de vides',
-  sum: 'Somme',
-  average: 'Moyenne',
-  median: 'Médiane',
-  min: 'Minimum',
-  max: 'Maximum',
-  range: 'Écart (max − min)',
-  percent_checked: 'Pourcentage coché',
-  percent_empty: 'Pourcentage vide',
-  earliest: 'Date la plus ancienne',
-  latest: 'Date la plus récente'
+  show_original: t('Afficher les valeurs'),
+  count: t('Nombre de lignes'),
+  count_values: t('Nombre de valeurs'),
+  count_unique: t('Nombre de valeurs uniques'),
+  count_empty: t('Nombre de vides'),
+  sum: t('Somme'),
+  average: t('Moyenne'),
+  median: t('Médiane'),
+  min: t('Minimum'),
+  max: t('Maximum'),
+  range: t('Écart (max − min)'),
+  percent_checked: t('Pourcentage coché'),
+  percent_empty: t('Pourcentage vide'),
+  earliest: t('Date la plus ancienne'),
+  latest: t('Date la plus récente')
 }
 
 /** Result of a formula or rollup that could not be computed. */
@@ -171,23 +172,23 @@ export type CalcKind =
   | 'percent_checked'
 
 export const CALC_LABELS: Record<CalcKind, string> = {
-  count_all: 'Tout compter',
-  count_values: 'Compter les valeurs',
-  count_empty: 'Compter les vides',
-  count_unique: 'Valeurs uniques',
-  percent_empty: 'Pourcentage vide',
-  percent_not_empty: 'Pourcentage rempli',
-  sum: 'Somme',
-  average: 'Moyenne',
-  median: 'Médiane',
-  min: 'Minimum',
-  max: 'Maximum',
-  range: 'Écart',
-  earliest: 'Date la plus ancienne',
-  latest: 'Date la plus récente',
-  checked: 'Cochées',
-  unchecked: 'Non cochées',
-  percent_checked: 'Pourcentage coché'
+  count_all: t('Tout compter'),
+  count_values: t('Compter les valeurs'),
+  count_empty: t('Compter les vides'),
+  count_unique: t('Valeurs uniques'),
+  percent_empty: t('Pourcentage vide'),
+  percent_not_empty: t('Pourcentage rempli'),
+  sum: t('Somme'),
+  average: t('Moyenne'),
+  median: t('Médiane'),
+  min: t('Minimum'),
+  max: t('Maximum'),
+  range: t('Écart'),
+  earliest: t('Date la plus ancienne'),
+  latest: t('Date la plus récente'),
+  checked: t('Cochées'),
+  unchecked: t('Non cochées'),
+  percent_checked: t('Pourcentage coché')
 }
 
 export interface ChartConfig {
@@ -236,19 +237,19 @@ export interface FilterGroup {
 
 /** Dates relative to today, written '@today', '@this_week'… as a filter value. */
 export const RELATIVE_DATES: Record<string, string> = {
-  '@today': 'Aujourd’hui',
-  '@tomorrow': 'Demain',
-  '@yesterday': 'Hier',
-  '@this_week': 'Cette semaine',
-  '@last_week': 'La semaine dernière',
-  '@next_week': 'La semaine prochaine',
-  '@this_month': 'Ce mois-ci',
-  '@last_month': 'Le mois dernier',
-  '@next_month': 'Le mois prochain',
-  '@past_7': 'Les 7 derniers jours',
-  '@next_7': 'Les 7 prochains jours',
-  '@past_30': 'Les 30 derniers jours',
-  '@next_30': 'Les 30 prochains jours'
+  '@today': t('Aujourd’hui'),
+  '@tomorrow': t('Demain'),
+  '@yesterday': t('Hier'),
+  '@this_week': t('Cette semaine'),
+  '@last_week': t('La semaine dernière'),
+  '@next_week': t('La semaine prochaine'),
+  '@this_month': t('Ce mois-ci'),
+  '@last_month': t('Le mois dernier'),
+  '@next_month': t('Le mois prochain'),
+  '@past_7': t('Les 7 derniers jours'),
+  '@next_7': t('Les 7 prochains jours'),
+  '@past_30': t('Les 30 derniers jours'),
+  '@next_30': t('Les 30 prochains jours')
 }
 
 /** First and last day ('YYYY-MM-DD') a relative date stands for, today being `now`. */
@@ -360,30 +361,31 @@ export interface DatabaseRow {
 export const TITLE_PROPERTY_ID = 'title'
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
-  title: 'Titre',
-  text: 'Texte',
-  number: 'Nombre',
-  select: 'Sélection',
-  multi_select: 'Sélection multiple',
-  date: 'Date',
-  checkbox: 'Case à cocher',
-  url: 'URL',
-  email: 'E-mail',
-  phone: 'Téléphone',
-  relation: 'Relation',
-  created_time: 'Date de création',
-  last_edited_time: 'Dernière modification',
-  formula: 'Formule',
-  rollup: 'Rollup',
-  person: 'Personne',
-  files: 'Fichiers et médias',
-  status: 'Statut',
-  created_by: 'Créé par',
-  last_edited_by: 'Modifié par',
-  unique_id: 'Identifiant'
+  title: t('Titre'),
+  text: t('Texte'),
+  number: t('Nombre'),
+  select: t('Sélection'),
+  multi_select: t('Sélection multiple'),
+  date: t('Date'),
+  checkbox: t('Case à cocher'),
+  url: t('URL'),
+  email: t('E-mail'),
+  phone: t('Téléphone'),
+  relation: t('Relation'),
+  created_time: t('Date de création'),
+  last_edited_time: t('Dernière modification'),
+  formula: t('Formule'),
+  rollup: t('Rollup'),
+  person: t('Personne'),
+  files: t('Fichiers et médias'),
+  status: t('Statut'),
+  created_by: t('Créé par'),
+  last_edited_by: t('Modifié par'),
+  unique_id: t('Identifiant')
 }
 
-export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
+/** Names of the view types, in French (translated where used). */
+const VIEW_TYPE_NAMES: Record<ViewType, string> = {
   table: 'Tableau',
   board: 'Board',
   list: 'Liste',
@@ -392,6 +394,16 @@ export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
   timeline: 'Chronologie',
   chart: 'Graphique',
   form: 'Formulaire'
+}
+export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
+  table: t('Tableau'),
+  board: t('Board'),
+  list: t('Liste'),
+  gallery: t('Galerie'),
+  calendar: t('Calendrier'),
+  timeline: t('Chronologie'),
+  chart: t('Graphique'),
+  form: t('Formulaire')
 }
 
 const PROPERTY_TYPES = new Set(Object.keys(PROPERTY_TYPE_LABELS))
@@ -420,9 +432,9 @@ export const READ_ONLY_TYPES: ReadonlySet<PropertyType> = new Set([
 
 /** Options of a new status property. */
 export const defaultStatusOptions = (): SelectOption[] => [
-  { id: newId(), name: 'Pas commencé', color: 'gray', group: 'todo' },
-  { id: newId(), name: 'En cours', color: 'blue', group: 'in_progress' },
-  { id: newId(), name: 'Terminé', color: 'green', group: 'done' }
+  { id: newId(), name: t('Pas commencé'), color: 'gray', group: 'todo' },
+  { id: newId(), name: t('En cours'), color: 'blue', group: 'in_progress' },
+  { id: newId(), name: t('Terminé'), color: 'green', group: 'done' }
 ]
 
 /**
@@ -436,13 +448,17 @@ export function randomId(length = 8): string {
 
 export const newId = (): string => randomId(8)
 
-export function defaultView(type: ViewType = 'table', name = VIEW_TYPE_LABELS[type]): ViewDef {
+/**
+ * A new view, named after its type in the current language (read now: on the
+ * desktop app's main process and on the server, the language is set per use).
+ */
+export function defaultView(type: ViewType = 'table', name = t(VIEW_TYPE_NAMES[type])): ViewDef {
   return { id: newId(), name, type, filters: [], filterMode: 'and', sorts: [], hidden: [] }
 }
 
 export function defaultSchema(): DatabaseSchema {
   return {
-    properties: [{ id: TITLE_PROPERTY_ID, name: 'Nom', type: 'title' }],
+    properties: [{ id: TITLE_PROPERTY_ID, name: t('Nom'), type: 'title' }],
     views: [defaultView('table')]
   }
 }
@@ -472,7 +488,7 @@ export function parseSchema(raw: unknown): DatabaseSchema {
     if (type === 'title' && properties.some((x) => x.type === 'title')) continue
     if ((type === 'title') !== (id === TITLE_PROPERTY_ID)) continue
     seen.add(id)
-    const def: PropertyDef = { id, name: str(p.name, 'Sans nom'), type }
+    const def: PropertyDef = { id, name: str(p.name, t('Sans nom')), type }
     if (type === 'select' || type === 'multi_select' || type === 'status')
       def.options = parseOptions(p.options, type === 'status')
     if (type === 'relation') {
@@ -494,7 +510,7 @@ export function parseSchema(raw: unknown): DatabaseSchema {
     properties.push(def)
   }
   if (!properties.some((p) => p.type === 'title')) {
-    properties.unshift({ id: TITLE_PROPERTY_ID, name: 'Nom', type: 'title' })
+    properties.unshift({ id: TITLE_PROPERTY_ID, name: t('Nom'), type: 'title' })
   }
   const views: ViewDef[] = []
   const ids = new Set(properties.map((p) => p.id))
@@ -662,8 +678,8 @@ export function calculate(
   const values = rows.map((r) => rowValue(r, prop))
   const filled = values.filter((v) => !isEmpty(v) || (prop.type === 'checkbox' && v === true))
   const pct = (n: number): string =>
-    rows.length ? `${Math.round((n / rows.length) * 100)} %` : '0 %'
-  const fmt = (n: number): string => (Math.round(n * 100) / 100).toLocaleString('fr-FR')
+    t('{n} %', { n: rows.length ? Math.round((n / rows.length) * 100) : 0 })
+  const fmt = (n: number): string => (Math.round(n * 100) / 100).toLocaleString(locale())
   const numbers = values
     .map((v) => (typeof v === 'number' ? v : null))
     .filter((v): v is number => v !== null)
@@ -699,7 +715,7 @@ export function calculate(
     const ms =
       new Date(days[days.length - 1].slice(0, 10)).getTime() -
       new Date(days[0].slice(0, 10)).getTime()
-    return `${Math.round(ms / 86_400_000)} j`
+    return t('{n} j', { n: Math.round(ms / 86_400_000) })
   }
   if (!numbers.length) return ''
   const sum = numbers.reduce((s, n) => s + n, 0)
@@ -877,8 +893,8 @@ export function rowValue(row: DatabaseRow, prop: PropertyDef): PropertyValue {
 /** A file of a files property: its stored src and its name (after '#'). */
 export function fileEntry(value: string): { src: string; name: string } {
   const i = value.indexOf('#')
-  if (i < 0) return { src: value, name: value.split('/').pop() ?? 'Fichier' }
-  return { src: value.slice(0, i), name: decodeURIComponent(value.slice(i + 1)) || 'Fichier' }
+  if (i < 0) return { src: value, name: value.split('/').pop() ?? t('Fichier') }
+  return { src: value.slice(0, i), name: decodeURIComponent(value.slice(i + 1)) || t('Fichier') }
 }
 export const fileValue = (src: string, name: string): string => `${src}#${encodeURIComponent(name)}`
 
@@ -906,7 +922,7 @@ const isDateValue = (v: PropertyValue): v is DateValue =>
 function displayComputed(value: PropertyValue): string {
   if (value === null) return ''
   if (isComputedError(value)) return `⚠ ${value.error}`
-  if (typeof value === 'boolean') return value ? 'Oui' : 'Non'
+  if (typeof value === 'boolean') return value ? t('Oui') : t('Non')
   if (typeof value === 'number') return String(Math.round(value * 1e10) / 1e10)
   if (Array.isArray(value)) return value.join(', ')
   if (isDateValue(value))
@@ -933,9 +949,9 @@ function matchesComputed(value: PropertyValue, filter: Filter): boolean {
     }
   }
   if (isDateValue(value) && ['before', 'after', 'equals'].includes(op)) {
-    const t = String(target).slice(0, 10)
+    const wantedDay = String(target).slice(0, 10)
     const day = value.start.slice(0, 10)
-    return op === 'before' ? day < t : op === 'after' ? day > t : day === t
+    return op === 'before' ? day < wantedDay : op === 'after' ? day > wantedDay : day === wantedDay
   }
   const text = fold(displayComputed(value))
   const wanted = fold(String(target))
@@ -974,7 +990,7 @@ export function displayValue(
   if (value === null) return ''
   switch (prop.type) {
     case 'checkbox':
-      return value === true ? 'Oui' : 'Non'
+      return value === true ? t('Oui') : t('Non')
     case 'select':
     case 'status':
       return typeof value === 'string' ? optionName(prop, value) : ''
@@ -1021,24 +1037,24 @@ export function displayValue(
 // ---------------------------------------------------------------------------
 // Filters, sorts and grouping
 
-/** Operators offered for a property type, with their French labels. */
+/** Operators offered for a property type, with their labels. */
 export function operatorsFor(type: PropertyType): { op: FilterOperator; label: string }[] {
   const empty = [
-    { op: 'is_empty' as const, label: 'est vide' },
-    { op: 'is_not_empty' as const, label: 'n’est pas vide' }
+    { op: 'is_empty' as const, label: t('est vide') },
+    { op: 'is_not_empty' as const, label: t('n’est pas vide') }
   ]
   if (isComputed(type)) {
     return [
-      { op: 'equals', label: '= / est' },
-      { op: 'not_equals', label: '≠ / n’est pas' },
-      { op: 'contains', label: 'contient' },
-      { op: 'not_contains', label: 'ne contient pas' },
+      { op: 'equals', label: t('= / est') },
+      { op: 'not_equals', label: t('≠ / n’est pas') },
+      { op: 'contains', label: t('contient') },
+      { op: 'not_contains', label: t('ne contient pas') },
       { op: 'gt', label: '>' },
       { op: 'lt', label: '<' },
       { op: 'gte', label: '≥' },
       { op: 'lte', label: '≤' },
-      { op: 'before', label: 'est avant' },
-      { op: 'after', label: 'est après' },
+      { op: 'before', label: t('est avant') },
+      { op: 'after', label: t('est après') },
       ...empty
     ]
   }
@@ -1055,7 +1071,11 @@ export function operatorsFor(type: PropertyType): { op: FilterOperator; label: s
       ]
     case 'select':
     case 'status':
-      return [{ op: 'equals', label: 'est' }, { op: 'not_equals', label: 'n’est pas' }, ...empty]
+      return [
+        { op: 'equals', label: t('est') },
+        { op: 'not_equals', label: t('n’est pas') },
+        ...empty
+      ]
     case 'relation':
     case 'files':
       return empty
@@ -1063,8 +1083,8 @@ export function operatorsFor(type: PropertyType): { op: FilterOperator; label: s
     case 'created_by':
     case 'last_edited_by':
       return [
-        { op: 'contains', label: 'contient' },
-        { op: 'not_contains', label: 'ne contient pas' },
+        { op: 'contains', label: t('contient') },
+        { op: 'not_contains', label: t('ne contient pas') },
         ...empty
       ]
     case 'unique_id':
@@ -1075,30 +1095,30 @@ export function operatorsFor(type: PropertyType): { op: FilterOperator; label: s
       ]
     case 'multi_select':
       return [
-        { op: 'contains', label: 'contient' },
-        { op: 'not_contains', label: 'ne contient pas' },
+        { op: 'contains', label: t('contient') },
+        { op: 'not_contains', label: t('ne contient pas') },
         ...empty
       ]
     case 'date':
     case 'created_time':
     case 'last_edited_time':
       return [
-        { op: 'equals', label: 'est le' },
-        { op: 'before', label: 'est avant' },
-        { op: 'after', label: 'est après' },
+        { op: 'equals', label: t('est le') },
+        { op: 'before', label: t('est avant') },
+        { op: 'after', label: t('est après') },
         ...empty
       ]
     case 'checkbox':
       return [
-        { op: 'is_checked', label: 'est cochée' },
-        { op: 'is_not_checked', label: 'n’est pas cochée' }
+        { op: 'is_checked', label: t('est cochée') },
+        { op: 'is_not_checked', label: t('n’est pas cochée') }
       ]
     default:
       return [
-        { op: 'contains', label: 'contient' },
-        { op: 'not_contains', label: 'ne contient pas' },
-        { op: 'equals', label: 'est' },
-        { op: 'not_equals', label: 'n’est pas' },
+        { op: 'contains', label: t('contient') },
+        { op: 'not_contains', label: t('ne contient pas') },
+        { op: 'equals', label: t('est') },
+        { op: 'not_equals', label: t('n’est pas') },
         ...empty
       ]
   }
@@ -1277,14 +1297,26 @@ export function groupRows(
   const empty: RowGroup = {
     key: null,
     option: null,
-    label: `Sans ${prop.name}`,
+    label: t('Sans {name}', { name: prop.name }),
     value: null,
     rows: []
   }
   if (prop.type === 'checkbox') {
     const groups: RowGroup[] = [
-      { key: 'true', option: null, label: `${prop.name} : oui`, value: true, rows: [] },
-      { key: 'false', option: null, label: `${prop.name} : non`, value: false, rows: [] }
+      {
+        key: 'true',
+        option: null,
+        label: t('{name} : oui', { name: prop.name }),
+        value: true,
+        rows: []
+      },
+      {
+        key: 'false',
+        option: null,
+        label: t('{name} : non', { name: prop.name }),
+        value: false,
+        rows: []
+      }
     ]
     for (const row of rows) groups[row.properties[prop.id] === true ? 0 : 1].rows.push(row)
     return groups
@@ -1325,7 +1357,7 @@ export function groupRows(
         months.set(key, {
           key,
           option: null,
-          label: new Date(y, m - 1, 1).toLocaleDateString('fr-FR', {
+          label: new Date(y, m - 1, 1).toLocaleDateString(locale(), {
             month: 'long',
             year: 'numeric'
           }),
@@ -1350,7 +1382,7 @@ export function groupRows(
     ...ids.map((id) => ({
       key: id as string | null,
       option: null,
-      label: nameOf(id) ?? 'Inconnu',
+      label: nameOf(id) ?? t('Inconnu'),
       value: (editable ? [id] : null) as PropertyValue,
       rows: [] as DatabaseRow[]
     }))

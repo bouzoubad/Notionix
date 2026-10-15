@@ -1,5 +1,6 @@
 import { useStore } from '../store'
 import { PageIcon } from './PageIcon'
+import { t } from '../../../shared/i18n'
 
 /** Pages open in tabs, shown when there is more than one. */
 export function TabBar(): React.JSX.Element | null {
@@ -11,10 +12,10 @@ export function TabBar(): React.JSX.Element | null {
   const newTab = useStore((s) => s.newTab)
   if (tabs.length < 2) return null
   return (
-    <div className="tab-bar" role="tablist" aria-label="Onglets">
+    <div className="tab-bar" role="tablist" aria-label={t('Onglets')}>
       {tabs.map((id, i) => {
         const page = pages.find((p) => p.id === id)
-        const title = id === null ? 'Nouvel onglet' : page?.title || 'Sans titre'
+        const title = id === null ? t('Nouvel onglet') : page?.title || t('Sans titre')
         return (
           <div
             key={i}
@@ -42,7 +43,7 @@ export function TabBar(): React.JSX.Element | null {
             <span className="page-tab-title">{title}</span>
             <button
               className="page-tab-close"
-              aria-label={`Fermer l’onglet ${title}`}
+              aria-label={t('Fermer l’onglet {title}', { title })}
               onClick={(e) => {
                 e.stopPropagation()
                 closeTab(i)
@@ -53,7 +54,7 @@ export function TabBar(): React.JSX.Element | null {
           </div>
         )
       })}
-      <button className="page-tab-new" aria-label="Nouvel onglet" onClick={() => newTab()}>
+      <button className="page-tab-new" aria-label={t('Nouvel onglet')} onClick={() => newTab()}>
         +
       </button>
     </div>

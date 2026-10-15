@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 export const IMAGE_TYPES = [
   'image/png',
@@ -25,11 +26,12 @@ export async function insertImages(editor: Editor, files: File[], pos?: number):
         at = editor.state.selection.to
       }
     } catch (e) {
-      useStore
-        .getState()
-        .showNotice(
-          `Image non ajoutée (${file.name}) : ${e instanceof Error ? e.message : String(e)}`
-        )
+      useStore.getState().showNotice(
+        t('Image non ajoutée ({name}) : {error}', {
+          name: file.name,
+          error: e instanceof Error ? e.message : String(e)
+        })
+      )
     }
   }
 }

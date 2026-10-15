@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { SessionUser, WorkspaceInfo } from '../shared/collab'
 import type { PersonGroup } from '../shared/types'
 import { json } from './http'
+import { t } from '../shared/i18n'
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
@@ -98,8 +99,9 @@ export function Groups(): React.JSX.Element {
   return (
     <div className="accounts">
       <p className="settings-note">
-        Un groupe (ex. « Équipe produit ») se choisit dans le menu Partager d’une page : ses
-        membres, présents et futurs, y ont accès.
+        {t(
+          'Un groupe (ex. « Équipe produit ») se choisit dans le menu Partager d’une page : ses membres, présents et futurs, y ont accès.'
+        )}
       </p>
       <form
         className="new-account"
@@ -113,27 +115,27 @@ export function Groups(): React.JSX.Element {
       >
         <div className="new-account-fields">
           <input
-            placeholder="Nom du groupe"
+            placeholder={t('Nom du groupe')}
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <button className="primary" type="submit">
-            Créer le groupe
+            {t('Créer le groupe')}
           </button>
         </div>
       </form>
       {error && <p className="error">{error}</p>}
       {items === null ? (
-        <p className="settings-note">Chargement…</p>
+        <p className="settings-note">{t('Chargement…')}</p>
       ) : items.length === 0 ? (
-        <p className="settings-note">Aucun groupe pour l’instant.</p>
+        <p className="settings-note">{t('Aucun groupe pour l’instant.')}</p>
       ) : (
         items.map((g) => (
           <section key={g.id} className="team-item">
             <header>
               <input
-                aria-label="Nom du groupe"
+                aria-label={t('Nom du groupe')}
                 defaultValue={g.name}
                 onBlur={(e) => {
                   if (e.target.value.trim() && e.target.value !== g.name)
@@ -148,13 +150,19 @@ export function Groups(): React.JSX.Element {
               <button
                 className="danger"
                 onClick={() => {
-                  if (confirm(`Supprimer le groupe « ${g.name} » ? Ses partages s’arrêtent.`))
+                  if (
+                    confirm(
+                      t('Supprimer le groupe « {name} » ? Ses partages s’arrêtent.', {
+                        name: g.name
+                      })
+                    )
+                  )
                     void run(() =>
                       json(`/api/groups/${encodeURIComponent(g.id)}`, { method: 'DELETE' })
                     )
                 }}
               >
-                Supprimer
+                {t('Supprimer')}
               </button>
             </header>
             <MemberPicker
@@ -198,9 +206,9 @@ export function Workspaces(): React.JSX.Element {
   return (
     <div className="accounts">
       <p className="settings-note">
-        Chaque espace a ses propres pages, bases et fichiers. L’espace principal est ouvert à tous
-        les comptes ; les autres à leurs membres et aux administrateurs. On change d’espace en haut
-        de la barre latérale. Un espace archivé disparaît pour ses membres jusqu’à sa restauration.
+        {t(
+          'Chaque espace a ses propres pages, bases et fichiers. L’espace principal est ouvert à tous les comptes ; les autres à leurs membres et aux administrateurs. On change d’espace en haut de la barre latérale. Un espace archivé disparaît pour ses membres jusqu’à sa restauration.'
+        )}
       </p>
       <form
         className="new-account"
@@ -222,26 +230,26 @@ export function Workspaces(): React.JSX.Element {
             onChange={(e) => setIcon(e.target.value)}
           />
           <input
-            placeholder="Nom de l’espace"
+            placeholder={t('Nom de l’espace')}
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <button className="primary" type="submit">
-            Créer l’espace
+            {t('Créer l’espace')}
           </button>
         </div>
       </form>
       {error && <p className="error">{error}</p>}
       {items === null ? (
-        <p className="settings-note">Chargement…</p>
+        <p className="settings-note">{t('Chargement…')}</p>
       ) : (
         items.map((w) => (
           <section key={w.id} className="team-item">
             <header>
               <input
                 className="emoji-input"
-                aria-label="Icône"
+                aria-label={t('Icône')}
                 defaultValue={w.icon ?? ''}
                 placeholder="🏢"
                 maxLength={4}
@@ -251,24 +259,27 @@ export function Workspaces(): React.JSX.Element {
                 }}
               />
               <input
-                aria-label="Nom de l’espace"
+                aria-label={t('Nom de l’espace')}
                 defaultValue={w.name}
                 onBlur={(e) => {
                   if (e.target.value.trim() && e.target.value !== w.name)
                     void patch(w, { name: e.target.value })
                 }}
               />
-              {w.archived && <span className="account-badge">archivé</span>}
+              {w.archived && <span className="account-badge">{t('archivé')}</span>}
               {w.memberIds !== null && (
                 <>
                   <button onClick={() => void patch(w, { archived: !w.archived })}>
-                    {w.archived ? 'Restaurer' : 'Archiver'}
+                    {w.archived ? t('Restaurer') : t('Archiver')}
                   </button>
                   <button
                     className="danger"
                     onClick={() => {
                       const confirm = prompt(
-                        `Supprimer l’espace « ${w.name} » et toutes ses pages ? Ses fichiers sont mis de côté sur le serveur (dossier deleted-workspaces), pas effacés. Recopiez son nom pour confirmer :`
+                        t(
+                          'Supprimer l’espace « {name} » et toutes ses pages ? Ses fichiers sont mis de côté sur le serveur (dossier deleted-workspaces), pas effacés. Recopiez son nom pour confirmer :',
+                          { name: w.name }
+                        )
                       )
                       if (confirm !== null)
                         void run(() =>
@@ -279,13 +290,13 @@ export function Workspaces(): React.JSX.Element {
                         )
                     }}
                   >
-                    Supprimer
+                    {t('Supprimer')}
                   </button>
                 </>
               )}
             </header>
             {w.memberIds === null ? (
-              <p className="settings-note">Tous les comptes.</p>
+              <p className="settings-note">{t('Tous les comptes.')}</p>
             ) : (
               <MemberPicker
                 accounts={accounts.filter((a) => a.role !== 'admin')}

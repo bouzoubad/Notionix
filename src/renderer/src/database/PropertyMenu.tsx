@@ -15,21 +15,22 @@ import {
 import { useStore } from '../store'
 import { Popover } from './Popover'
 import { FormulaEditor, RollupEditor } from './ComputedEditors'
+import { t } from '../../../shared/i18n'
 
 const CHANGEABLE_TYPES = (Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[]).filter(
-  (t) => t !== 'title'
+  (type) => type !== 'title'
 )
 
 const COLOR_LABELS: Record<OptionColor, string> = {
-  gray: 'Gris',
-  brown: 'Marron',
-  orange: 'Orange',
-  yellow: 'Jaune',
-  green: 'Vert',
-  blue: 'Bleu',
-  purple: 'Violet',
-  pink: 'Rose',
-  red: 'Rouge'
+  gray: t('Gris'),
+  brown: t('Marron'),
+  orange: t('Orange'),
+  yellow: t('Jaune'),
+  green: t('Vert'),
+  blue: t('Bleu'),
+  purple: t('Violet'),
+  pink: t('Rose'),
+  red: t('Rouge')
 }
 
 /** Property settings: name, type, select options, relation target, hide, sort, delete. */
@@ -72,7 +73,7 @@ export function PropertyMenu({
     <Popover onClose={() => (commitName(), onClose())} className="property-menu">
       <input
         autoFocus
-        aria-label="Nom de la propriété"
+        aria-label={t('Nom de la propriété')}
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={commitName}
@@ -85,11 +86,11 @@ export function PropertyMenu({
       />
       {prop.id !== TITLE_PROPERTY_ID && (
         <label className="menu-row">
-          Type
+          {t('Type')}
           <select value={prop.type} onChange={(e) => onChangeType(e.target.value as PropertyType)}>
-            {CHANGEABLE_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {PROPERTY_TYPE_LABELS[t]}
+            {CHANGEABLE_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {PROPERTY_TYPE_LABELS[type]}
               </option>
             ))}
           </select>
@@ -103,10 +104,10 @@ export function PropertyMenu({
       )}
       {prop.type === 'unique_id' && (
         <label className="menu-row">
-          Préfixe
+          {t('Préfixe')}
           <input
-            aria-label="Préfixe"
-            placeholder="ex. TÂCHE"
+            aria-label={t('Préfixe')}
+            placeholder={t('ex. TÂCHE')}
             defaultValue={prop.idPrefix ?? ''}
             onBlur={(e) =>
               e.target.value !== (prop.idPrefix ?? '') &&
@@ -128,20 +129,20 @@ export function PropertyMenu({
               onClose()
             }}
           />
-          Relation à double sens (visible dans la base liée)
+          {t('Relation à double sens (visible dans la base liée)')}
         </label>
       )}
       {prop.type === 'relation' && (
         <label className="menu-row">
-          Base liée
+          {t('Base liée')}
           <select
             value={prop.relationDatabaseId ?? ''}
             onChange={(e) => patchProp({ relationDatabaseId: e.target.value || null })}
           >
-            <option value="">Choisir…</option>
+            <option value="">{t('Choisir…')}</option>
             {databases.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.id === databaseId ? 'Cette base' : d.title || 'Sans titre'}
+                {d.id === databaseId ? t('Cette base') : d.title || t('Sans titre')}
               </option>
             ))}
           </select>
@@ -149,11 +150,11 @@ export function PropertyMenu({
       )}
       {(prop.type === 'select' || prop.type === 'multi_select' || prop.type === 'status') && (
         <div className="options-editor">
-          <div className="menu-label">Options</div>
+          <div className="menu-label">{t('Options')}</div>
           {options.map((o) => (
             <div key={o.id} className="option-row">
               <select
-                aria-label={`Couleur de ${o.name}`}
+                aria-label={t('Couleur de {name}', { name: o.name })}
                 className={`color-dot tag-${o.color}`}
                 value={o.color}
                 onChange={(e) =>
@@ -172,7 +173,7 @@ export function PropertyMenu({
               </select>
               {prop.type === 'status' && (
                 <select
-                  aria-label={`Étape de ${o.name}`}
+                  aria-label={t('Étape de {name}', { name: o.name })}
                   value={o.group ?? 'todo'}
                   onChange={(e) =>
                     patchProp({
@@ -190,7 +191,7 @@ export function PropertyMenu({
                 </select>
               )}
               <input
-                aria-label="Nom de l’option"
+                aria-label={t('Nom de l’option')}
                 defaultValue={o.name}
                 onBlur={(e) =>
                   e.target.value !== o.name &&
@@ -202,7 +203,7 @@ export function PropertyMenu({
                 }
               />
               <button
-                title="Supprimer l’option"
+                title={t('Supprimer l’option')}
                 onClick={() => patchProp({ options: options.filter((x) => x.id !== o.id) })}
               >
                 ×
@@ -216,12 +217,12 @@ export function PropertyMenu({
                 patchProp({
                   options: [
                     ...options,
-                    { id: newId(), name: 'Nouvelle étape', color: 'gray', group: 'in_progress' }
+                    { id: newId(), name: t('Nouvelle étape'), color: 'gray', group: 'in_progress' }
                   ]
                 })
               }
             >
-              + Ajouter une option
+              {t('+ Ajouter une option')}
             </button>
           )}
         </div>
@@ -234,7 +235,7 @@ export function PropertyMenu({
           onClose()
         )}
       >
-        Trier par ordre croissant
+        {t('Trier par ordre croissant')}
       </button>
       <button
         className="menu-item"
@@ -243,7 +244,7 @@ export function PropertyMenu({
           onClose()
         )}
       >
-        Trier par ordre décroissant
+        {t('Trier par ordre décroissant')}
       </button>
       {prop.id !== TITLE_PROPERTY_ID && (
         <>
@@ -251,17 +252,22 @@ export function PropertyMenu({
             className="menu-item"
             onClick={() => (patchView({ hidden: [...view.hidden, prop.id] }), onClose())}
           >
-            Masquer dans cette vue
+            {t('Masquer dans cette vue')}
           </button>
           <button
             className="menu-item danger"
             onClick={() => {
-              if (!confirm(`Supprimer la propriété « ${prop.name} » et ses valeurs ?`)) return
+              if (
+                !confirm(
+                  t('Supprimer la propriété « {name} » et ses valeurs ?', { name: prop.name })
+                )
+              )
+                return
               onSchema({ ...schema, properties: schema.properties.filter((p) => p.id !== prop.id) })
               onClose()
             }}
           >
-            Supprimer la propriété
+            {t('Supprimer la propriété')}
           </button>
         </>
       )}

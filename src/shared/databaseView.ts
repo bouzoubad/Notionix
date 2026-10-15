@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core'
+import { t } from './i18n'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -62,7 +63,7 @@ export const DatabaseView = Node.create({
               views: JSON.stringify([
                 {
                   id: 'linked',
-                  name: 'Vue liée',
+                  name: t('Vue liée'),
                   type: 'table',
                   filters: [],
                   filterMode: 'and',

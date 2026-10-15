@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Logo } from '../renderer/src/components/Logo'
 import { json } from './http'
+import { t } from '../shared/i18n'
 
 const MIN_PASSWORD = 10
 
@@ -26,7 +27,7 @@ export function Activate({ token }: { token: string }): React.JSX.Element {
 
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (password !== again) return setError('Les deux mots de passe diffèrent.')
+    if (password !== again) return setError(t('Les deux mots de passe diffèrent.'))
     setBusy(true)
     setError(null)
     try {
@@ -44,16 +45,19 @@ export function Activate({ token }: { token: string }): React.JSX.Element {
       <form className="login-card" onSubmit={(e) => void submit(e)}>
         <Logo variant="wordmark" className="login-logo" />
         {invalid ? (
-          <p className="error">{invalid} Demandez un nouveau lien à un administrateur.</p>
+          <p className="error">
+            {invalid} {t('Demandez un nouveau lien à un administrateur.')}
+          </p>
         ) : !who ? (
-          <p>Chargement…</p>
+          <p>{t('Chargement…')}</p>
         ) : (
           <>
             <p>
-              Bienvenue {who.name}. Choisissez le mot de passe de <strong>{who.email}</strong>.
+              {t('Bienvenue {name}. Choisissez le mot de passe de', { name: who.name })}{' '}
+              <strong>{who.email}</strong>.
             </p>
             <label>
-              Mot de passe ({MIN_PASSWORD} caractères minimum)
+              {t('Mot de passe ({n} caractères minimum)', { n: MIN_PASSWORD })}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -65,7 +69,7 @@ export function Activate({ token }: { token: string }): React.JSX.Element {
               />
             </label>
             <label>
-              Mot de passe, à nouveau
+              {t('Mot de passe, à nouveau')}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -76,7 +80,7 @@ export function Activate({ token }: { token: string }): React.JSX.Element {
             </label>
             {error && <p className="error">{error}</p>}
             <button className="primary" type="submit" disabled={busy}>
-              {busy ? 'Activation…' : 'Activer mon compte'}
+              {busy ? t('Activation…') : t('Activer mon compte')}
             </button>
           </>
         )}

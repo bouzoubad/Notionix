@@ -8,6 +8,7 @@ import { useStore } from '../store'
 import { startComment } from './commenting'
 import { rememberHighlight } from './shortcuts'
 import { backgroundColor, COLOR_LABELS, COLORS, textColor } from '../../../shared/colors'
+import { t } from '../../../shared/i18n'
 
 /** Whether this person may comment on the page being edited. */
 const canCommentOpenPage = (): boolean => {
@@ -105,7 +106,7 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
         <span className="bubble-link">
           <input
             autoFocus
-            placeholder="Coller un lien…"
+            placeholder={t('Coller un lien…')}
             value={href}
             onChange={(e) => setHref(e.target.value)}
             onKeyDown={(e) => {
@@ -118,27 +119,29 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
       ) : (
         <>
           {canCommentOpenPage() &&
-            button('💬 Commenter', 'Commenter la sélection', false, () => startComment(editor))}
+            button(t('💬 Commenter'), t('Commenter la sélection'), false, () =>
+              startComment(editor)
+            )}
           {state.editable && (
             <>
-              {button('B', 'Gras (⌘B)', state.bold, () =>
+              {button('B', t('Gras (⌘B)'), state.bold, () =>
                 editor.chain().focus().toggleBold().run()
               )}
-              {button('I', 'Italique (⌘I)', state.italic, () =>
+              {button('I', t('Italique (⌘I)'), state.italic, () =>
                 editor.chain().focus().toggleItalic().run()
               )}
-              {button('U', 'Souligné (⌘U)', state.underline, () =>
+              {button('U', t('Souligné (⌘U)'), state.underline, () =>
                 editor.chain().focus().toggleUnderline().run()
               )}
-              {button('S', 'Barré', state.strike, () =>
+              {button('S', t('Barré'), state.strike, () =>
                 editor.chain().focus().toggleStrike().run()
               )}
-              {button('<>', 'Code', state.code, () => editor.chain().focus().toggleCode().run())}
-              {button('Lien', 'Lien', state.link !== null, () => {
+              {button('<>', t('Code'), state.code, () => editor.chain().focus().toggleCode().run())}
+              {button(t('Lien'), t('Lien'), state.link !== null, () => {
                 setHref(state.link ?? '')
                 setLinking(true)
               })}
-              {button('A▾', 'Couleur', coloring, () => setColoring(!coloring))}
+              {button('A▾', t('Couleur'), coloring, () => setColoring(!coloring))}
               {coloring && <ColorPalette editor={editor} onDone={() => setColoring(false)} />}
             </>
           )}
@@ -177,21 +180,21 @@ function ColorPalette({
   )
   return (
     <div className="color-palette" onMouseDown={(e) => e.preventDefault()}>
-      <span className="palette-title">Texte</span>
+      <span className="palette-title">{t('Texte')}</span>
       <div className="palette-row">
-        {swatch('Par défaut', {}, () => editor.chain().focus().unsetColor().run())}
+        {swatch(t('Par défaut'), {}, () => editor.chain().focus().unsetColor().run())}
         {COLORS.map((c) =>
           swatch(COLOR_LABELS[c], { color: textColor(c) }, () =>
             editor.chain().focus().setColor(textColor(c)).run()
           )
         )}
       </div>
-      <span className="palette-title">Fond</span>
+      <span className="palette-title">{t('Fond')}</span>
       <div className="palette-row">
-        {swatch('Sans fond', {}, () => editor.chain().focus().unsetBackgroundColor().run())}
+        {swatch(t('Sans fond'), {}, () => editor.chain().focus().unsetBackgroundColor().run())}
         {COLORS.map((c) =>
           swatch(
-            `Fond ${COLOR_LABELS[c].toLowerCase()}`,
+            t('Fond {color}', { color: COLOR_LABELS[c].toLowerCase() }),
             { background: backgroundColor(c) },
             () => (
               rememberHighlight(backgroundColor(c)),
@@ -219,12 +222,12 @@ export function TableBubbleMenu({ editor }: { editor: Editor }): React.JSX.Eleme
       options={TABLE_MENU_OPTIONS}
       className="bubble"
     >
-      {run('+ Ligne', () => editor.chain().focus().addRowAfter().run())}
-      {run('+ Colonne', () => editor.chain().focus().addColumnAfter().run())}
-      {run('− Ligne', () => editor.chain().focus().deleteRow().run())}
-      {run('− Colonne', () => editor.chain().focus().deleteColumn().run())}
-      {run('En-tête', () => editor.chain().focus().toggleHeaderRow().run())}
-      {run('Supprimer le tableau', () => editor.chain().focus().deleteTable().run())}
+      {run(t('+ Ligne'), () => editor.chain().focus().addRowAfter().run())}
+      {run(t('+ Colonne'), () => editor.chain().focus().addColumnAfter().run())}
+      {run(t('− Ligne'), () => editor.chain().focus().deleteRow().run())}
+      {run(t('− Colonne'), () => editor.chain().focus().deleteColumn().run())}
+      {run(t('En-tête'), () => editor.chain().focus().toggleHeaderRow().run())}
+      {run(t('Supprimer le tableau'), () => editor.chain().focus().deleteTable().run())}
     </BubbleMenu>
   )
 }

@@ -8,6 +8,7 @@ import {
   type PropertyValue
 } from '../../../shared/database'
 import { useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 export interface DatabaseApi {
   data: DatabaseData | null
@@ -21,7 +22,9 @@ export interface DatabaseApi {
 const fail = (e: unknown): void =>
   useStore
     .getState()
-    .showNotice(`Modification impossible : ${e instanceof Error ? e.message : String(e)}`)
+    .showNotice(
+      t('Modification impossible : {error}', { error: e instanceof Error ? e.message : String(e) })
+    )
 
 /** Loads a database and applies edits optimistically, then with the stored result. */
 export function useDatabase(id: PageId): DatabaseApi {

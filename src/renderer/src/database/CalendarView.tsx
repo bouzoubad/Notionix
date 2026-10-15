@@ -2,8 +2,13 @@ import { useState } from 'react'
 import { PageIcon } from '../components/PageIcon'
 import { rowValue, type DateValue } from '../../../shared/database'
 import type { ViewProps } from './viewTypes'
+import { locale, t } from '../../../shared/i18n'
 
-const WEEKDAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.']
+/** Short weekday names from Monday (« lun. », « Mon »). */
+const weekdays = (): string[] =>
+  Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 1 + i).toLocaleDateString(locale(), { weekday: 'short' })
+  )
 const pad = (n: number): string => String(n).padStart(2, '0')
 const iso = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
@@ -31,9 +36,9 @@ export function CalendarView({
       <div className="view-empty">
         {dates.length ? (
           <label>
-            Afficher selon{' '}
+            {t('Afficher selon')}{' '}
             <select
-              aria-label="Date affichée"
+              aria-label={t('Date affichée')}
               value=""
               onChange={(e) =>
                 onSchema({
@@ -44,7 +49,7 @@ export function CalendarView({
                 })
               }
             >
-              <option value="">Choisir une propriété…</option>
+              <option value="">{t('Choisir une propriété…')}</option>
               {dates.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -53,7 +58,7 @@ export function CalendarView({
             </select>
           </label>
         ) : (
-          'Ajoutez une propriété « Date » pour afficher ce calendrier.'
+          t('Ajoutez une propriété « Date » pour afficher ce calendrier.')
         )}
       </div>
     )
@@ -104,10 +109,10 @@ export function CalendarView({
     <div className="calendar">
       <div className="calendar-head">
         <strong className="calendar-month">
-          {month.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+          {month.toLocaleDateString(locale(), { month: 'long', year: 'numeric' })}
         </strong>
         <span>
-          <button aria-label="Mois précédent" onClick={() => shift(-1)}>
+          <button aria-label={t('Mois précédent')} onClick={() => shift(-1)}>
             ‹
           </button>
           <button
@@ -116,15 +121,15 @@ export function CalendarView({
               setMonth(new Date(now.getFullYear(), now.getMonth(), 1))
             }}
           >
-            Aujourd’hui
+            {t('Aujourd’hui')}
           </button>
-          <button aria-label="Mois suivant" onClick={() => shift(1)}>
+          <button aria-label={t('Mois suivant')} onClick={() => shift(1)}>
             ›
           </button>
         </span>
       </div>
       <div className="calendar-grid">
-        {WEEKDAYS.map((d) => (
+        {weekdays().map((d) => (
           <div key={d} className="calendar-weekday">
             {d}
           </div>
@@ -155,7 +160,7 @@ export function CalendarView({
                 {editable && (
                   <button
                     className="calendar-add"
-                    aria-label={`Ajouter le ${key}`}
+                    aria-label={t('Ajouter le {date}', { date: key })}
                     onClick={() => onAddRow({ [prop.id]: { start: key } })}
                   >
                     +
@@ -180,7 +185,7 @@ export function CalendarView({
                   ) : (
                     ''
                   )}
-                  {row.title || 'Sans titre'}
+                  {row.title || t('Sans titre')}
                 </button>
               ))}
             </div>

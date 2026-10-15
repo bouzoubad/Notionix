@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { PageIcon } from './PageIcon'
 import type { SearchFilters, SearchHit } from '../../../shared/types'
 import { recentPageIds, useStore } from '../store'
+import { t } from '../../../shared/i18n'
 
 const DAY = 24 * 60 * 60 * 1000
 const EDITED: { label: string; days: number }[] = [
-  { label: 'Aujourd’hui', days: 1 },
-  { label: '7 derniers jours', days: 7 },
-  { label: '30 derniers jours', days: 30 },
-  { label: 'Cette année', days: 365 }
+  { label: t('Aujourd’hui'), days: 1 },
+  { label: t('7 derniers jours'), days: 7 },
+  { label: t('30 derniers jours'), days: 30 },
+  { label: t('Cette année'), days: 365 }
 ]
 
 const mark = (html: string): string =>
@@ -73,7 +74,7 @@ export function SearchDialog(): React.JSX.Element {
       <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
         <input
           autoFocus
-          placeholder="Rechercher dans les pages…"
+          placeholder={t('Rechercher dans les pages…')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -95,16 +96,16 @@ export function SearchDialog(): React.JSX.Element {
             aria-pressed={titleOnly}
             onClick={() => setTitleOnly(!titleOnly)}
           >
-            Titres seulement
+            {t('Titres seulement')}
           </button>
           {people.length > 0 && (
             <select
-              aria-label="Créée par"
+              aria-label={t('Créée par')}
               className={createdBy ? 'active' : ''}
               value={createdBy}
               onChange={(e) => setCreatedBy(e.target.value)}
             >
-              <option value="">Créée par…</option>
+              <option value="">{t('Créée par…')}</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -113,26 +114,26 @@ export function SearchDialog(): React.JSX.Element {
             </select>
           )}
           <select
-            aria-label="Dans"
+            aria-label={t('Dans')}
             className={within ? 'active' : ''}
             value={within}
             onChange={(e) => setWithin(e.target.value)}
           >
-            <option value="">Dans…</option>
+            <option value="">{t('Dans…')}</option>
             {scopes.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.id === currentId ? 'Cette page : ' : ''}
-                {p.title || 'Sans titre'}
+                {p.id === currentId ? t('Cette page : ') : ''}
+                {p.title || t('Sans titre')}
               </option>
             ))}
           </select>
           <select
-            aria-label="Modifiée"
+            aria-label={t('Modifiée')}
             className={editedDays ? 'active' : ''}
             value={editedDays}
             onChange={(e) => setEditedDays(Number(e.target.value))}
           >
-            <option value={0}>Modifiée…</option>
+            <option value={0}>{t('Modifiée…')}</option>
             {EDITED.map((d) => (
               <option key={d.days} value={d.days}>
                 {d.label}
@@ -140,14 +141,14 @@ export function SearchDialog(): React.JSX.Element {
             ))}
           </select>
           <select
-            aria-label="Type"
+            aria-label={t('Type')}
             className={kind ? 'active' : ''}
             value={kind}
             onChange={(e) => setKind(e.target.value as '' | 'page' | 'database')}
           >
-            <option value="">Type…</option>
-            <option value="page">Pages</option>
-            <option value="database">Bases de données</option>
+            <option value="">{t('Type…')}</option>
+            <option value="page">{t('Pages')}</option>
+            <option value="database">{t('Bases de données')}</option>
           </select>
           {filtered && (
             <button
@@ -159,12 +160,12 @@ export function SearchDialog(): React.JSX.Element {
                 setKind('')
               }}
             >
-              Effacer
+              {t('Effacer')}
             </button>
           )}
         </div>
         <div className="results">
-          {!q.trim() && recent.length > 0 && <div className="menu-label">Récents</div>}
+          {!q.trim() && recent.length > 0 && <div className="menu-label">{t('Récents')}</div>}
           {list.map((h, i) => (
             <button
               key={h.id}
@@ -173,12 +174,12 @@ export function SearchDialog(): React.JSX.Element {
               onClick={() => go(h)}
             >
               <span>
-                <PageIcon icon={h.icon} fallback="📄" /> {h.title || 'Sans titre'}
+                <PageIcon icon={h.icon} fallback="📄" /> {h.title || t('Sans titre')}
               </span>
               <small dangerouslySetInnerHTML={{ __html: mark(h.snippet) }} />
             </button>
           ))}
-          {q.trim() && hits.length === 0 && <p className="empty">Aucun résultat</p>}
+          {q.trim() && hits.length === 0 && <p className="empty">{t('Aucun résultat')}</p>}
         </div>
       </div>
     </div>

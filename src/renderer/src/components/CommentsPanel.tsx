@@ -4,6 +4,7 @@ import { atLeast, type Comment, type PageSummary, type Person } from '../../../s
 import { useStore } from '../store'
 import { platform } from '../platform'
 import { ago } from '../time'
+import { t } from '../../../shared/i18n'
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
@@ -45,14 +46,14 @@ export function CommentsPanel({
   const threads = useMemo(() => {
     const byId = new Map<string, Thread>()
     for (const c of comments ?? []) {
-      const t = byId.get(c.threadId) ?? {
+      const thread = byId.get(c.threadId) ?? {
         id: c.threadId,
         quote: c.quote,
         comments: [],
         resolved: c.resolvedAt !== null
       }
-      t.comments.push(c)
-      byId.set(c.threadId, t)
+      thread.comments.push(c)
+      byId.set(c.threadId, thread)
     }
     return [...byId.values()]
   }, [comments])
@@ -61,7 +62,7 @@ export function CommentsPanel({
   const draftId = state.draft?.threadId
   useEffect(() => {
     if (!editor || !editor.isEditable || comments === null) return
-    const known = new Set(threads.map((t) => t.id))
+    const known = new Set(threads.map((th) => th.id))
     const orphans = new Set<string>()
     editor.state.doc.descendants((node) => {
       for (const m of node.marks)
@@ -77,7 +78,7 @@ export function CommentsPanel({
       await reload()
       return true
     } catch (e) {
-      showNotice(`Commentaire impossible : ${message(e)}`)
+      showNotice(t('Commentaire impossible : {error}', { error: message(e) }))
       return false
     }
   }
@@ -85,17 +86,17 @@ export function CommentsPanel({
     if (editor?.isEditable) editor.commands.unsetCommentThread(threadId)
   }
 
-  const open = threads.filter((t) => !t.resolved)
-  const resolved = threads.filter((t) => t.resolved)
+  const open = threads.filter((th) => !th.resolved)
+  const resolved = threads.filter((th) => th.resolved)
   const ordered = state.focus
-    ? [...open.filter((t) => t.id === state.focus), ...open.filter((t) => t.id !== state.focus)]
+    ? [...open.filter((th) => th.id === state.focus), ...open.filter((th) => th.id !== state.focus)]
     : open
 
   return (
     <aside className="comments-panel">
       <header>
-        <h3>Commentaires</h3>
-        <button title="Fermer" aria-label="Fermer" onClick={close}>
+        <h3>{t('Commentaires')}</h3>
+        <button title={t('Fermer')} aria-label={t('Fermer')} onClick={close}>
           ✕
         </button>
       </header>
@@ -105,7 +106,7 @@ export function CommentsPanel({
             {state.draft.quote && <blockquote>{state.draft.quote}</blockquote>}
             <Composer
               autoFocus
-              placeholder="Ajouter un commentaire…"
+              placeholder={t('Ajouter un commentaire…')}
               onCancel={() => {
                 if (state.draft?.marked) unmark(state.draft.threadId)
                 clearDraft()
@@ -130,33 +131,35 @@ export function CommentsPanel({
         {!state.draft && canComment && (
           <div className="thread">
             <Composer
-              placeholder="Commenter la page…"
+              placeholder={t('Commenter la page…')}
               onSubmit={(body, mentions) =>
                 run(() => window.api.comments.add(page.id, { body, mentions }))
               }
             />
           </div>
         )}
-        {comments === null && <p className="comments-empty">Chargement…</p>}
+        {comments === null && <p className="comments-empty">{t('Chargement…')}</p>}
         {comments !== null && threads.length === 0 && !state.draft && (
           <p className="comments-empty">
-            Aucun commentaire. Sélectionnez du texte puis « Commenter », ou commentez la page.
+            {t(
+              'Aucun commentaire. Sélectionnez du texte puis « Commenter », ou commentez la page.'
+            )}
           </p>
         )}
-        {ordered.map((t) => (
+        {ordered.map((th) => (
           <ThreadView
-            key={t.id}
-            thread={t}
-            focused={t.id === state.focus}
+            key={th.id}
+            thread={th}
+            focused={th.id === state.focus}
             canComment={canComment}
             canModerate={page.level === 'full'}
             run={run}
             onResolve={(flag) =>
-              void run(() => window.api.comments.resolve(t.id, flag)).then(
-                (ok) => ok && flag && unmark(t.id)
+              void run(() => window.api.comments.resolve(th.id, flag)).then(
+                (ok) => ok && flag && unmark(th.id)
               )
             }
-            onEmptied={() => unmark(t.id)}
+            onEmptied={() => unmark(th.id)}
           />
         ))}
         {resolved.length > 0 && (
@@ -164,19 +167,19 @@ export function CommentsPanel({
             className="comments-resolved-toggle"
             onClick={() => setShowResolved(!showResolved)}
           >
-            {showResolved ? '▾' : '▸'} {resolved.length} discussion(s) résolue(s)
+            {showResolved ? '▾' : '▸'} {t('{n} discussion(s) résolue(s)', { n: resolved.length })}
           </button>
         )}
         {showResolved &&
-          resolved.map((t) => (
+          resolved.map((th) => (
             <ThreadView
-              key={t.id}
-              thread={t}
+              key={th.id}
+              thread={th}
               focused={false}
               canComment={canComment}
               canModerate={page.level === 'full'}
               run={run}
-              onResolve={(flag) => void run(() => window.api.comments.resolve(t.id, flag))}
+              onResolve={(flag) => void run(() => window.api.comments.resolve(th.id, flag))}
               onEmptied={() => undefined}
             />
           ))}
@@ -210,7 +213,7 @@ function ThreadView({
     if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
   }, [focused])
   const name = (id: string | null): string =>
-    people.find((p) => p.id === id)?.name ?? (id ? 'Compte supprimé' : 'Inconnu')
+    people.find((p) => p.id === id)?.name ?? (id ? t('Compte supprimé') : t('Inconnu'))
 
   return (
     <div
@@ -221,14 +224,14 @@ function ThreadView({
         {thread.quote ? (
           <blockquote>{thread.quote}</blockquote>
         ) : (
-          <span className="thread-page">Sur la page</span>
+          <span className="thread-page">{t('Sur la page')}</span>
         )}
         {canComment && (
           <button
-            title={thread.resolved ? 'Rouvrir' : 'Résoudre'}
+            title={thread.resolved ? t('Rouvrir') : t('Résoudre')}
             onClick={() => onResolve(!thread.resolved)}
           >
-            {thread.resolved ? 'Rouvrir' : '✓ Résoudre'}
+            {thread.resolved ? t('Rouvrir') : `✓ ${t('Résoudre')}`}
           </button>
         )}
       </div>
@@ -238,7 +241,7 @@ function ThreadView({
             <strong>{name(c.authorId)}</strong>
             <span>
               {ago(c.createdAt)}
-              {c.editedAt ? ' · modifié' : ''}
+              {c.editedAt ? t(' · modifié') : ''}
             </span>
           </div>
           {editing === c.id ? (
@@ -260,16 +263,18 @@ function ThreadView({
           )}
           {editing !== c.id && (c.authorId === me || canModerate) && (
             <div className="comment-actions">
-              {c.authorId === me && <button onClick={() => setEditing(c.id)}>Modifier</button>}
+              {c.authorId === me && (
+                <button onClick={() => setEditing(c.id)}>{t('Modifier')}</button>
+              )}
               <button
                 onClick={() => {
-                  if (!confirm('Supprimer ce commentaire ?')) return
+                  if (!confirm(t('Supprimer ce commentaire ?'))) return
                   void run(() => window.api.comments.remove(c.id)).then(
                     (ok) => ok && thread.comments.length === 1 && onEmptied()
                   )
                 }}
               >
-                Supprimer
+                {t('Supprimer')}
               </button>
             </div>
           )}
@@ -277,7 +282,7 @@ function ThreadView({
       ))}
       {canComment && !thread.resolved && (
         <Composer
-          placeholder="Répondre…"
+          placeholder={t('Répondre…')}
           onSubmit={(body, mentions) =>
             run(() =>
               window.api.comments.add(thread.comments[0].pageId, {
@@ -419,9 +424,9 @@ function Composer({
       )}
       {(body.trim() || onCancel) && (
         <div className="composer-actions">
-          {onCancel && <button onClick={onCancel}>Annuler</button>}
+          {onCancel && <button onClick={onCancel}>{t('Annuler')}</button>}
           <button className="primary" disabled={!body.trim() || busy} onClick={() => void submit()}>
-            Envoyer
+            {t('Envoyer')}
           </button>
         </div>
       )}

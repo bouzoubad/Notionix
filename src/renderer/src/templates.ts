@@ -7,16 +7,17 @@ import {
   type ViewDef
 } from '../../shared/database'
 import type { PageId } from '../../shared/types'
+import { locale, t, tx } from '../../shared/i18n'
 
 type Json = Record<string, unknown>
 
 // Small builders of document blocks.
-const text = (t: string): Json[] => (t ? [{ type: 'text', text: t }] : [])
-const p = (t = ''): Json => ({ type: 'paragraph', content: text(t) })
-const h = (level: 1 | 2 | 3, t: string): Json => ({
+const text = (s: string): Json[] => (s ? [{ type: 'text', text: s }] : [])
+const p = (s = ''): Json => ({ type: 'paragraph', content: text(s) })
+const h = (level: 1 | 2 | 3, s: string): Json => ({
   type: 'heading',
   attrs: { level },
-  content: text(t)
+  content: text(s)
 })
 const bullets = (items: string[]): Json => ({
   type: 'bulletList',
@@ -26,10 +27,10 @@ const todos = (items: string[]): Json => ({
   type: 'taskList',
   content: items.map((i) => ({ type: 'taskItem', attrs: { checked: false }, content: [p(i)] }))
 })
-const callout = (icon: string, t: string): Json => ({
+const callout = (icon: string, s: string): Json => ({
   type: 'callout',
   attrs: { icon },
-  content: [p(t)]
+  content: [p(s)]
 })
 const toc = (): Json => ({ type: 'tableOfContents' })
 const divider = (): Json => ({ type: 'horizontalRule' })
@@ -41,7 +42,7 @@ const today = (): Json => {
     attrs: {
       kind: 'date',
       id: newId(),
-      label: d.toLocaleDateString('fr-FR'),
+      label: d.toLocaleDateString(locale()),
       date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
       reminder: false
     }
@@ -88,7 +89,7 @@ async function database(
   const db = await window.api.databases.create(parentId)
   await window.api.pages.update(db.id, { title, icon })
   const base = (await window.api.databases.get(db.id))!.schema
-  const { properties, views } = build('Nom')
+  const { properties, views } = build(t('Nom'))
   const all = [...base.properties, ...properties]
   const schema: DatabaseSchema = { properties: all, views: views(all) }
   await window.api.databases.updateSchema(db.id, schema)
@@ -108,24 +109,24 @@ const optionId = (prop: PropertyDef, name: string): string =>
 export const BUILT_IN_TEMPLATES: Template[] = [
   {
     id: 'meeting',
-    name: 'Compte rendu de réunion',
+    name: t('Compte rendu de réunion'),
     icon: '📝',
-    description: 'Date, participants, ordre du jour, décisions et actions.',
+    description: t('Date, participants, ordre du jour, décisions et actions.'),
     create: async (parentId) =>
       (
         await window.api.pages.createWith(parentId, {
-          title: 'Réunion',
+          title: t('Réunion'),
           icon: '📝',
           content: doc(
-            { type: 'paragraph', content: [{ type: 'text', text: 'Date : ' }, today()] },
-            p('Participants : '),
-            h(2, 'Ordre du jour'),
+            { type: 'paragraph', content: [{ type: 'text', text: t('Date : ') }, today()] },
+            p(t('Participants : ')),
+            h(2, t('Ordre du jour')),
             bullets(['', '']),
-            h(2, 'Notes'),
+            h(2, t('Notes')),
             p(),
-            h(2, 'Décisions'),
+            h(2, t('Décisions')),
             bullets(['']),
-            h(2, 'Actions'),
+            h(2, t('Actions')),
             todos(['', ''])
           )
         })
@@ -133,65 +134,68 @@ export const BUILT_IN_TEMPLATES: Template[] = [
   },
   {
     id: 'project',
-    name: 'Projet',
+    name: t('Projet'),
     icon: '🚀',
-    description: 'Objectif, jalons et une base de tâches avec chronologie et board.',
+    description: t('Objectif, jalons et une base de tâches avec chronologie et board.'),
     create: async (parentId) => {
       const tasks = await database(
         parentId,
-        'Tâches',
+        t('Tâches'),
         '✅',
         () => {
-          const status = prop('Statut', 'status', { options: defaultStatusOptions() })
-          const who = prop('Responsable', 'person')
-          const when = prop('Période', 'date')
-          const priority = prop('Priorité', 'select', {
+          const status = prop(t('Statut'), 'status', { options: defaultStatusOptions() })
+          const who = prop(t('Responsable'), 'person')
+          const when = prop(t('Période'), 'date')
+          const priority = prop(t('Priorité'), 'select', {
             options: [
-              { id: newId(), name: 'Haute', color: 'red' },
-              { id: newId(), name: 'Moyenne', color: 'yellow' },
-              { id: newId(), name: 'Basse', color: 'gray' }
+              { id: newId(), name: t('Haute'), color: 'red' },
+              { id: newId(), name: tx('priorité', 'Moyenne'), color: 'yellow' },
+              { id: newId(), name: t('Basse'), color: 'gray' }
             ]
           })
           return {
             properties: [status, who, when, priority],
             views: (all) => [
-              view('table', { name: 'Toutes les tâches' }),
-              view('board', { name: 'Board', groupBy: named(all, 'Statut').id }),
-              view('timeline', { name: 'Chronologie', dateProperty: named(all, 'Période').id })
+              view('table', { name: t('Toutes les tâches') }),
+              view('board', { name: t('Board'), groupBy: named(all, t('Statut')).id }),
+              view('timeline', {
+                name: t('Chronologie'),
+                dateProperty: named(all, t('Période')).id
+              })
             ]
           }
         },
         [
           {
-            title: 'Cadrage',
+            title: t('Cadrage'),
             values: (all) => ({
-              [named(all, 'Statut').id]: optionId(named(all, 'Statut'), 'Pas commencé')
+              [named(all, t('Statut')).id]: optionId(named(all, t('Statut')), t('Pas commencé'))
             })
           },
           {
-            title: 'Réalisation',
+            title: t('Réalisation'),
             values: (all) => ({
-              [named(all, 'Statut').id]: optionId(named(all, 'Statut'), 'Pas commencé')
+              [named(all, t('Statut')).id]: optionId(named(all, t('Statut')), t('Pas commencé'))
             })
           },
           {
-            title: 'Recette',
+            title: t('Recette'),
             values: (all) => ({
-              [named(all, 'Statut').id]: optionId(named(all, 'Statut'), 'Pas commencé')
+              [named(all, t('Statut')).id]: optionId(named(all, t('Statut')), t('Pas commencé'))
             })
           }
         ]
       )
       const page = await window.api.pages.createWith(parentId, {
-        title: 'Nouveau projet',
+        title: t('Nouveau projet'),
         icon: '🚀',
         content: doc(
-          callout('🎯', 'Objectif : décrivez en une phrase ce que le projet doit produire.'),
-          h(2, 'Contexte'),
+          callout('🎯', t('Objectif : décrivez en une phrase ce que le projet doit produire.')),
+          h(2, t('Contexte')),
           p(),
-          h(2, 'Jalons'),
-          todos(['Lancement', 'Livraison']),
-          h(2, 'Tâches'),
+          h(2, t('Jalons')),
+          todos([t('Lancement'), t('Livraison')]),
+          h(2, t('Tâches')),
           inlineDb(tasks)
         )
       })
@@ -201,24 +205,27 @@ export const BUILT_IN_TEMPLATES: Template[] = [
   },
   {
     id: 'wiki',
-    name: 'Wiki d’équipe',
+    name: t('Wiki d’équipe'),
     icon: '📚',
-    description: 'Une page d’accueil avec sommaire pour la documentation interne.',
+    description: t('Une page d’accueil avec sommaire pour la documentation interne.'),
     create: async (parentId) =>
       (
         await window.api.pages.createWith(parentId, {
-          title: 'Wiki',
+          title: t('Wiki'),
           icon: '📚',
           content: doc(
-            callout('👋', 'Bienvenue : tout ce qu’il faut savoir pour travailler avec l’équipe.'),
+            callout(
+              '👋',
+              t('Bienvenue : tout ce qu’il faut savoir pour travailler avec l’équipe.')
+            ),
             toc(),
-            h(2, 'Présentation de l’équipe'),
+            h(2, t('Présentation de l’équipe')),
             p(),
-            h(2, 'Outils'),
-            bullets(['Notionix : documentation et suivi', '']),
-            h(2, 'Façons de travailler'),
+            h(2, t('Outils')),
+            bullets([t('Notionix : documentation et suivi'), '']),
+            h(2, t('Façons de travailler')),
             p(),
-            h(2, 'Contacts'),
+            h(2, t('Contacts')),
             p()
           )
         })
@@ -226,21 +233,21 @@ export const BUILT_IN_TEMPLATES: Template[] = [
   },
   {
     id: 'journal',
-    name: 'Journal quotidien',
+    name: t('Journal quotidien'),
     icon: '📔',
-    description: 'Priorités du jour, notes et bilan.',
+    description: t('Priorités du jour, notes et bilan.'),
     create: async (parentId) =>
       (
         await window.api.pages.createWith(parentId, {
-          title: `Journal du ${new Date().toLocaleDateString('fr-FR')}`,
+          title: t('Journal du {date}', { date: new Date().toLocaleDateString(locale()) }),
           icon: '📔',
           content: doc(
-            h(2, 'Priorités'),
+            h(2, t('Priorités')),
             todos(['', '', '']),
-            h(2, 'Notes'),
+            h(2, t('Notes')),
             p(),
             divider(),
-            h(3, 'Bilan de la journée'),
+            h(3, t('Bilan de la journée')),
             p()
           )
         })
@@ -248,32 +255,32 @@ export const BUILT_IN_TEMPLATES: Template[] = [
   },
   {
     id: 'bugs',
-    name: 'Suivi des bugs',
+    name: t('Suivi des bugs'),
     icon: '🐞',
-    description: 'Base de tickets : statut, priorité, responsable, board par statut.',
+    description: t('Base de tickets : statut, priorité, responsable, board par statut.'),
     create: (parentId) =>
-      database(parentId, 'Suivi des bugs', '🐞', () => ({
+      database(parentId, t('Suivi des bugs'), '🐞', () => ({
         properties: [
-          prop('N°', 'unique_id', { idPrefix: 'BUG' }),
-          prop('Statut', 'status', { options: defaultStatusOptions() }),
-          prop('Priorité', 'select', {
+          prop(t('N°'), 'unique_id', { idPrefix: 'BUG' }),
+          prop(t('Statut'), 'status', { options: defaultStatusOptions() }),
+          prop(t('Priorité'), 'select', {
             options: [
-              { id: newId(), name: 'Bloquant', color: 'red' },
-              { id: newId(), name: 'Majeur', color: 'orange' },
-              { id: newId(), name: 'Mineur', color: 'gray' }
+              { id: newId(), name: t('Bloquant'), color: 'red' },
+              { id: newId(), name: t('Majeur'), color: 'orange' },
+              { id: newId(), name: t('Mineur'), color: 'gray' }
             ]
           }),
-          prop('Responsable', 'person'),
-          prop('Signalé par', 'created_by')
+          prop(t('Responsable'), 'person'),
+          prop(t('Signalé par'), 'created_by')
         ],
         views: (all) => [
-          view('table', { name: 'Tous les bugs' }),
-          view('board', { name: 'Par statut', groupBy: named(all, 'Statut').id }),
+          view('table', { name: t('Tous les bugs') }),
+          view('board', { name: t('Par statut'), groupBy: named(all, t('Statut')).id }),
           view('chart', {
-            name: 'Répartition',
+            name: t('Répartition'),
             chart: {
               type: 'donut',
-              groupBy: named(all, 'Priorité').id,
+              groupBy: named(all, t('Priorité')).id,
               aggregate: 'count',
               valueProperty: null
             }
@@ -283,25 +290,28 @@ export const BUILT_IN_TEMPLATES: Template[] = [
   },
   {
     id: 'reading',
-    name: 'Liste de lecture',
+    name: t('Liste de lecture'),
     icon: '📖',
-    description: 'Livres et articles : type, avancement, note.',
+    description: t('Livres et articles : type, avancement, note.'),
     create: (parentId) =>
-      database(parentId, 'Liste de lecture', '📖', () => ({
+      database(parentId, t('Liste de lecture'), '📖', () => ({
         properties: [
-          prop('Type', 'select', {
+          prop(t('Type'), 'select', {
             options: [
-              { id: newId(), name: 'Livre', color: 'blue' },
-              { id: newId(), name: 'Article', color: 'green' },
-              { id: newId(), name: 'Vidéo', color: 'purple' }
+              { id: newId(), name: t('Livre'), color: 'blue' },
+              { id: newId(), name: t('Article'), color: 'green' },
+              { id: newId(), name: t('Vidéo'), color: 'purple' }
             ]
           }),
-          prop('Statut', 'status', { options: defaultStatusOptions() }),
-          prop('Auteur', 'text'),
-          prop('Note', 'number'),
-          prop('Lien', 'url')
+          prop(t('Statut'), 'status', { options: defaultStatusOptions() }),
+          prop(t('Auteur'), 'text'),
+          prop(tx('évaluation', 'Note'), 'number'),
+          prop(t('Lien'), 'url')
         ],
-        views: () => [view('gallery', { name: 'Galerie' }), view('table', { name: 'Tableau' })]
+        views: () => [
+          view('gallery', { name: t('Galerie') }),
+          view('table', { name: t('Tableau') })
+        ]
       }))
   }
 ]

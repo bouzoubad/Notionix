@@ -1,6 +1,7 @@
 import type { ExportSummary, ImportSummary, NotionixApi } from '../shared/types'
 import { json, request, rpc } from './http'
 import { assetNameFromSrc, assetWebPath } from '../shared/assets'
+import { t } from '../shared/i18n'
 
 /** Lets the user pick one file; null when the picker is closed without a choice. */
 function pickFile(accept: string): Promise<File | null> {
@@ -120,7 +121,7 @@ export const webApi: NotionixApi = {
     },
     download: async (src, fileName) => {
       const name = assetNameFromSrc(src)
-      if (!name) throw new Error('Fichier introuvable.')
+      if (!name) throw new Error(t('Fichier introuvable.'))
       const a = document.createElement('a')
       a.href = `${assetWebPath(name)}?download=${encodeURIComponent(fileName)}`
       a.download = fileName
@@ -130,7 +131,7 @@ export const webApi: NotionixApi = {
     }
   },
   // The browser's own tabs and shortcuts serve on the web.
-  commands: { onCommand: () => () => undefined },
+  commands: { onCommand: () => () => undefined, setLanguage: () => undefined },
   transfer: {
     importNotion: async (): Promise<ImportSummary | null> => {
       const file = await pickFile('.zip,application/zip')

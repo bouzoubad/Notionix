@@ -8,6 +8,7 @@ import {
   type RollupAggregate
 } from '../../../shared/database'
 import { FORMULA_HELP, FormulaError, parseFormula } from '../../../shared/formula'
+import { locale, t } from '../../../shared/i18n'
 
 /** Read-only display of a formula or rollup value; errors are shown with their message. */
 export function ComputedValue({ value }: { value: PropertyValue }): React.JSX.Element {
@@ -21,14 +22,19 @@ export function ComputedValue({ value }: { value: PropertyValue }): React.JSX.El
   if (typeof value === 'boolean') {
     return (
       <div className="cell readonly">
-        <input type="checkbox" checked={value} disabled aria-label={value ? 'vrai' : 'faux'} />
+        <input
+          type="checkbox"
+          checked={value}
+          disabled
+          aria-label={value ? t('vrai') : t('faux')}
+        />
       </div>
     )
   }
   if (typeof value === 'number') {
     return (
       <div className="cell readonly number">
-        {value.toLocaleString('fr-FR', { maximumFractionDigits: 10 })}
+        {value.toLocaleString(locale(), { maximumFractionDigits: 10 })}
       </div>
     )
   }
@@ -62,16 +68,16 @@ export function FormulaEditor({
     try {
       parseFormula(formula)
     } catch (e) {
-      error = e instanceof FormulaError ? e.message : 'Formule invalide.'
+      error = e instanceof FormulaError ? e.message : t('Formule invalide.')
     }
   }
   const insert = (text: string): void =>
     setFormula((f) => (f && !f.endsWith(' ') ? `${f} ${text}` : f + text))
   return (
     <div className="formula-editor">
-      <div className="menu-label">Formule</div>
+      <div className="menu-label">{t('Formule')}</div>
       <textarea
-        aria-label="Formule"
+        aria-label={t('Formule')}
         spellCheck={false}
         value={formula}
         placeholder='prop("Prix") * 1.2'
@@ -81,7 +87,7 @@ export function FormulaEditor({
         }}
       />
       <div className={error ? 'formula-status error' : 'formula-status'}>
-        {error ?? 'Formule valide'}
+        {error ?? t('Formule valide')}
       </div>
       <div className="formula-props">
         {schema.properties
@@ -93,9 +99,11 @@ export function FormulaEditor({
           ))}
       </div>
       <div className="formula-actions">
-        <button onClick={() => setHelp(!help)}>{help ? 'Masquer l’aide' : 'Fonctions…'}</button>
+        <button onClick={() => setHelp(!help)}>
+          {help ? t('Masquer l’aide') : t('Fonctions…')}
+        </button>
         <button className="primary" disabled={!!error} onClick={() => onSave(formula)}>
-          Appliquer
+          {t('Appliquer')}
         </button>
       </div>
       {help && (
@@ -144,15 +152,15 @@ export function RollupEditor({
   return (
     <div className="rollup-editor">
       <label className="menu-row">
-        Relation
+        {t('Relation')}
         <select
-          aria-label="Relation"
+          aria-label={t('Relation')}
           value={cfg.relationPropertyId ?? ''}
           onChange={(e) =>
             onChange({ ...cfg, relationPropertyId: e.target.value || null, targetPropertyId: null })
           }
         >
-          <option value="">Choisir…</option>
+          <option value="">{t('Choisir…')}</option>
           {relations.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
@@ -161,17 +169,17 @@ export function RollupEditor({
         </select>
       </label>
       {relations.length === 0 && (
-        <p className="hint">Ajoutez d’abord une propriété « Relation ».</p>
+        <p className="hint">{t('Ajoutez d’abord une propriété « Relation ».')}</p>
       )}
       <label className="menu-row">
-        Propriété
+        {t('Propriété')}
         <select
-          aria-label="Propriété agrégée"
+          aria-label={t('Propriété agrégée')}
           value={cfg.targetPropertyId ?? ''}
           disabled={!relation}
           onChange={(e) => onChange({ ...cfg, targetPropertyId: e.target.value || null })}
         >
-          <option value="">Choisir…</option>
+          <option value="">{t('Choisir…')}</option>
           {targetProps.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -180,9 +188,9 @@ export function RollupEditor({
         </select>
       </label>
       <label className="menu-row">
-        Calcul
+        {t('Calcul')}
         <select
-          aria-label="Calcul"
+          aria-label={t('Calcul')}
           value={cfg.aggregate}
           onChange={(e) => onChange({ ...cfg, aggregate: e.target.value as RollupAggregate })}
         >

@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core'
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
+import { t } from '../../../shared/i18n'
 
 /**
  * Notion-style handle shown left of the hovered top-level block: drag it to
@@ -36,7 +37,7 @@ class HandleView {
     this.handle = document.createElement('div')
     this.handle.className = 'block-handle'
     this.handle.draggable = true
-    this.handle.title = 'Glisser pour déplacer, cliquer pour le menu du bloc'
+    this.handle.title = t('Glisser pour déplacer, cliquer pour le menu du bloc')
     this.handle.textContent = '⋮⋮'
     this.handle.addEventListener('dragstart', this.onDragStart)
     // Selecting on mousedown would cancel the native drag, so it happens on click.

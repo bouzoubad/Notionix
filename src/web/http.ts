@@ -1,5 +1,6 @@
-import { WORKSPACE_HEADER } from '../shared/collab'
+import { LANGUAGE_HEADER, WORKSPACE_HEADER } from '../shared/collab'
 import { currentWorkspace } from './workspace'
+import { language, t } from '../shared/i18n'
 
 /** Header that marks the web client's requests (the server refuses cookie-only changes). */
 const CLIENT = { 'X-Notionix-Client': 'web' }
@@ -23,10 +24,11 @@ export function whenSignedOut(handler: () => void): void {
 
 async function check(res: Response): Promise<Response> {
   if (res.ok) return res
-  let message = `Erreur ${res.status}`
+  let message = t('Erreur {status}', { status: res.status })
   try {
     const body = (await res.json()) as { error?: string }
-    if (body.error) message = body.error
+    // The server writes in French: its fixed messages are translated here.
+    if (body.error) message = t(body.error)
   } catch {
     // not JSON
   }
@@ -38,7 +40,11 @@ export async function request(
   path: string,
   init: { method?: string; json?: unknown; body?: BodyInit; type?: string } = {}
 ): Promise<Response> {
-  const headers: Record<string, string> = { ...CLIENT, [WORKSPACE_HEADER]: currentWorkspace() }
+  const headers: Record<string, string> = {
+    ...CLIENT,
+    [WORKSPACE_HEADER]: currentWorkspace(),
+    [LANGUAGE_HEADER]: language()
+  }
   if (init.json !== undefined) headers['Content-Type'] = 'application/json'
   else if (init.type) headers['Content-Type'] = init.type
   const res = await fetch(path, {

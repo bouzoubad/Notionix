@@ -3,6 +3,7 @@ import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
 import { GRADIENT_COVERS, coverStyle } from './covers'
+import { t } from '../../../shared/i18n'
 
 const EMOJIS = [
   '📄',
@@ -90,7 +91,10 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
   const imageCover = !!page.cover?.startsWith('notionix-asset://')
 
   /** Picks an image file and stores it, then hands its src over. */
-  const chooseImage = (what: string, apply: (src: string) => Promise<void>): void => {
+  const chooseImage = (
+    failed: (error: string) => string,
+    apply: (src: string) => Promise<void>
+  ): void => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/avif,image/svg+xml'
@@ -104,20 +108,26 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
         )
         await apply(src)
       } catch (e) {
-        showNotice(`${what} non ajoutée : ${e instanceof Error ? e.message : String(e)}`)
+        showNotice(failed(e instanceof Error ? e.message : String(e)))
       }
     }
     input.click()
     setPicker(null)
   }
   const chooseCoverImage = (): void =>
-    chooseImage('Couverture', async (src) => {
-      await patch(page.id, { cover: src, options: { ...page.options, coverY: 50 } })
-    })
+    chooseImage(
+      (error) => t('Couverture non ajoutée : {error}', { error }),
+      async (src) => {
+        await patch(page.id, { cover: src, options: { ...page.options, coverY: 50 } })
+      }
+    )
   const chooseIconImage = (): void =>
-    chooseImage('Icône', async (src) => {
-      await patch(page.id, { icon: src })
-    })
+    chooseImage(
+      (error) => t('Icône non ajoutée : {error}', { error }),
+      async (src) => {
+        await patch(page.id, { icon: src })
+      }
+    )
 
   const startDrag = (e: React.MouseEvent<HTMLDivElement>): void => {
     if (coverY === null || (e.target as HTMLElement).closest('button')) return
@@ -151,12 +161,12 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
             void patch(page.id, { icon: EMOJIS[Math.floor(Math.random() * EMOJIS.length)] })
           }
         >
-          Aléatoire
+          {t('Aléatoire')}
         </button>
-        <button onClick={chooseIconImage}>Image…</button>
+        <button onClick={chooseIconImage}>{t('Image…')}</button>
         {page.icon && (
           <button onClick={() => (setPicker(null), void patch(page.id, { icon: null }))}>
-            Retirer
+            {t('Retirer')}
           </button>
         )}
       </div>
@@ -179,17 +189,17 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
         {GRADIENT_COVERS.map((g, i) => (
           <button
             key={g}
-            aria-label={`Dégradé ${i + 1}`}
+            aria-label={t('Dégradé {n}', { n: i + 1 })}
             style={{ backgroundImage: g }}
             onClick={() => (setPicker(null), void patch(page.id, { cover: `gradient:${i}` }))}
           />
         ))}
       </div>
       <div className="picker-actions">
-        <button onClick={chooseCoverImage}>Image…</button>
+        <button onClick={chooseCoverImage}>{t('Image…')}</button>
         {page.cover && (
           <button onClick={() => (setPicker(null), void patch(page.id, { cover: null }))}>
-            Retirer
+            {t('Retirer')}
           </button>
         )}
       </div>
@@ -204,16 +214,16 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
           style={coverStyle(page.cover, coverY ?? page.options.coverY)}
           onMouseDown={startDrag}
         >
-          {coverY !== null && <span className="cover-hint">Faites glisser l’image</span>}
+          {coverY !== null && <span className="cover-hint">{t('Faites glisser l’image')}</span>}
           <div className={coverY === null ? 'cover-controls' : 'cover-controls shown'}>
             {coverY === null ? (
               <>
                 <button onClick={() => setPicker(picker === 'cover' ? null : 'cover')}>
-                  Changer la couverture
+                  {t('Changer la couverture')}
                 </button>
                 {imageCover && (
                   <button onClick={() => setCoverY(page.options.coverY ?? 50)}>
-                    Repositionner
+                    {t('Repositionner')}
                   </button>
                 )}
               </>
@@ -225,9 +235,9 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
                     setCoverY(null)
                   }}
                 >
-                  Enregistrer la position
+                  {t('Enregistrer la position')}
                 </button>
-                <button onClick={() => setCoverY(null)}>Annuler</button>
+                <button onClick={() => setCoverY(null)}>{t('Annuler')}</button>
               </>
             )}
           </div>
@@ -239,7 +249,7 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
           <div className="page-icon-wrap">
             <button
               className="page-icon"
-              title="Changer l’icône"
+              title={t('Changer l’icône')}
               onClick={() => setPicker(picker === 'icon' ? null : 'icon')}
             >
               <PageIcon icon={page.icon} className="large" />
@@ -255,14 +265,14 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
                   void patch(page.id, { icon: EMOJIS[Math.floor(Math.random() * EMOJIS.length)] })
                 }}
               >
-                Ajouter une icône
+                {t('Ajouter une icône')}
               </button>
             </span>
           )}
           {!page.cover && (
             <span className="page-icon-wrap">
               <button onClick={() => setPicker(picker === 'cover' ? null : 'cover')}>
-                Ajouter une couverture
+                {t('Ajouter une couverture')}
               </button>
               {picker === 'cover' && coverPicker}
             </span>

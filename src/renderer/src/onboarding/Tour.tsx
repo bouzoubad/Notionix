@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { platform } from '../platform'
+import { t } from '../../../shared/i18n'
 
 interface Step {
   icon: string
@@ -10,39 +11,53 @@ interface Step {
 const STEPS = (web: boolean): Step[] => [
   {
     icon: '👋',
-    title: 'Bienvenue dans Notionix',
-    text: 'Des pages pour vos notes, documents et wikis, des bases de données pour vos suivis, le tout dans un seul espace.'
+    title: t('Bienvenue dans Notionix'),
+    text: t(
+      'Des pages pour vos notes, documents et wikis, des bases de données pour vos suivis, le tout dans un seul espace.'
+    )
   },
   {
     icon: '📄',
-    title: 'Des pages imbriquées',
-    text: 'La barre latérale montre vos pages ; chaque page peut en contenir d’autres. Glissez-les pour les ranger, Cmd/Ctrl-clic pour les ouvrir dans un nouvel onglet.'
+    title: t('Des pages imbriquées'),
+    text: t(
+      'La barre latérale montre vos pages ; chaque page peut en contenir d’autres. Glissez-les pour les ranger, Cmd/Ctrl-clic pour les ouvrir dans un nouvel onglet.'
+    )
   },
   {
     icon: '/',
-    title: 'Tout part de « / »',
-    text: 'Sur une ligne vide, « / » ouvre le menu des blocs : titres, listes, tâches, tableaux, images, fichiers, bases de données, équations… « @ » mentionne une personne, une page ou une date.'
+    title: t('Tout part de « / »'),
+    text: t(
+      'Sur une ligne vide, « / » ouvre le menu des blocs : titres, listes, tâches, tableaux, images, fichiers, bases de données, équations… « @ » mentionne une personne, une page ou une date.'
+    )
   },
   {
     icon: '🗂️',
-    title: 'Des bases de données',
-    text: 'Tableau, board, liste, galerie, calendrier, chronologie, graphique, formulaire : la même base, plusieurs vues, avec filtres, tris, formules et modèles.'
+    title: t('Des bases de données'),
+    text: t(
+      'Tableau, board, liste, galerie, calendrier, chronologie, graphique, formulaire : la même base, plusieurs vues, avec filtres, tris, formules et modèles.'
+    )
   },
   web
     ? {
         icon: '🤝',
-        title: 'À plusieurs',
-        text: 'Partagez une page, éditez-la en même temps que les autres, commentez, mentionnez : la boîte de réception vous prévient.'
+        title: t('À plusieurs'),
+        text: t(
+          'Partagez une page, éditez-la en même temps que les autres, commentez, mentionnez : la boîte de réception vous prévient.'
+        )
       }
     : {
         icon: '📦',
-        title: 'Vos données, chez vous',
-        text: 'Tout reste sur cet ordinateur. Importez Notion, Word, Evernote ou Confluence ; exportez en Markdown, HTML ou PDF quand vous voulez.'
+        title: t('Vos données, chez vous'),
+        text: t(
+          'Tout reste sur cet ordinateur. Importez Notion, Word, Evernote ou Confluence ; exportez en Markdown, HTML ou PDF quand vous voulez.'
+        )
       },
   {
     icon: '⌨️',
-    title: 'Au clavier',
-    text: 'Cmd/Ctrl + P pour chercher, Cmd/Ctrl + N pour une nouvelle page, Cmd/Ctrl + / pour la liste de tous les raccourcis.'
+    title: t('Au clavier'),
+    text: t(
+      'Cmd/Ctrl + P pour chercher, Cmd/Ctrl + N pour une nouvelle page, Cmd/Ctrl + / pour la liste de tous les raccourcis.'
+    )
   }
 ]
 
@@ -71,16 +86,19 @@ export function Tour({ onClose }: { onClose: () => void }): React.JSX.Element {
         </div>
         <h3 id="tour-title">{step.title}</h3>
         <p aria-live="polite">{step.text}</p>
-        <div className="tour-dots" aria-label={`Étape ${i + 1} sur ${steps.length}`}>
+        <div
+          className="tour-dots"
+          aria-label={t('Étape {n} sur {total}', { n: i + 1, total: steps.length })}
+        >
           {steps.map((_, n) => (
             <span key={n} className={n === i ? 'active' : ''} />
           ))}
         </div>
         <div className="tour-actions">
-          <button onClick={onClose}>Passer</button>
-          {i > 0 && <button onClick={() => setI(i - 1)}>Précédent</button>}
+          <button onClick={onClose}>{t('Passer')}</button>
+          {i > 0 && <button onClick={() => setI(i - 1)}>{t('Précédent')}</button>}
           <button className="primary" autoFocus onClick={() => (last ? onClose() : setI(i + 1))}>
-            {last ? 'C’est parti' : 'Suivant'}
+            {last ? t('C’est parti') : t('Suivant')}
           </button>
         </div>
       </div>

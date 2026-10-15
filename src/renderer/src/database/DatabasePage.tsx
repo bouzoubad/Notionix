@@ -7,6 +7,7 @@ import { pageOptionClasses } from '../pageOptions'
 import { canEditPage } from '../platform'
 import { DatabaseViewer } from './DatabaseViewer'
 import { useDatabase } from './useDatabase'
+import { t } from '../../../shared/i18n'
 
 /** A full-page database: breadcrumbs, icon and cover, title, then its views. */
 export function DatabasePage({ page }: { page: PageSummary }): React.JSX.Element {
@@ -25,7 +26,7 @@ export function DatabasePage({ page }: { page: PageSummary }): React.JSX.Element
           className="page-title"
           value={title}
           readOnly={!canEditPage(page)}
-          placeholder="Base de données sans titre"
+          placeholder={t('Base de données sans titre')}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title !== page.title && void patch(page.id, { title })}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}

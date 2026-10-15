@@ -367,6 +367,8 @@ export interface NotionixApi {
   /** Commands of the desktop app's menu (tabs); none on the web, where the browser has them */
   commands: {
     onCommand(listener: (command: AppCommand) => void): () => void
+    /** The interface language, for the menu and file dialogs of the desktop app */
+    setLanguage(language: 'fr' | 'en'): void
   }
   transfer: {
     /** Asks for a Notion export (.zip or extracted folder) and imports it; null if cancelled */

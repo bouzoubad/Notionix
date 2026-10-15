@@ -16,6 +16,9 @@ import { InboxDialog } from './components/InboxDialog'
 import { PagePicker } from './components/PagePicker'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { platform } from './platform'
+import { language, t } from '../../shared/i18n'
+
+document.documentElement.lang = language()
 
 export default function App(): React.JSX.Element {
   const load = useStore((s) => s.load)
@@ -35,6 +38,11 @@ export default function App(): React.JSX.Element {
   const inboxOpen = useStore((s) => s.inboxOpen)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
   const refreshInbox = useStore((s) => s.refreshInbox)
+  useEffect(() => {
+    // The desktop app's menu follows the interface language.
+    window.api.commands.setLanguage?.(language())
+  }, [])
+
   useEffect(() => {
     void refreshInbox()
     const stopInbox = window.api.inbox.onChange(() => void refreshInbox())
@@ -120,7 +128,7 @@ export default function App(): React.JSX.Element {
           document.querySelector<HTMLElement>('#content .page-title, #content')?.focus()
         }}
       >
-        Aller au contenu
+        {t('Aller au contenu')}
       </a>
       <Sidebar />
       <main id="content" tabIndex={-1}>
@@ -132,8 +140,8 @@ export default function App(): React.JSX.Element {
         ) : (
           <div className="blank">
             <Logo variant="wordmark" className="logo-hero" />
-            <p>Vos idées. Un seul espace.</p>
-            <button onClick={() => void createPage(null)}>Créer une page</button>
+            <p>{t('Vos idées. Un seul espace.')}</p>
+            <button onClick={() => void createPage(null)}>{t('Créer une page')}</button>
             <Welcome onTour={() => setTourOpen(true)} onShortcuts={() => setShortcutsOpen(true)} />
           </div>
         )}
@@ -162,7 +170,7 @@ export default function App(): React.JSX.Element {
       )}
       {!connected && (
         <div className="offline-banner">
-          Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.
+          {t('Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.')}
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { writeFile } from 'fs/promises'
+import { t } from '../shared/i18n'
 import type { BrowserWindow, Dialog, IpcMain } from 'electron'
 import type {
   ExportSummary,
@@ -47,11 +48,11 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   // One person on this computer: nothing to share with.
   ipc.handle('pages:shares', () => [])
   ipc.handle('pages:setShare', () => {
-    throw new Error('Le partage se fait sur un serveur Notionix.')
+    throw new Error(t('Le partage se fait sur un serveur Notionix.'))
   })
   ipc.handle('pages:backlinks', (_e, id: string) => repo.backlinks(id))
   ipc.handle('pages:publish', () => {
-    throw new Error('La publication se fait depuis un serveur Notionix.')
+    throw new Error(t('La publication se fait depuis un serveur Notionix.'))
   })
   ipc.handle('pages:versions', (_e, id: string) => repo.versions(id))
   ipc.handle('pages:view', (_e, id: string) => repo.recordView(id))
@@ -60,11 +61,11 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   ipc.handle('pages:restoreVersion', (_e, id: string, versionId: number) =>
     repo.restoreVersion(id, versionId)
   )
-  ipc.handle('people:list', (): Person[] => [LOCAL_PERSON])
+  ipc.handle('people:list', (): Person[] => [{ ...LOCAL_PERSON, name: t('Moi') }])
 }
 
 /** The only person of the desktop app, recorded as the author of every change. */
-export const LOCAL_PERSON: Person = { id: 'local', name: 'Moi', email: '' }
+export const LOCAL_PERSON: Person = { id: 'local', name: t('Moi'), email: '' }
 
 /** Comments, inbox and reminders of the only person of the desktop app. */
 export function registerTeamHandlers(ipc: IpcMain, team: TeamRepository): void {
@@ -134,9 +135,9 @@ export function registerAssetHandlers(
   )
   ipc.handle('assets:download', async (_e, src: string, fileName: string) => {
     const bytes = await assets.read(src)
-    if (!bytes) throw new Error('Fichier introuvable.')
+    if (!bytes) throw new Error(t('Fichier introuvable.'))
     const options = {
-      title: 'Enregistrer le fichier',
+      title: t('Enregistrer le fichier'),
       defaultPath: safeName(fileName) || 'fichier'
     }
     const win = deps.getWindow()
@@ -156,9 +157,9 @@ export function registerTransferHandlers(
 ): void {
   ipc.handle('transfer:importNotion', async (): Promise<ImportSummary | null> => {
     const options = {
-      title: 'Choisir un export Notion (.zip ou dossier extrait)',
+      title: t('Choisir un export Notion (.zip ou dossier extrait)'),
       properties: ['openFile', 'openDirectory'] as Array<'openFile' | 'openDirectory'>,
-      filters: [{ name: 'Export Notion', extensions: ['zip'] }]
+      filters: [{ name: t('Export Notion'), extensions: ['zip'] }]
     }
     const win = deps.getWindow()
     const result = win
@@ -174,11 +175,11 @@ export function registerTransferHandlers(
       const archive = await buildMarkdownArchive(repo, dbs, assets, pageId, [LOCAL_PERSON])
       const md = archive.fileName.endsWith('.md')
       const options = {
-        title: 'Exporter en Markdown',
+        title: t('Exporter en Markdown'),
         defaultPath: archive.fileName,
         filters: md
           ? [{ name: 'Markdown', extensions: ['md'] }]
-          : [{ name: 'Archive ZIP', extensions: ['zip'] }]
+          : [{ name: t('Archive ZIP'), extensions: ['zip'] }]
       }
       const win = deps.getWindow()
       const result = win
@@ -212,11 +213,11 @@ export function registerTransferHandlers(
       const archive = await buildHtmlArchive(repo, dbs, assets, pageId, [LOCAL_PERSON])
       const html = archive.fileName.endsWith('.html')
       const path = await save(
-        'Exporter en HTML',
+        t('Exporter en HTML'),
         archive.fileName,
         html
-          ? [{ name: 'Page web', extensions: ['html'] }]
-          : [{ name: 'Archive ZIP', extensions: ['zip'] }],
+          ? [{ name: t('Page web'), extensions: ['html'] }]
+          : [{ name: t('Archive ZIP'), extensions: ['zip'] }],
         archive.bytes
       )
       return path ? { path, pages: archive.pages } : null
@@ -228,7 +229,7 @@ export function registerTransferHandlers(
     const pdf = await e.sender.printToPDF({ printBackground: true, pageSize: 'A4' })
     const title = safeName(repo.get(pageId)?.title ?? '') || 'Page'
     const path = await save(
-      'Exporter en PDF',
+      t('Exporter en PDF'),
       `${title}.pdf`,
       [{ name: 'PDF', extensions: ['pdf'] }],
       pdf

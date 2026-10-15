@@ -6,6 +6,7 @@ import {
   type ReactNodeViewProps
 } from '@tiptap/react'
 import { Callout } from '../../../shared/callout'
+import { t } from '../../../shared/i18n'
 
 const ICONS = ['💡', '⚠️', '❗', '✅', 'ℹ️', '📌', '🔥', '🚀', '📝', '❓', '⭐', '🎯']
 
@@ -16,7 +17,7 @@ function CalloutView({ node, updateAttributes, editor }: ReactNodeViewProps): Re
       <span className="callout-icon-wrap" contentEditable={false}>
         <button
           className="callout-icon"
-          title="Changer l’icône"
+          title={t('Changer l’icône')}
           disabled={!editor.isEditable}
           onClick={() => setOpen(!open)}
         >

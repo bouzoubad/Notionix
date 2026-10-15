@@ -1,21 +1,22 @@
 import type { PageInit } from '../../../shared/types'
+import { t } from '../../../shared/i18n'
 
 type Node = Record<string, unknown>
-const text = (t: string, marks?: string[]): Node => ({
+const text = (s: string, marks?: string[]): Node => ({
   type: 'text',
-  text: t,
+  text: s,
   ...(marks ? { marks: marks.map((type) => ({ type })) } : {})
 })
 const p = (...content: Node[]): Node => ({ type: 'paragraph', content })
-const h = (level: number, t: string): Node => ({
+const h = (level: number, s: string): Node => ({
   type: 'heading',
   attrs: { level },
-  content: [text(t)]
+  content: [text(s)]
 })
-const todo = (t: string): Node => ({
+const todo = (s: string): Node => ({
   type: 'taskItem',
   attrs: { checked: false },
-  content: [p(text(t))]
+  content: [p(text(s))]
 })
 
 /** The "Getting started" page: things to try, checked off as one goes. */
@@ -23,52 +24,62 @@ export function gettingStartedPage(web: boolean): PageInit {
   const doc = {
     type: 'doc',
     content: [
-      p(text('Quelques gestes pour prendre Notionix en main. Cochez-les au fur et à mesure.')),
-      h(2, 'Écrire'),
+      p(text(t('Quelques gestes pour prendre Notionix en main. Cochez-les au fur et à mesure.'))),
+      h(2, t('Écrire')),
       {
         type: 'taskList',
         content: [
           todo(
-            'Tapez « / » sur une ligne vide pour insérer un titre, une liste, un tableau, une image…'
+            t(
+              'Tapez « / » sur une ligne vide pour insérer un titre, une liste, un tableau, une image…'
+            )
           ),
-          todo('Sélectionnez du texte : un menu propose gras, couleur, lien, commentaire.'),
-          todo('Glissez la poignée ⋮⋮ à gauche d’un bloc pour le déplacer.'),
-          todo('Tapez « @ » pour mentionner une personne, une page ou une date (avec rappel).'),
-          todo('Tapez « [[ » pour lier une autre page.')
+          todo(t('Sélectionnez du texte : un menu propose gras, couleur, lien, commentaire.')),
+          todo(t('Glissez la poignée ⋮⋮ à gauche d’un bloc pour le déplacer.')),
+          todo(t('Tapez « @ » pour mentionner une personne, une page ou une date (avec rappel).')),
+          todo(t('Tapez « [[ » pour lier une autre page.'))
         ]
       },
-      h(2, 'Organiser'),
+      h(2, t('Organiser')),
       {
         type: 'taskList',
         content: [
           todo(
-            'Créez une sous-page avec « /page » ; elle apparaît sous celle-ci dans la barre latérale.'
+            t(
+              'Créez une sous-page avec « /page » ; elle apparaît sous celle-ci dans la barre latérale.'
+            )
           ),
           todo(
-            'Créez une base de données (tableau, board, calendrier…) avec « + Nouvelle base de données ».'
+            t(
+              'Créez une base de données (tableau, board, calendrier…) avec « + Nouvelle base de données ».'
+            )
           ),
-          todo('Ajoutez une page aux favoris depuis son menu « ⋯ ».'),
-          todo('Retrouvez tout avec la recherche (Cmd/Ctrl + P).')
+          todo(t('Ajoutez une page aux favoris depuis son menu « ⋯ ».')),
+          todo(t('Retrouvez tout avec la recherche (Cmd/Ctrl + P).'))
         ]
       },
-      h(2, web ? 'Travailler à plusieurs' : 'Importer et exporter'),
+      h(2, web ? t('Travailler à plusieurs') : t('Importer et exporter')),
       {
         type: 'taskList',
         content: web
           ? [
-              todo('Partagez une page avec une personne ou un groupe (« Partager », en haut).'),
-              todo('Commentez une sélection, et suivez les réponses dans la boîte de réception.'),
-              todo('Signalez un bug ou une idée avec « Feedback » en bas de la barre latérale.')
+              todo(t('Partagez une page avec une personne ou un groupe (« Partager », en haut).')),
+              todo(
+                t('Commentez une sélection, et suivez les réponses dans la boîte de réception.')
+              ),
+              todo(t('Signalez un bug ou une idée avec « Feedback » en bas de la barre latérale.'))
             ]
           : [
               todo(
-                'Importez un export de Notion, un document Word ou des notes Evernote (« Importer / Exporter »).'
+                t(
+                  'Importez un export de Notion, un document Word ou des notes Evernote (« Importer / Exporter »).'
+                )
               ),
-              todo('Exportez une page en Markdown, HTML ou PDF depuis son menu « ⋯ ».')
+              todo(t('Exportez une page en Markdown, HTML ou PDF depuis son menu « ⋯ ».'))
             ]
       },
-      p(text('Tous les raccourcis : Cmd/Ctrl + /', ['bold']))
+      p(text(t('Tous les raccourcis : Cmd/Ctrl + /'), ['bold']))
     ]
   }
-  return { title: 'Bien démarrer', icon: '👋', content: JSON.stringify(doc) }
+  return { title: t('Bien démarrer'), icon: '👋', content: JSON.stringify(doc) }
 }

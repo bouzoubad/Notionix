@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import type { ImportSummary } from '../../../shared/types'
 import { useStore } from '../store'
 import { platform } from '../platform'
@@ -7,6 +7,14 @@ import {
   importDocuments,
   type DocumentImportSummary
 } from '../importers/documents'
+import { t } from '../../../shared/i18n'
+
+/** A translated text whose {name} parts are elements (emphasis…). */
+function rich(text: string, parts: Record<string, ReactNode>): ReactNode[] {
+  return text
+    .split(/\{(\w+)\}/)
+    .map((piece, i) => <Fragment key={i}>{i % 2 ? (parts[piece] ?? piece) : piece}</Fragment>)
+}
 
 export function TransferDialog(): React.JSX.Element {
   const setOpen = useStore((s) => s.setTransferOpen)
@@ -62,27 +70,37 @@ export function TransferDialog(): React.JSX.Element {
   return (
     <div className="overlay" onMouseDown={() => !busy && setOpen(false)}>
       <div className="dialog transfer" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Importer / Exporter</h3>
+        <h3>{t('Importer / Exporter')}</h3>
         <div className="results">
           <section className="transfer-section">
-            <h4>Importer depuis Notion</h4>
+            <h4>{t('Importer depuis Notion')}</h4>
             <p>
-              Dans Notion : <em>Paramètres</em> &gt;{' '}
-              <em>Exporter tout le contenu de l’espace de travail</em>, format{' '}
-              <strong>Markdown &amp; CSV</strong>, avec « Inclure les sous-pages » et « Créer des
-              dossiers pour les sous-pages ».{' '}
+              {rich(
+                t(
+                  'Dans Notion : {settings} > {exportAll}, format {format}, avec « Inclure les sous-pages » et « Créer des dossiers pour les sous-pages ».'
+                ),
+                {
+                  settings: <em>{t('Paramètres')}</em>,
+                  exportAll: <em>{t('Exporter tout le contenu de l’espace de travail')}</em>,
+                  format: <strong>Markdown &amp; CSV</strong>
+                }
+              )}{' '}
               {web
-                ? 'Choisissez ensuite le fichier .zip reçu : son contenu rejoint l’espace partagé du serveur.'
-                : 'Choisissez ensuite le fichier .zip reçu (ou le dossier extrait). Tout reste sur cet ordinateur.'}
+                ? t(
+                    'Choisissez ensuite le fichier .zip reçu : son contenu rejoint l’espace partagé du serveur.'
+                  )
+                : t(
+                    'Choisissez ensuite le fichier .zip reçu (ou le dossier extrait). Tout reste sur cet ordinateur.'
+                  )}
             </p>
             <button
               className="primary"
               disabled={busy || ['reader', 'guest'].includes(platform().session?.user.role ?? '')}
               onClick={() => void runImport()}
             >
-              {busy ? 'Import en cours…' : 'Choisir un export Notion…'}
+              {busy ? t('Import en cours…') : t('Choisir un export Notion…')}
             </button>
-            {error && <p className="error">Import impossible : {error}</p>}
+            {error && <p className="error">{t('Import impossible : {error}', { error })}</p>}
             {summary && (
               <ImportReport
                 summary={summary}
@@ -91,42 +109,48 @@ export function TransferDialog(): React.JSX.Element {
             )}
           </section>
           <section className="transfer-section">
-            <h4>Importer d’autres outils</h4>
+            <h4>{t('Importer d’autres outils')}</h4>
             <p>
-              Word (.docx ; Google Docs : <em>Fichier &gt; Télécharger &gt; Microsoft Word</em>),
-              pages web (.html), Markdown (.md), texte (.txt), Evernote (export .enex), Confluence
-              (export HTML de l’espace, .zip) ou Google Docs en « Page Web (.zip) ». Chaque document
-              devient une page, images comprises.
+              {rich(
+                t(
+                  'Word (.docx ; Google Docs : {download}), pages web (.html), Markdown (.md), texte (.txt), Evernote (export .enex), Confluence (export HTML de l’espace, .zip) ou Google Docs en « Page Web (.zip) ». Chaque document devient une page, images comprises.'
+                ),
+                { download: <em>{t('Fichier > Télécharger > Microsoft Word')}</em> }
+              )}
             </p>
             <button disabled={busy || !canImport} onClick={chooseDocuments}>
-              {busy ? 'Import en cours…' : 'Choisir des fichiers…'}
+              {busy ? t('Import en cours…') : t('Choisir des fichiers…')}
             </button>
             {docs && (
               <div className="import-report">
                 <p>
-                  {docs.pages} page(s) créée(s)
-                  {docs.images ? `, ${docs.images} image(s)` : ''}
-                  {docs.files ? `, ${docs.files} pièce(s) jointe(s)` : ''}.
+                  {t('{n} page(s) créée(s)', { n: docs.pages })}
+                  {docs.images ? t(', {n} image(s)', { n: docs.images }) : ''}
+                  {docs.files ? t(', {n} pièce(s) jointe(s)', { n: docs.files }) : ''}.
                   {docs.missing
-                    ? ` ${docs.missing} image(s) ou pièce(s) jointe(s) non reprise(s).`
+                    ? t(' {n} image(s) ou pièce(s) jointe(s) non reprise(s).', { n: docs.missing })
                     : ''}
-                  {docs.skipped.length ? ` Format non reconnu : ${docs.skipped.join(', ')}.` : ''}
+                  {docs.skipped.length
+                    ? t(' Format non reconnu : {files}.', { files: docs.skipped.join(', ') })
+                    : ''}
                 </p>
                 {docs.firstId && (
-                  <button onClick={() => (open(docs.firstId), setOpen(false))}>Ouvrir</button>
+                  <button onClick={() => (open(docs.firstId), setOpen(false))}>
+                    {t('Ouvrir')}
+                  </button>
                 )}
               </div>
             )}
           </section>
           <section className="transfer-section">
-            <h4>Exporter vers Markdown</h4>
+            <h4>{t('Exporter vers Markdown')}</h4>
             <p>
-              Toutes les pages (hors corbeille) dans une archive .zip : un fichier .md par page,
-              images comprises, un dossier par page ayant des sous-pages, liens entre pages
-              conservés. Une seule page : menu « ⋯ » de la page dans la barre latérale.
+              {t(
+                'Toutes les pages (hors corbeille) dans une archive .zip : un fichier .md par page, images comprises, un dossier par page ayant des sous-pages, liens entre pages conservés. Une seule page : menu « ⋯ » de la page dans la barre latérale.'
+              )}
             </p>
             <button disabled={busy} onClick={() => void exportPage(null)}>
-              Exporter toutes les pages…
+              {t('Exporter toutes les pages…')}
             </button>{' '}
             <button
               disabled={busy}
@@ -137,7 +161,7 @@ export function TransferDialog(): React.JSX.Element {
                   .catch((e) => setError(e instanceof Error ? e.message : String(e)))
               }
             >
-              En HTML…
+              {t('En HTML…')}
             </button>
           </section>
         </div>
@@ -155,28 +179,40 @@ function ImportReport({
 }): React.JSX.Element {
   const notes: string[] = []
   if (summary.skipped)
-    notes.push(`${summary.skipped} page(s) déjà importées, laissées telles quelles.`)
+    notes.push(t('{n} page(s) déjà importées, laissées telles quelles.', { n: summary.skipped }))
   if (summary.databases)
     notes.push(
-      `${summary.databases} base(s) de données importée(s), types de propriétés déduits des CSV (formules, rollups et vues Notion non repris).`
+      t(
+        '{n} base(s) de données importée(s), types de propriétés déduits des CSV (formules, rollups et vues Notion non repris).',
+        { n: summary.databases }
+      )
     )
   if (summary.linksResolved || summary.linksUnresolved)
     notes.push(
-      `Liens entre pages : ${summary.linksResolved} conservés, ${summary.linksUnresolved} vers du contenu absent de l’export (texte gardé).`
+      t(
+        'Liens entre pages : {kept} conservés, {lost} vers du contenu absent de l’export (texte gardé).',
+        { kept: summary.linksResolved, lost: summary.linksUnresolved }
+      )
     )
-  if (summary.imagesImported) notes.push(`${summary.imagesImported} image(s) importée(s).`)
+  if (summary.imagesImported)
+    notes.push(t('{n} image(s) importée(s).', { n: summary.imagesImported }))
   if (summary.imagesMissing)
     notes.push(
-      `${summary.imagesMissing} image(s) non reprise(s) : absente(s) de l’export, illisible(s) ou distante(s) (gardée(s) en lien).`
+      t(
+        '{n} image(s) non reprise(s) : absente(s) de l’export, illisible(s) ou distante(s) (gardée(s) en lien).',
+        { n: summary.imagesMissing }
+      )
     )
   if (summary.attachmentsIgnored)
     notes.push(
-      `${summary.attachmentsIgnored} autre(s) fichier(s) de l’export non importé(s) (PDF, pièces jointes…).`
+      t('{n} autre(s) fichier(s) de l’export non importé(s) (PDF, pièces jointes…).', {
+        n: summary.attachmentsIgnored
+      })
     )
   return (
     <div className="import-report">
       <p>
-        <strong>{summary.created} page(s) créée(s).</strong>
+        <strong>{t('{n} page(s) créée(s).', { n: summary.created })}</strong>
       </p>
       <ul>
         {notes.map((n) => (
@@ -188,7 +224,7 @@ function ImportReport({
           </li>
         ))}
       </ul>
-      {summary.containerId && <button onClick={onOpen}>Ouvrir les pages importées</button>}
+      {summary.containerId && <button onClick={onOpen}>{t('Ouvrir les pages importées')}</button>}
     </div>
   )
 }

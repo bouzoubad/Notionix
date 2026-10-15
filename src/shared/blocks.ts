@@ -1,5 +1,6 @@
 import { Extension, Node, mergeAttributes } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
+import { t } from './i18n'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -143,7 +144,7 @@ export const FileBlock = Node.create({
   selectable: true,
 
   addAttributes() {
-    return { src: dataAttr('src'), name: dataAttr('name', 'Fichier'), size: dataAttr('size', 0) }
+    return { src: dataAttr('src'), name: dataAttr('name', t('Fichier')), size: dataAttr('size', 0) }
   },
   parseHTML() {
     return [{ tag: 'div[data-type="file"]' }]
@@ -152,7 +153,7 @@ export const FileBlock = Node.create({
     return [
       'div',
       mergeAttributes(HTMLAttributes, { 'data-type': 'file' }),
-      String(node.attrs.name ?? 'Fichier')
+      String(node.attrs.name ?? t('Fichier'))
     ]
   }
 })
@@ -220,7 +221,7 @@ export const ButtonBlock = Node.create({
 
   addAttributes() {
     return {
-      label: dataAttr('label', 'Nouveau bouton'),
+      label: dataAttr('label', t('Nouveau bouton')),
       action: dataAttr('action', 'insert'),
       template: dataAttr('template', '[{"type":"paragraph"}]'),
       databaseId: dataAttr('database-id')

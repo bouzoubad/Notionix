@@ -11,6 +11,7 @@ import { webApi } from './api'
 import { json, ServerError, whenSignedOut } from './http'
 import { connect } from './session'
 import { Login } from './Login'
+import { t } from '../shared/i18n'
 import { SettingsDialog } from './SettingsDialog'
 import { FeedbackDialog } from './FeedbackDialog'
 
@@ -103,7 +104,9 @@ async function main(): Promise<void> {
     } else {
       root.render(
         <div className="web-error">
-          Serveur Notionix injoignable : {e instanceof Error ? e.message : String(e)}
+          {t('Serveur Notionix injoignable : {message}', {
+            message: e instanceof Error ? e.message : String(e)
+          })}
         </div>
       )
     }

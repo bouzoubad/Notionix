@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { BlockMenuRequest } from './blockHandle'
 import { COLOR_LABELS, COLORED_BLOCKS, COLORS, type BlockColor } from '../../../shared/colors'
+import { t } from '../../../shared/i18n'
 
 interface Target {
   name: string
@@ -11,46 +12,50 @@ interface Target {
 
 /** What a block can become; the text is kept. */
 const TARGETS: Target[] = [
-  { name: 'paragraph', label: 'Texte', run: (e) => e.chain().clearNodes().setParagraph().run() },
+  { name: 'paragraph', label: t('Texte'), run: (e) => e.chain().clearNodes().setParagraph().run() },
   {
     name: 'h1',
-    label: 'Titre 1',
+    label: t('Titre 1'),
     run: (e) => e.chain().clearNodes().setHeading({ level: 1 }).run()
   },
   {
     name: 'h2',
-    label: 'Titre 2',
+    label: t('Titre 2'),
     run: (e) => e.chain().clearNodes().setHeading({ level: 2 }).run()
   },
   {
     name: 'h3',
-    label: 'Titre 3',
+    label: t('Titre 3'),
     run: (e) => e.chain().clearNodes().setHeading({ level: 3 }).run()
   },
   {
     name: 'bullet',
-    label: 'Liste à puces',
+    label: t('Liste à puces'),
     run: (e) => e.chain().clearNodes().toggleBulletList().run()
   },
   {
     name: 'ordered',
-    label: 'Liste numérotée',
+    label: t('Liste numérotée'),
     run: (e) => e.chain().clearNodes().toggleOrderedList().run()
   },
   {
     name: 'task',
-    label: 'Liste de tâches',
+    label: t('Liste de tâches'),
     run: (e) => e.chain().clearNodes().toggleTaskList().run()
   },
-  { name: 'toggle', label: 'Toggle', run: (e) => e.chain().clearNodes().setDetails().run() },
+  { name: 'toggle', label: t('Toggle'), run: (e) => e.chain().clearNodes().setDetails().run() },
   ...[1, 2, 3].map((level) => ({
     name: `toggle-h${level}`,
-    label: `Titre ${level} repliable`,
+    label: t('Titre {level} repliable', { level }),
     run: (e: Editor) => e.chain().clearNodes().setDetails().setToggleHeading(level).run()
   })),
-  { name: 'quote', label: 'Citation', run: (e) => e.chain().clearNodes().toggleBlockquote().run() },
-  { name: 'callout', label: 'Callout', run: (e) => e.chain().clearNodes().setCallout().run() },
-  { name: 'code', label: 'Code', run: (e) => e.chain().clearNodes().setCodeBlock().run() }
+  {
+    name: 'quote',
+    label: t('Citation'),
+    run: (e) => e.chain().clearNodes().toggleBlockquote().run()
+  },
+  { name: 'callout', label: t('Callout'), run: (e) => e.chain().clearNodes().setCallout().run() },
+  { name: 'code', label: t('Code'), run: (e) => e.chain().clearNodes().setCodeBlock().run() }
 ]
 
 /** Menu of a block, opened from its handle. */
@@ -117,8 +122,8 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
     <div className="block-menu" style={{ left: request.left, top: request.top }}>
       {section === 'main' && (
         <>
-          <button onClick={() => setSection('turn')}>Transformer en ›</button>
-          {colorable && <button onClick={() => setSection('color')}>Couleur ›</button>}
+          <button onClick={() => setSection('turn')}>{t('Transformer en ›')}</button>
+          {colorable && <button onClick={() => setSection('color')}>{t('Couleur ›')}</button>}
           <button
             onClick={() => {
               editor
@@ -129,7 +134,7 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
               done()
             }}
           >
-            Dupliquer
+            {t('Dupliquer')}
           </button>
           <button
             onClick={() => {
@@ -144,17 +149,19 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
               done()
             }}
           >
-            Supprimer
+            {t('Supprimer')}
           </button>
         </>
       )}
       {section === 'turn' &&
-        TARGETS.map((t) => (
+        TARGETS.map((target) => (
           <button
-            key={t.name}
+            key={target.name}
             onClick={() => {
               const level =
-                t.name === 'toggle' ? 0 : Number(t.name.match(/^toggle-h(\d)$/)?.[1] ?? -1)
+                target.name === 'toggle'
+                  ? 0
+                  : Number(target.name.match(/^toggle-h(\d)$/)?.[1] ?? -1)
               if (level >= 0 && node.isTextblock) {
                 // A line becomes the title of the toggle, like in Notion.
                 editor
@@ -172,17 +179,17 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
                     }
                   )
                   .run()
-              } else t.run(inside())
+              } else target.run(inside())
               done()
             }}
           >
-            {t.label}
+            {target.label}
           </button>
         ))}
       {section === 'color' && (
         <>
-          <span className="palette-title">Couleur du texte</span>
-          <button onClick={() => setColor(null)}>Par défaut</button>
+          <span className="palette-title">{t('Couleur du texte')}</span>
+          <button onClick={() => setColor(null)}>{t('Par défaut')}</button>
           {COLORS.map((c) => (
             <button key={c} onClick={() => setColor(c)}>
               <span className="swatch-dot" style={{ color: `var(--nx-${c})` }}>
@@ -191,13 +198,13 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
               {COLOR_LABELS[c]}
             </button>
           ))}
-          <span className="palette-title">Fond</span>
+          <span className="palette-title">{t('Fond')}</span>
           {COLORS.map((c) => (
             <button key={`${c}-bg`} onClick={() => setColor(`${c}_background`)}>
               <span className="swatch-dot" style={{ background: `var(--nx-${c}-bg)` }}>
                 A
               </span>{' '}
-              Fond {COLOR_LABELS[c].toLowerCase()}
+              {t('Fond {color}', { color: COLOR_LABELS[c].toLowerCase() })}
             </button>
           ))}
         </>

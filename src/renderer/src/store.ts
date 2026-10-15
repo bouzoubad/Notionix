@@ -1,11 +1,20 @@
 import { create } from 'zustand'
-import type { PageAccess, PageId, PagePatch, PageSummary, Person } from '../../shared/types'
+import type {
+  PageAccess,
+  PageId,
+  PagePatch,
+  PageSummary,
+  Person,
+  PersonGroup
+} from '../../shared/types'
 import type { Presence } from './platform'
 
 interface State {
   pages: PageSummary[]
   /** People of the workspace (one on the desktop app) */
   people: Person[]
+  /** Groups pages can be shared with */
+  groups: PersonGroup[]
   currentId: PageId | null
   expanded: Record<PageId, boolean>
   searchOpen: boolean
@@ -153,6 +162,7 @@ function notify(set: (partial: Partial<State>) => void, message: string): void {
 export const useStore = create<State>((set, get) => ({
   pages: [],
   people: [],
+  groups: [],
   // The address names the page (#/page/<id>): links, back and forward, new tabs.
   currentId: pageIdFromHash(location.hash) ?? localStorage.getItem('currentId'),
   expanded: JSON.parse(localStorage.getItem('expanded') ?? '{}'),
@@ -207,10 +217,14 @@ export const useStore = create<State>((set, get) => ({
   setMathEdit: (mathEdit) => set({ mathEdit }),
 
   load: async () => {
-    const [pages, people] = await Promise.all([api.list(), window.api.people.list()])
+    const [pages, people, groups] = await Promise.all([
+      api.list(),
+      window.api.people.list(),
+      window.api.people.groups()
+    ])
     const { currentId } = get()
     const valid = currentId && pages.some((p) => p.id === currentId && !p.trashedAt)
-    set({ pages, people, currentId: valid ? currentId : null })
+    set({ pages, people, groups, currentId: valid ? currentId : null })
   },
   remoteChange: async () => {
     await get().load()

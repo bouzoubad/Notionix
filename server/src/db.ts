@@ -60,7 +60,31 @@ const MIGRATIONS = [
      created_at INTEGER NOT NULL,
      updated_at INTEGER NOT NULL
    );
-   CREATE INDEX feedback_created ON feedback(created_at);`
+   CREATE INDEX feedback_created ON feedback(created_at);`,
+  // Groups of people, to share pages with a team at once; several workspaces.
+  `CREATE TABLE groups (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );
+   CREATE TABLE group_members (
+     group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     PRIMARY KEY (group_id, user_id)
+   );
+   CREATE INDEX group_members_user ON group_members(user_id);
+   CREATE TABLE workspaces (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     icon TEXT,
+     created_at INTEGER NOT NULL
+   );
+   CREATE TABLE workspace_members (
+     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     PRIMARY KEY (workspace_id, user_id)
+   );
+   INSERT INTO workspaces (id, name, icon, created_at) VALUES ('main', 'Espace principal', NULL, 0);`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

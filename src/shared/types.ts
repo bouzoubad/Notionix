@@ -78,6 +78,13 @@ export interface Person {
   disabled?: boolean
 }
 
+/** People shared with at once; a share's `userId` can be a group's id. */
+export interface PersonGroup {
+  id: string
+  name: string
+  memberIds: string[]
+}
+
 /** A saved state of a page's content, kept to look back or restore. */
 export interface PageVersion {
   id: number
@@ -284,6 +291,8 @@ export interface NotionixApi {
   }
   people: {
     list(): Promise<Person[]>
+    /** Groups pages can be shared with (server workspaces only) */
+    groups(): Promise<PersonGroup[]>
   }
   comments: {
     list(pageId: PageId): Promise<Comment[]>

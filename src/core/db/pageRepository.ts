@@ -417,6 +417,11 @@ export class PageRepository {
       .run(id, userId, level)
   }
 
+  /** Stops every share with a person or group that no longer exists. */
+  removeShareTarget(userId: string): void {
+    this.db.prepare('DELETE FROM page_shares WHERE user_id = ?').run(userId)
+  }
+
   /** Publishes a page with a public read-only token, or unpublishes it (null). */
   setPublicToken(id: PageId, token: string | null): PageSummary {
     this.touch(id, 'public_token = ?', token)

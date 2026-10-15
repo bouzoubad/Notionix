@@ -7,11 +7,18 @@ import {
   yXmlFragmentToProseMirrorRootNode
 } from '@tiptap/y-tiptap'
 import { documentSchema } from '../../src/core/transfer/canonicalDoc'
-import { PAGE_FIELD, WORKSPACE_DOCUMENT, pageDocumentName, pageIdOf } from '../../src/shared/collab'
+import {
+  PAGE_FIELD,
+  WORKSPACE_DOCUMENT,
+  pageDocumentName,
+  pageIdOf,
+  type ChangeNotice
+} from '../../src/shared/collab'
 import type { Accounts, User } from './auth'
 import { resolveLevels } from '../../src/core/access'
 import { atLeast } from '../../src/shared/types'
 import type { Workspace } from './workspace'
+import type { Workspaces } from './workspaces'
 
 export interface CollabContext {
   user: User
@@ -25,14 +32,20 @@ export interface CollabContext {
 export class PageDocuments {
   constructor(
     private readonly store: DatabaseSync,
-    private readonly workspace: Workspace,
+    private readonly workspaces: Workspaces,
     /** Called after a page's content was written back, with the content before */
     private readonly onChange: (
+      workspace: Workspace,
       pageId: string,
       before: string,
       actorId: string | null
     ) => void = () => undefined
   ) {}
+
+  /** The workspace holding the page of a document. */
+  private workspaceOf(id: string): Workspace | null {
+    return this.workspaces.findPage(id)?.workspace ?? null
+  }
 
   /** Who last changed each open document: the author of what is written back. */
   private readonly lastEditor = new Map<string, string>()
@@ -61,7 +74,7 @@ export class PageDocuments {
       return
     }
     // First opening: the document starts from the content stored in the workspace.
-    const page = this.workspace.pages.get(id)
+    const page = this.workspaceOf(id)?.pages.get(id)
     if (!page) return
     const seeded = prosemirrorJSONToYDoc(documentSchema(), JSON.parse(page.content), PAGE_FIELD)
     Y.applyUpdate(document, Y.encodeStateAsUpdate(seeded))
@@ -70,7 +83,7 @@ export class PageDocuments {
   private save(name: string, document: Y.Doc): void {
     // A page deleted while open is stored once more when its editors leave: dropped.
     const id = pageIdOf(name)
-    if (!id || !this.workspace.pages.get(id)) return
+    if (!id || !this.workspaceOf(id)) return
     this.store
       .prepare(
         `INSERT INTO documents (name, state, updated_at) VALUES (?, ?, ?)
@@ -83,8 +96,9 @@ export class PageDocuments {
   /** Writes a page document's content to the workspace when it differs. */
   private project(name: string, document: Y.Doc): void {
     const id = pageIdOf(name)
-    const page = id ? this.workspace.pages.get(id) : null
-    if (!id || !page) return
+    const workspace = id ? this.workspaceOf(id) : null
+    const page = id ? workspace?.pages.get(id) : null
+    if (!id || !workspace || !page) return
     const root = yXmlFragmentToProseMirrorRootNode(
       document.getXmlFragment(PAGE_FIELD),
       documentSchema()
@@ -92,8 +106,8 @@ export class PageDocuments {
     const content = JSON.stringify(root.toJSON())
     if (content === page.content) return
     const actor = this.lastEditor.get(name) ?? null
-    this.workspace.pages.as(actor, () => this.workspace.pages.update(id, { content }))
-    this.onChange(id, page.content, actor)
+    workspace.pages.as(actor, () => workspace.pages.update(id, { content }))
+    this.onChange(workspace, id, page.content, actor)
   }
 
   /**
@@ -126,7 +140,7 @@ export class PageDocuments {
     const names = new Set([...stored.map((r) => r.name), ...instance.documents.keys()])
     for (const name of names) {
       const id = pageIdOf(name)
-      if (!id || this.workspace.pages.get(id)) continue
+      if (!id || this.workspaceOf(id)) continue
       instance.closeConnections(name)
       this.store.prepare('DELETE FROM documents WHERE name = ?').run(name)
     }
@@ -143,11 +157,10 @@ export function announceInbox(instance: Hocuspocus, userIds: string[]): void {
     )
 }
 
-/** Tells every connected client that pages or databases changed. */
-export function announceChange(instance: Hocuspocus, by: User): void {
-  instance.documents
-    .get(WORKSPACE_DOCUMENT)
-    ?.broadcastStateless(JSON.stringify({ type: 'changed', by: by.id }))
+/** Tells every connected client that pages or databases of a workspace changed. */
+export function announceChange(instance: Hocuspocus, by: User, workspace: string): void {
+  const notice: ChangeNotice = { type: 'changed', by: by.id, workspace }
+  instance.documents.get(WORKSPACE_DOCUMENT)?.broadcastStateless(JSON.stringify(notice))
 }
 
 /**
@@ -156,7 +169,7 @@ export function announceChange(instance: Hocuspocus, by: User): void {
  */
 export function authenticate(
   accounts: Accounts,
-  workspace: Workspace,
+  workspaces: Workspaces,
   cookieToken: (headers: Headers) => string | null
 ) {
   return async ({
@@ -179,8 +192,10 @@ export function authenticate(
       connectionConfig.readOnly = true
       return { user }
     }
-    const level =
-      resolveLevels(workspace.pages.list(), workspace.pages.allShares(), user).get(id) ?? 'none'
+    const found = workspaces.findPage(id)
+    if (!found || !workspaces.canUse(user, found.id)) throw new Error('Page introuvable.')
+    const { pages } = found.workspace
+    const level = resolveLevels(pages.list(), pages.allShares(), user).get(id) ?? 'none'
     if (level === 'none') throw new Error('Page introuvable.')
     if (!atLeast(level, 'edit')) connectionConfig.readOnly = true
     return { user }

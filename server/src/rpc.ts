@@ -8,6 +8,7 @@ import {
   type PageShare,
   type PageSummary,
   type Person,
+  type PersonGroup,
   type SearchFilters
 } from '../../src/shared/types'
 import { resolveLevels } from '../../src/core/access'
@@ -100,9 +101,11 @@ export class CallContext {
   constructor(
     readonly ws: Workspace,
     readonly user: User,
-    /** Every account, disabled ones included */
+    /** Every account of the workspace, disabled ones included */
     readonly members: () => User[],
-    readonly live: LiveDocuments = NO_LIVE
+    readonly live: LiveDocuments = NO_LIVE,
+    /** Groups of people pages can be shared with */
+    readonly groups: () => PersonGroup[] = () => []
   ) {}
 
   people(): Person[] {
@@ -202,6 +205,7 @@ const write = (run: Method['run']): Method => ({ write: true, run })
  */
 const METHODS: Record<string, Method> = {
   'people.list': read((ctx) => ctx.people()),
+  'people.groups': read((ctx) => ctx.groups()),
 
   'pages.list': read((ctx) => ctx.filter(ctx.ws.pages.list())),
   'pages.get': read((ctx, [p]) => {
@@ -315,14 +319,16 @@ const METHODS: Record<string, Method> = {
   'pages.setShare': write((ctx, [p, user, level]) => {
     ctx.need(id(p), 'full')
     const userId = id(user)
-    if (!ctx.people().some((person) => person.id === userId))
+    const group = ctx.groups().find((g) => g.id === userId)
+    if (!group && !ctx.people().some((person) => person.id === userId))
       throw new RpcError('Personne inconnue.')
     const before = ctx.ws.pages.shares(id(p)).find((s) => s.userId === userId)
     const next = shareLevel(level)
     ctx.ws.pages.setShare(id(p), userId, next)
     if (next && !before) {
       ctx.log(id(p), 'shared')
-      ctx.notify([userId], {
+      ctx.invalidate()
+      ctx.notify(group ? group.memberIds.filter((m) => m !== ctx.user.id) : [userId], {
         kind: 'share',
         pageId: id(p),
         text: `${ctx.user.name} a partagé « ${ctx.ws.pages.summary(id(p)).title || 'Sans titre'} » avec vous.`

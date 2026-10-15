@@ -380,3 +380,47 @@
   background: var(--accent);
   color: #fff;
 }
+
+/* Groups and workspaces administration */
+.team-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.team-item header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.team-item header input:not(.emoji-input) {
+  flex: 1;
+  font-weight: 600;
+}
+.emoji-input {
+  width: 44px;
+  text-align: center;
+}
+.member-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.member-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.member-picker label.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.member-picker input {
+  margin: 0;
+}

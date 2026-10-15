@@ -6,6 +6,8 @@ export type MemberRole = 'admin' | 'editor' | 'reader' | 'guest'
 export interface Viewer {
   id: string
   role: MemberRole
+  /** Groups the viewer belongs to: pages shared with a group are shared with them */
+  groups?: readonly string[]
 }
 
 export interface AccessNode {
@@ -52,7 +54,9 @@ export function resolveLevels(
 ): Map<string, AccessLevel> {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const shared = new Map<string, AccessLevel>()
-  for (const s of shares) if (s.userId === viewer.id) shared.set(s.pageId, s.level)
+  const targets = new Set([viewer.id, ...(viewer.groups ?? [])])
+  for (const s of shares)
+    if (targets.has(s.userId)) shared.set(s.pageId, max(shared.get(s.pageId) ?? 'none', s.level))
 
   const base = new Map<string, AccessLevel>()
   const fromShares = new Map<string, AccessLevel>()

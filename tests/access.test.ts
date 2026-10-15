@@ -77,4 +77,22 @@ describe('page access', () => {
     })
     expect([...looped.values()].every((l) => l === 'none' || l === 'full')).toBe(true)
   })
+
+  it('gives members of a group what is shared with the group, keeping the highest level', () => {
+    const groupShares: ShareRow[] = [
+      { pageId: 'private', userId: 'grp_team', level: 'read' },
+      { pageId: 'private-child', userId: 'carol', level: 'edit' }
+    ]
+    const carol = resolveLevels(tree, groupShares, {
+      id: 'carol',
+      role: 'editor',
+      groups: ['grp_team']
+    })
+    expect(carol.get('private')).toBe('read')
+    expect(carol.get('shared-child')).toBe('read')
+    expect(carol.get('private-child')).toBe('edit')
+    expect(resolveLevels(tree, groupShares, { id: 'dan', role: 'editor' }).get('private')).toBe(
+      'none'
+    )
+  })
 })

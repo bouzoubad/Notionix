@@ -1,3 +1,6 @@
+import { WORKSPACE_HEADER } from '../shared/collab'
+import { currentWorkspace } from './workspace'
+
 /** Header that marks the web client's requests (the server refuses cookie-only changes). */
 const CLIENT = { 'X-Notionix-Client': 'web' }
 
@@ -35,7 +38,7 @@ export async function request(
   path: string,
   init: { method?: string; json?: unknown; body?: BodyInit; type?: string } = {}
 ): Promise<Response> {
-  const headers: Record<string, string> = { ...CLIENT }
+  const headers: Record<string, string> = { ...CLIENT, [WORKSPACE_HEADER]: currentWorkspace() }
   if (init.json !== undefined) headers['Content-Type'] = 'application/json'
   else if (init.type) headers['Content-Type'] = init.type
   const res = await fetch(path, {

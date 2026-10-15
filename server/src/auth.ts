@@ -19,6 +19,8 @@ export interface User {
   role: Role
   disabled: boolean
   createdAt: number
+  /** Groups the person belongs to */
+  groups: string[]
 }
 
 interface UserRow {
@@ -49,13 +51,14 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(actual, expected)
 }
 
-const toUser = (r: UserRow): User => ({
+const toUser = (r: UserRow, groups: string[]): User => ({
   id: r.id,
   email: r.email,
   name: r.name,
   role: r.role,
   disabled: r.disabled === 1,
-  createdAt: r.created_at
+  createdAt: r.created_at,
+  groups
 })
 
 const tokenHash = (token: string): string => createHash('sha256').update(token).digest('hex')
@@ -92,14 +95,31 @@ export class Accounts {
   }
 
   list(): User[] {
+    const groups = new Map<string, string[]>()
+    const memberships = this.db
+      .prepare('SELECT user_id, group_id FROM group_members ORDER BY group_id')
+      .all() as { user_id: string; group_id: string }[]
+    for (const m of memberships)
+      groups.set(m.user_id, [...(groups.get(m.user_id) ?? []), m.group_id])
     return (this.db.prepare('SELECT * FROM users ORDER BY name').all() as unknown as UserRow[]).map(
-      toUser
+      (r) => toUser(r, groups.get(r.id) ?? [])
     )
   }
 
   byId(id: string): User | null {
     const row = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
-    return row ? toUser(row) : null
+    return row ? this.user(row) : null
+  }
+
+  /** The account of a row, with its groups. */
+  private user(row: UserRow): User {
+    const groups = this.db
+      .prepare('SELECT group_id FROM group_members WHERE user_id = ? ORDER BY group_id')
+      .all(row.id) as { group_id: string }[]
+    return toUser(
+      row,
+      groups.map((g) => g.group_id)
+    )
   }
 
   async create(input: {
@@ -188,7 +208,7 @@ export class Accounts {
         'INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
       )
       .run(tokenHash(token), row.id, t, t + this.sessionDays * 864e5)
-    return { token, user: toUser(row) }
+    return { token, user: this.user(row) }
   }
 
   /** The active user of a session token or an API token, or null. */
@@ -201,7 +221,7 @@ export class Accounts {
          WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`
       )
       .get(hash, this.now()) as UserRow | undefined
-    if (row) return toUser(row)
+    if (row) return this.user(row)
     if (!token.startsWith(API_TOKEN_PREFIX)) return null
     const api = this.db
       .prepare(
@@ -213,7 +233,7 @@ export class Accounts {
     this.db
       .prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?')
       .run(this.now(), api.token_id)
-    return toUser(api)
+    return this.user(api)
   }
 
   // ---------------------------------------------------------------------------

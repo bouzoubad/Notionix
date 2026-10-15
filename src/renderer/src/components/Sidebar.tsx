@@ -4,6 +4,7 @@ import { Logo } from './Logo'
 import { platform } from '../platform'
 import { Avatars } from './PageTopBar'
 import { TemplatesDialog } from './TemplatesDialog'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { PageIcon } from './PageIcon'
 import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
@@ -62,6 +63,7 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-brand">
         <Logo variant="wordmark" className="logo-sidebar" />
       </div>
+      {session && <WorkspaceSwitcher workspaces={session.workspaces} />}
       <div className="sidebar-actions">
         <button onClick={() => setSearchOpen(true)}>
           Rechercher <kbd>⌘K</kbd>

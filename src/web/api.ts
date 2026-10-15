@@ -63,7 +63,8 @@ export const webApi: NotionixApi = {
     restoreVersion: (id, versionId) => rpc('pages.restoreVersion', id, versionId)
   },
   people: {
-    list: () => rpc('people.list')
+    list: () => rpc('people.list'),
+    groups: () => rpc('people.groups')
   },
   comments: {
     list: (pageId) => rpc('comments.list', pageId),

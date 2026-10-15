@@ -3663,3 +3663,35 @@ button:focus:not(:focus-visible) {
   justify-content: space-between;
   gap: 8px;
 }
+
+/* Workspace switcher, at the top of the sidebar (server) */
+.workspace-switcher {
+  position: relative;
+  padding: 0 8px 6px;
+}
+.workspace-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  font-weight: 600;
+  text-align: left;
+}
+.workspace-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-caret,
+.workspace-check {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+.workspace-menu .menu-item {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}

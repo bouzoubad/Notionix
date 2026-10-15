@@ -30,7 +30,8 @@ const api: NotionixApi = {
     restoreVersion: (id, versionId) => call('pages:restoreVersion', id, versionId)
   },
   people: {
-    list: () => call('people:list')
+    list: () => call('people:list'),
+    groups: async () => []
   },
   comments: {
     list: (pageId) => call('comments:list', pageId),

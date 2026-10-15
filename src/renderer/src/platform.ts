@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { Extensions } from '@tiptap/core'
-import type { SessionUser } from '../../shared/collab'
+import type { SessionUser, WorkspaceInfo } from '../../shared/collab'
 import { atLeast, type PageSummary } from '../../shared/types'
 
 /** A page opened for editing together: its editor extensions, and how to close it. */
@@ -36,6 +36,12 @@ export interface ServerSession {
   Settings: ComponentType<{ onClose: () => void }>
   /** Bugs and ideas sent to the administrators; `focus` shows one first */
   Feedback: ComponentType<{ onClose: () => void; focus: string | null }>
+  /** The workspaces this person can open, and the one open now */
+  workspaces: {
+    current: string
+    list: () => Promise<WorkspaceInfo[]>
+    switchTo: (id: string) => void
+  }
 }
 
 /**

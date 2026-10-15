@@ -22,6 +22,7 @@ export function ShareMenu({
   onClose: () => void
 }): React.JSX.Element {
   const people = useStore((s) => s.people)
+  const groups = useStore((s) => s.groups)
   const load = useStore((s) => s.load)
   const showNotice = useStore((s) => s.showNotice)
   const [shares, setShares] = useState<PageShare[] | null>(null)
@@ -49,12 +50,15 @@ export function ShareMenu({
     }
   }
   const nameOf = (id: string): string => {
+    const g = groups.find((x) => x.id === id)
+    if (g) return `👥 ${g.name} (${g.memberIds.length})`
     const p = people.find((x) => x.id === id)
     return p ? `${p.name}${p.id === me ? ' (vous)' : ''}` : 'Compte supprimé'
   }
   const candidates = people.filter(
     (p) => !p.disabled && p.id !== me && !shares?.some((s) => s.userId === p.id)
   )
+  const groupCandidates = groups.filter((g) => !shares?.some((s) => s.userId === g.id))
   const general: PageAccess = top && page.access === 'inherit' ? 'workspace' : page.access
 
   return (
@@ -79,7 +83,7 @@ export function ShareMenu({
             : 'Mêmes accès que la page parente, plus les personnes ci-dessous.'}
       </p>
 
-      <h5>Personnes invitées</h5>
+      <h5>Personnes et groupes invités</h5>
       {shares === null ? (
         <p className="share-hint">Chargement…</p>
       ) : shares.length === 0 ? (
@@ -120,15 +124,30 @@ export function ShareMenu({
           ))}
         </ul>
       )}
-      {manage && candidates.length > 0 && (
+      {manage && candidates.length + groupCandidates.length > 0 && (
         <div className="share-invite">
           <select value={invite} onChange={(e) => setInvite(e.target.value)}>
-            <option value="">Inviter une personne…</option>
-            {candidates.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.email})
-              </option>
-            ))}
+            <option value="">
+              {groupCandidates.length
+                ? 'Inviter une personne ou un groupe…'
+                : 'Inviter une personne…'}
+            </option>
+            {groupCandidates.length > 0 && (
+              <optgroup label="Groupes">
+                {groupCandidates.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} ({g.memberIds.length} personne{g.memberIds.length > 1 ? 's' : ''})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Personnes">
+              {candidates.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.email})
+                </option>
+              ))}
+            </optgroup>
           </select>
           <select value={level} onChange={(e) => setLevel(e.target.value as PageShare['level'])}>
             {Object.entries(LEVEL_LABELS).map(([k, label]) => (

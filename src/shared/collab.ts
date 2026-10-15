@@ -20,7 +20,23 @@ export interface ChangeNotice {
   type: 'changed'
   /** Account that made the change */
   by: string
+  /** Workspace whose pages changed */
+  workspace: string
 }
+
+/** One of the server's workspaces, each with its own pages and files. */
+export interface WorkspaceInfo {
+  id: string
+  name: string
+  icon: string | null
+  /** Its members; null for the main workspace, open to every account */
+  memberIds: string[] | null
+}
+
+/** The workspace every account belongs to, holding the pages from before workspaces. */
+export const MAIN_WORKSPACE = 'main'
+/** Header naming the workspace a request is about (the main one when absent). */
+export const WORKSPACE_HEADER = 'X-Notionix-Workspace'
 
 /** Login session as the server returns it. */
 export interface SessionUser {

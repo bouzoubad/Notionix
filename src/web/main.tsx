@@ -4,7 +4,8 @@ import './web.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { assetNameFromSrc, assetSrcFromWebPath, assetWebPath } from '../shared/assets'
-import type { SessionUser } from '../shared/collab'
+import { MAIN_WORKSPACE, type SessionUser, type WorkspaceInfo } from '../shared/collab'
+import { currentWorkspace, switchWorkspace } from './workspace'
 import { setPlatform } from '../renderer/src/platform'
 import { webApi } from './api'
 import { json, ServerError, whenSignedOut } from './http'
@@ -17,6 +18,12 @@ const root = createRoot(document.getElementById('root')!)
 
 /** Loads the app once signed in; the app's modules read `window.api` when loaded. */
 async function startApp(user: SessionUser): Promise<void> {
+  // A workspace one no longer belongs to (or deleted): back to the main one.
+  const { workspaces } = await json<{ workspaces: WorkspaceInfo[] }>('/api/workspaces')
+  if (!workspaces.some((w) => w.id === currentWorkspace())) {
+    switchWorkspace(MAIN_WORKSPACE)
+    return
+  }
   window.api = webApi
   const { useStore } = await import('../renderer/src/store')
   setPlatform({

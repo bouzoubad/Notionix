@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SessionUser } from '../shared/collab'
 import { json } from './http'
+import { Groups, Workspaces } from './TeamSettings'
 
 type Role = SessionUser['role']
 
@@ -27,7 +28,7 @@ export function SettingsDialog({
   user: SessionUser
   onClose: () => void
 }): React.JSX.Element {
-  const [tab, setTab] = useState<'me' | 'accounts' | 'tokens'>(
+  const [tab, setTab] = useState<'me' | 'accounts' | 'groups' | 'workspaces' | 'tokens'>(
     user.role === 'admin' ? 'accounts' : 'me'
   )
   return (
@@ -43,6 +44,19 @@ export function SettingsDialog({
               Comptes de l’équipe
             </button>
           )}
+          {user.role === 'admin' && (
+            <button className={tab === 'groups' ? 'active' : ''} onClick={() => setTab('groups')}>
+              Groupes
+            </button>
+          )}
+          {user.role === 'admin' && (
+            <button
+              className={tab === 'workspaces' ? 'active' : ''}
+              onClick={() => setTab('workspaces')}
+            >
+              Espaces de travail
+            </button>
+          )}
           <button className={tab === 'me' ? 'active' : ''} onClick={() => setTab('me')}>
             Mon compte
           </button>
@@ -53,6 +67,10 @@ export function SettingsDialog({
         <div className="settings-body">
           {tab === 'accounts' ? (
             <Accounts self={user} />
+          ) : tab === 'groups' ? (
+            <Groups />
+          ) : tab === 'workspaces' ? (
+            <Workspaces />
           ) : tab === 'tokens' ? (
             <Tokens />
           ) : (

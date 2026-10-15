@@ -354,6 +354,114 @@ describe('access to pages', () => {
   })
 })
 
+describe('groups and workspaces', () => {
+  it('shares a page with a group, following its members', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const carol = await createUser(admin, 'carol@example.com', 'editor')
+    const people = (await rpc<{ id: string; email: string }[]>(alice, 'people.list')).result
+    const idOf = (email: string): string => people.find((p) => p.email === email)!.id
+
+    expect((await api('/api/groups', { token: alice, json: { name: 'Produit' } })).status).toBe(403)
+    const created = await api('/api/groups', {
+      token: admin,
+      json: { name: 'Produit', memberIds: [idOf('bob@example.com'), 'inconnu'] }
+    })
+    expect(created.status).toBe(201)
+    const group = created.body.group as { id: string; memberIds: string[] }
+    expect(group.memberIds).toEqual([idOf('bob@example.com')])
+
+    const secret = (await rpc<Page>(alice, 'pages.create', null, 'restricted')).result
+    expect((await rpc(alice, 'pages.setShare', secret.id, group.id, 'edit')).status).toBe(200)
+    expect((await rpc<Page>(bob, 'pages.get', secret.id)).result.level).toBe('edit')
+    expect((await rpc(carol, 'pages.get', secret.id)).status).toBe(400)
+    // Bob heard about it.
+    expect((await rpc<unknown[]>(bob, 'inbox.list')).result).toHaveLength(1)
+
+    // Members change: the access follows.
+    await api(`/api/groups/${group.id}`, {
+      token: admin,
+      method: 'PATCH',
+      json: { memberIds: [idOf('carol@example.com')] }
+    })
+    expect((await rpc(bob, 'pages.get', secret.id)).status).toBe(400)
+    expect((await rpc<Page>(carol, 'pages.get', secret.id)).result.level).toBe('edit')
+
+    // Deleting the group ends its shares.
+    await api(`/api/groups/${group.id}`, { token: admin, method: 'DELETE' })
+    expect((await rpc(carol, 'pages.get', secret.id)).status).toBe(400)
+    expect((await rpc<unknown[]>(alice, 'pages.shares', secret.id)).result).toEqual([])
+  })
+
+  it('keeps the pages of each workspace apart, open to its members', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const people = (await rpc<{ id: string; email: string }[]>(admin, 'people.list')).result
+    const idOf = (email: string): string => people.find((p) => p.email === email)!.id
+
+    const created = await api('/api/workspaces', {
+      token: admin,
+      json: { name: 'Projet X', icon: '🚀', memberIds: [idOf('alice@example.com')] }
+    })
+    expect(created.status).toBe(201)
+    const ws = (created.body.workspace as { id: string }).id
+    const inWs = { 'X-Notionix-Workspace': ws }
+    const wsRpc = async <T>(token: string, method: string, ...args: unknown[]) => {
+      const r = await api('/api/rpc', { token, headers: inWs, json: { method, args } })
+      return { status: r.status, result: r.body.result as T }
+    }
+
+    const ids = async (token: string): Promise<string[]> =>
+      ((await api('/api/workspaces', { token })).body.workspaces as { id: string }[]).map(
+        (w) => w.id
+      )
+    expect(await ids(alice)).toEqual(['main', ws])
+    expect(await ids(bob)).toEqual(['main'])
+
+    const page = (await wsRpc<Page>(alice, 'pages.create', null)).result
+    await wsRpc(alice, 'pages.update', page.id, { title: 'Plan secret' })
+    expect((await wsRpc<PageSummary[]>(alice, 'pages.list')).result.map((p) => p.id)).toEqual([
+      page.id
+    ])
+    // Not in the main workspace, and closed to non-members.
+    expect((await rpc<PageSummary[]>(alice, 'pages.list')).result).toEqual([])
+    expect((await wsRpc(bob, 'pages.list')).status).toBe(404)
+    // People of the workspace: its members (and the administrators).
+    expect(
+      (await wsRpc<{ email: string }[]>(alice, 'people.list')).result.map((p) => p.email).sort()
+    ).toEqual([ADMIN.email, 'alice@example.com'])
+
+    // Its shared document is found, for members only.
+    const doc = connect(`page:${page.id}`, alice)
+    await doc.synced
+    const intruder = connect(`page:${page.id}`, bob)
+    await until(() => intruder.failures.length > 0)
+    doc.provider.destroy()
+    intruder.provider.destroy()
+
+    // Images are stored in the workspace and served to its members.
+    const saved = await call('/api/assets?name=a.png', { token: alice, headers: inWs, body: PNG })
+    const { src } = (await saved.json()) as { src: string }
+    const name = src.replace('notionix-asset://file/', '')
+    expect((await call(`/api/assets/${name}`, { token: alice })).status).toBe(200)
+    expect((await call(`/api/assets/${name}`, { token: bob })).status).toBe(404)
+
+    // Adding bob as a member opens it to him.
+    await api(`/api/workspaces/${ws}`, {
+      token: admin,
+      method: 'PATCH',
+      json: { name: 'Projet X2', memberIds: [idOf('alice@example.com'), idOf('bob@example.com')] }
+    })
+    expect((await wsRpc<PageSummary[]>(bob, 'pages.list')).result).toHaveLength(1)
+    expect((await api('/api/workspaces', { token: bob })).body.workspaces).toMatchObject([
+      { id: 'main' },
+      { id: ws, name: 'Projet X2', icon: '🚀' }
+    ])
+  })
+})
+
 describe('comments, mentions and notifications', () => {
   it('notifies mentioned people and followers, and lets each person handle their comments', async () => {
     const admin = await login(ADMIN.email, ADMIN.password)

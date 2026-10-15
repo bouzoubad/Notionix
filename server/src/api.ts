@@ -13,10 +13,12 @@ import { buildMarkdownArchive } from '../../src/core/transfer/markdownExport'
 import { buildHtmlArchive } from '../../src/core/transfer/htmlExport'
 import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
 import type { Workspace } from './workspace'
+import { WorkspaceError, type Workspaces } from './workspaces'
+import { GroupError, type Groups } from './groups'
 import { PublicPages } from './publicPages'
 import { PublicForms } from './publicForms'
 import { FeedbackError, FeedbackRepository } from './feedback'
-import { FEEDBACK_STATUS_LABELS } from '../../src/shared/collab'
+import { FEEDBACK_STATUS_LABELS, MAIN_WORKSPACE, WORKSPACE_HEADER } from '../../src/shared/collab'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -101,6 +103,8 @@ export function cookieToken(header: string | undefined | null): string | null {
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+const strings = (v: unknown): string[] | undefined =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : undefined
 
 /** HTTPS directly, or behind a reverse proxy (IIS) that says so. */
 const isHttps = (req: IncomingMessage): boolean =>
@@ -123,8 +127,8 @@ const sessionCookie = (req: IncomingMessage, token: string, maxAge: number): str
 export interface CollabHooks {
   /** Writes the content of pages being edited to the workspace before it is read */
   flush: () => void
-  /** Announces a change of pages or databases to every client */
-  changed: (by: User) => void
+  /** Announces a change of pages or databases of a workspace to every client */
+  changed: (by: User, workspace: string) => void
   /** Replaces the content of a page's shared document (restoring a saved state) */
   replaceContent: (pageId: string, content: string, user: User) => Promise<void>
   /** Tells these people their inbox changed */
@@ -133,7 +137,8 @@ export interface CollabHooks {
 
 export interface ApiOptions {
   accounts: Accounts
-  workspace: Workspace
+  workspaces: Workspaces
+  groups: Groups
   collab: CollabHooks
   sessionDays: number
   throttle?: LoginThrottle
@@ -146,7 +151,8 @@ export interface ApiOptions {
  */
 export function createApi({
   accounts,
-  workspace,
+  workspaces,
+  groups,
   collab,
   sessionDays,
   throttle = new LoginThrottle()
@@ -163,10 +169,40 @@ export function createApi({
     return user
   }
   const editors: Role[] = ['admin', 'editor']
-  const members = (): User[] => accounts.list()
-  const publicPages = new PublicPages(workspace)
   const feedback = new FeedbackRepository(accounts.db)
-  const publicForms = new PublicForms(workspace)
+  // Public links are found in whichever workspace issued them.
+  const publicPages = new Map<string, PublicPages>()
+  const publicForms = new Map<string, PublicForms>()
+  const published = (token: string): { id: string; pages: PublicPages } | null => {
+    for (const { id, workspace } of workspaces.all()) {
+      let pages = publicPages.get(id)
+      if (!pages) publicPages.set(id, (pages = new PublicPages(workspace)))
+      if (workspace.pages.findByPublicToken(token) !== null) return { id, pages }
+    }
+    return null
+  }
+  const form = (token: string): { id: string; forms: PublicForms } | null => {
+    for (const { id, workspace } of workspaces.all()) {
+      let forms = publicForms.get(id)
+      if (!forms) publicForms.set(id, (forms = new PublicForms(workspace)))
+      if (forms.form(token)) return { id, forms }
+    }
+    return null
+  }
+  /** The workspace a request is about, which its caller must belong to. */
+  const workspaceOf = (
+    req: IncomingMessage,
+    url: URL,
+    user: User
+  ): { id: string; workspace: Workspace; members: () => User[] } => {
+    const header = req.headers[WORKSPACE_HEADER.toLowerCase()]
+    const id = (typeof header === 'string' ? header : null) ?? url.searchParams.get('workspace')
+    const wanted = id || MAIN_WORKSPACE
+    const workspace = workspaces.get(wanted)
+    if (!workspace || !workspaces.canUse(user, wanted))
+      throw new HttpError(404, 'Espace de travail introuvable.')
+    return { id: wanted, workspace, members: () => workspaces.members(wanted, accounts.list()) }
+  }
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://localhost')
@@ -179,12 +215,13 @@ export function createApi({
       } else if (path.startsWith('/api/form/')) {
         // Public forms: no session, the link is the key.
         const token = decodeURIComponent(path.slice('/api/form/'.length))
+        const found = form(token)
         if (method === 'GET') {
-          const form = publicForms.form(token)
-          if (!form) throw new HttpError(404, 'Formulaire introuvable ou plus partagé.')
-          send(res, 200, { form })
+          if (!found) throw new HttpError(404, 'Formulaire introuvable ou plus partagé.')
+          send(res, 200, { form: found.forms.form(token) })
         } else if (method === 'POST') {
-          const result = publicForms.answer(
+          if (!found) throw new HttpError(404, 'Formulaire introuvable ou plus partagé.')
+          const result = found.forms.answer(
             token,
             await readJson(req),
             req.socket.remoteAddress ?? ''
@@ -193,24 +230,31 @@ export function createApi({
             throw new HttpError(404, 'Formulaire introuvable ou plus partagé.')
           if (result === 'busy')
             throw new HttpError(429, 'Trop de réponses. Réessayez dans une minute.')
-          collab.changed({
-            id: 'form',
-            email: '',
-            name: 'Formulaire public',
-            role: 'guest',
-            disabled: false,
-            createdAt: 0
-          })
+          collab.changed(
+            {
+              id: 'form',
+              email: '',
+              name: 'Formulaire public',
+              role: 'guest',
+              disabled: false,
+              createdAt: 0,
+              groups: []
+            },
+            found.id
+          )
           send(res, 201, { ok: true })
         } else throw new HttpError(405, 'Méthode non autorisée.')
       } else if (path.startsWith('/api/public/') && (method === 'GET' || method === 'HEAD')) {
         // Published pages: no session, the link is the key.
         const [token, kind, rest] = path.slice('/api/public/'.length).split('/')
         collab.flush()
+        const found = published(token)
+        if (!found) throw new HttpError(404, 'Page introuvable ou plus publiée.')
+        const publicPages = found.pages
         if (kind === 'assets' && rest) {
           const name = decodeURIComponent(rest)
           if (!publicPages.servesAsset(token, name)) throw new HttpError(404, 'Introuvable.')
-          const asset = await workspace.assets.load(name)
+          const asset = await workspaces.get(found.id)!.assets.load(name)
           if (!asset) throw new HttpError(404, 'Introuvable.')
           res.writeHead(200, {
             'Content-Type': asset.type,
@@ -267,7 +311,8 @@ export function createApi({
         const admins = accounts
           .list()
           .filter((u) => u.role === 'admin' && !u.disabled && u.id !== user.id)
-        const sent = workspace.team.notify(
+        // Notifications about feedback live in the main workspace's inbox.
+        const sent = workspaces.main.team.notify(
           admins.map((a) => a.id),
           {
             kind: 'feedback',
@@ -294,7 +339,7 @@ export function createApi({
             item.userId &&
             (before.status !== item.status || before.reply !== item.reply)
           ) {
-            const sent = workspace.team.notify([item.userId], {
+            const sent = workspaces.main.team.notify([item.userId], {
               kind: 'feedback',
               pageId: null,
               actorId: admin.id,
@@ -339,24 +384,80 @@ export function createApi({
           disabled: typeof body.disabled === 'boolean' ? body.disabled : undefined
         })
         send(res, 200, { user })
+      } else if (path === '/api/groups' && method === 'GET') {
+        requireUser(req)
+        send(res, 200, { groups: groups.list() })
+      } else if (path === '/api/groups' && method === 'POST') {
+        requireUser(req, ['admin'])
+        const body = await readJson(req)
+        send(res, 201, { group: groups.create(str(body.name) ?? '', strings(body.memberIds)) })
+      } else if (path.startsWith('/api/groups/') && (method === 'PATCH' || method === 'DELETE')) {
+        const admin = requireUser(req, ['admin'])
+        const id = decodeURIComponent(path.slice('/api/groups/'.length))
+        if (method === 'DELETE') {
+          groups.remove(id)
+          // Its shares go with it, in every workspace.
+          for (const { id: ws, workspace } of workspaces.all()) {
+            workspace.pages.removeShareTarget(id)
+            collab.changed(admin, ws)
+          }
+          send(res, 200, { ok: true })
+        } else {
+          const body = await readJson(req)
+          const group = groups.update(id, {
+            name: str(body.name),
+            memberIds: strings(body.memberIds)
+          })
+          for (const { id: ws } of workspaces.all()) collab.changed(admin, ws)
+          send(res, 200, { group })
+        }
+      } else if (path === '/api/workspaces' && method === 'GET') {
+        const user = requireUser(req)
+        send(res, 200, { workspaces: workspaces.forUser(user) })
+      } else if (path === '/api/workspaces' && method === 'POST') {
+        requireUser(req, ['admin'])
+        const body = await readJson(req)
+        const created = workspaces.create(
+          str(body.name) ?? '',
+          str(body.icon) ?? null,
+          strings(body.memberIds) ?? []
+        )
+        send(res, 201, { workspace: created })
+      } else if (path.startsWith('/api/workspaces/') && method === 'PATCH') {
+        requireUser(req, ['admin'])
+        const body = await readJson(req)
+        const updated = workspaces.update(
+          decodeURIComponent(path.slice('/api/workspaces/'.length)),
+          {
+            name: str(body.name),
+            icon: body.icon === null ? null : str(body.icon),
+            memberIds: strings(body.memberIds)
+          }
+        )
+        send(res, 200, { workspace: updated })
       } else if (path === '/api/rpc' && method === 'POST') {
         const user = requireUser(req)
+        const { id: wsId, workspace, members } = workspaceOf(req, url, user)
         const body = await readJson(req)
         const call = resolveCall(str(body.method) ?? '', body.args ?? [])
         if (call === null) throw new HttpError(404, 'Opération inconnue.')
         if (call.readsContent) collab.flush()
         let result: unknown
         try {
-          result = await runCall(call, new CallContext(workspace, user, members, collab))
+          result = await runCall(
+            call,
+            new CallContext(workspace, user, members, collab, () => groups.list())
+          )
         } catch (e) {
           if (e instanceof RpcError) throw e
           if (e instanceof ForbiddenError) throw new HttpError(403, e.message)
           throw new HttpError(400, e instanceof Error ? e.message : String(e))
         }
-        if (call.method.write) collab.changed(user)
+        if (call.method.write) collab.changed(user, wsId)
         send(res, 200, { result: result ?? null })
       } else if (path === '/api/transfer/import' && method === 'POST') {
         const user = requireUser(req, editors)
+        const { id: wsId, workspace } = workspaceOf(req, url, user)
         const dir = await mkdtemp(join(tmpdir(), 'notionix-upload-'))
         try {
           const file = join(dir, 'export.zip')
@@ -366,13 +467,14 @@ export function createApi({
           const summary = await importNotionExport(workspace.pages, file, workspace.assets).finally(
             () => (workspace.pages.actor = null)
           )
-          collab.changed(user)
+          collab.changed(user, wsId)
           send(res, 200, { result: summary })
         } finally {
           await rm(dir, { recursive: true, force: true })
         }
       } else if (path === '/api/transfer/export' && method === 'GET') {
         const user = requireUser(req)
+        const { workspace, members } = workspaceOf(req, url, user)
         collab.flush()
         const page = url.searchParams.get('page')
         // Only the pages the person can read are exported.
@@ -407,7 +509,7 @@ export function createApi({
         res.end(archive.bytes)
       } else if (path === '/api/assets' && method === 'POST') {
         // The server names the image: the client needs no hashing (unavailable over plain HTTP).
-        requireUser(req, editors)
+        const { workspace } = workspaceOf(req, url, requireUser(req, editors))
         const hint = url.searchParams.get('name') ?? 'image'
         const file = url.searchParams.get('file') === '1'
         let src: string
@@ -423,7 +525,7 @@ export function createApi({
       } else if (path.startsWith('/api/assets/')) {
         const name = decodeURIComponent(path.slice('/api/assets/'.length))
         if (method === 'PUT') {
-          requireUser(req, editors)
+          const { workspace } = workspaceOf(req, url, requireUser(req, editors))
           try {
             await workspace.assets.put(name, await readBody(req, MAX_FILE_BYTES))
           } catch (e) {
@@ -432,8 +534,13 @@ export function createApi({
           }
           send(res, 200, { ok: true })
         } else if (method === 'GET' || method === 'HEAD') {
-          requireUser(req)
-          const asset = await workspace.assets.load(name)
+          // Shown by <img>, without the workspace header: any of the person's workspaces.
+          const user = requireUser(req)
+          let asset: Awaited<ReturnType<Workspace['assets']['load']>> = null
+          for (const info of workspaces.forUser(user)) {
+            asset = await workspaces.get(info.id)!.assets.load(name)
+            if (asset) break
+          }
           if (!asset) throw new HttpError(404, 'Image introuvable.')
           // Shown in the page (images, media, PDF) unless asked as a download.
           const download = url.searchParams.get('download')
@@ -462,7 +569,11 @@ export function createApi({
         send(res, e.status, { error: e.message })
       } else if (e instanceof RpcError) {
         send(res, 400, { error: e.message })
-      } else if (e instanceof FeedbackError) {
+      } else if (
+        e instanceof FeedbackError ||
+        e instanceof GroupError ||
+        e instanceof WorkspaceError
+      ) {
         send(res, 400, { error: e.message })
       } else if (e instanceof ForbiddenError) {
         send(res, 403, { error: e.message })

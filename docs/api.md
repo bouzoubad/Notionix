@@ -23,33 +23,36 @@ Content-Type: application/json
 { "method": "pages.list", "args": [] }
 ```
 
+Les opérations portent sur l'espace de travail principal ; pour un autre espace, ajoutez l'en-tête `X-Notionix-Workspace: <id de l'espace>` (liste : `GET /api/workspaces`). Un espace dont on n'est pas membre répond 404.
+
 Réponse : `{ "result": … }`, ou `{ "error": "…" }` avec un code HTTP 400 (argument invalide, page introuvable), 401 (jeton invalide) ou 403 (droits insuffisants).
 
-| Méthode                                                                                   | Arguments                                                    | Résultat                                                               |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `pages.list`                                                                              | —                                                            | pages visibles (titre, icône, parent, droits…)                         |
-| `pages.get`                                                                               | `id`                                                         | page avec son contenu (JSON ProseMirror)                               |
-| `pages.create`                                                                            | `parentId \| null`, `access?` (`workspace`, `restricted`)    | nouvelle page                                                          |
-| `pages.createWith`                                                                        | `parentId \| null`, `{ title?, icon?, content?, access? }`   | nouvelle page avec son contenu                                         |
-| `pages.update`                                                                            | `id`, `{ title?, icon?, cover?, favorite?, options? }`       | page mise à jour                                                       |
-| `pages.move`                                                                              | `id`, `parentId \| null`, `index`                            | —                                                                      |
-| `pages.trash`, `pages.restore`, `pages.deleteForever`                                     | `id`                                                         | —                                                                      |
-| `pages.duplicate`                                                                         | `id`                                                         | copie                                                                  |
-| `pages.search`                                                                            | `texte`                                                      | résultats                                                              |
-| `pages.setAccess`                                                                         | `id`, `inherit \| workspace \| restricted`                   | page                                                                   |
-| `pages.shares`, `pages.setShare`                                                          | `id` (, `userId`, `read \| comment \| edit \| full \| null`) | partages                                                               |
-| `pages.publish`                                                                           | `id`, `true \| false`                                        | page (avec `publicToken`)                                              |
-| `pages.versions`, `pages.version`, `pages.restoreVersion`                                 | `id` / `versionId`                                           | historique                                                             |
-| `pages.backlinks`                                                                         | `id`                                                         | pages qui y renvoient                                                  |
-| `people.list`                                                                             | —                                                            | personnes de l'espace                                                  |
-| `databases.create`                                                                        | `parentId \| null`                                           | base                                                                   |
-| `databases.get`                                                                           | `id`                                                         | schéma et lignes (formules et rollups calculés)                        |
-| `databases.updateSchema`                                                                  | `id`, `schema`, `base?`                                      | schéma (fusionné avec les changements des autres si `base` est fourni) |
-| `databases.createRow`                                                                     | `id`, `{ title?, properties?, templateId? }`                 | ligne                                                                  |
-| `databases.updateRow`                                                                     | `rowId`, `{ <propriété>: valeur, title? }`                   | ligne                                                                  |
-| `databases.linkRelation`, `databases.enableNesting`                                       | `id`, `propertyId` / `subItems \| dependencies`              | schéma                                                                 |
-| `comments.list`, `comments.add`, `comments.update`, `comments.remove`, `comments.resolve` | voir l'app                                                   | commentaires                                                           |
-| `inbox.list`, `inbox.markRead`, `inbox.activity`                                          | — / `ids \| null`                                            | notifications, activité                                                |
+| Méthode                                                                                   | Arguments                                                                    | Résultat                                                               |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `pages.list`                                                                              | —                                                                            | pages visibles (titre, icône, parent, droits…)                         |
+| `pages.get`                                                                               | `id`                                                                         | page avec son contenu (JSON ProseMirror)                               |
+| `pages.create`                                                                            | `parentId \| null`, `access?` (`workspace`, `restricted`)                    | nouvelle page                                                          |
+| `pages.createWith`                                                                        | `parentId \| null`, `{ title?, icon?, content?, access? }`                   | nouvelle page avec son contenu                                         |
+| `pages.update`                                                                            | `id`, `{ title?, icon?, cover?, favorite?, options? }`                       | page mise à jour                                                       |
+| `pages.move`                                                                              | `id`, `parentId \| null`, `index`                                            | —                                                                      |
+| `pages.trash`, `pages.restore`, `pages.deleteForever`                                     | `id`                                                                         | —                                                                      |
+| `pages.duplicate`                                                                         | `id`                                                                         | copie                                                                  |
+| `pages.search`                                                                            | `texte`, `{ titleOnly?, createdBy?, within?, editedAfter?, kind? }?`         | résultats                                                              |
+| `pages.view`, `pages.stats`                                                               | `id`                                                                         | — / vues (total, personnes, 28 derniers jours)                         |
+| `pages.setAccess`                                                                         | `id`, `inherit \| workspace \| restricted`                                   | page                                                                   |
+| `pages.shares`, `pages.setShare`                                                          | `id` (, `userId` ou id de groupe, `read \| comment \| edit \| full \| null`) | partages                                                               |
+| `pages.publish`                                                                           | `id`, `true \| false`                                                        | page (avec `publicToken`)                                              |
+| `pages.versions`, `pages.version`, `pages.restoreVersion`                                 | `id` / `versionId`                                                           | historique                                                             |
+| `pages.backlinks`                                                                         | `id`                                                                         | pages qui y renvoient                                                  |
+| `people.list`, `people.groups`                                                            | —                                                                            | personnes de l'espace, groupes                                         |
+| `databases.create`                                                                        | `parentId \| null`                                                           | base                                                                   |
+| `databases.get`                                                                           | `id`                                                                         | schéma et lignes (formules et rollups calculés)                        |
+| `databases.updateSchema`                                                                  | `id`, `schema`, `base?`                                                      | schéma (fusionné avec les changements des autres si `base` est fourni) |
+| `databases.createRow`                                                                     | `id`, `{ title?, properties?, templateId? }`                                 | ligne                                                                  |
+| `databases.updateRow`                                                                     | `rowId`, `{ <propriété>: valeur, title? }`                                   | ligne                                                                  |
+| `databases.linkRelation`, `databases.enableNesting`                                       | `id`, `propertyId` / `subItems \| dependencies`                              | schéma                                                                 |
+| `comments.list`, `comments.add`, `comments.update`, `comments.remove`, `comments.resolve` | voir l'app                                                                   | commentaires                                                           |
+| `inbox.list`, `inbox.markRead`, `inbox.activity`                                          | — / `ids \| null`                                                            | notifications, activité                                                |
 
 Le contenu d'une page existante se modifie par l'édition en temps réel (document partagé) ; l'API le fixe seulement à la création (`pages.createWith`), où il est vérifié contre le schéma de l'éditeur.
 
@@ -68,3 +71,5 @@ curl -s https://notionix.entreprise.local/api/rpc \
 - `POST /api/transfer/import` (corps : le .zip d'un export Notion) : import.
 - `POST /api/assets?name=<nom>&file=1` (corps : le fichier) : stocke une image ou un fichier, renvoie `{ "src" }` à placer dans une page.
 - `GET /api/public/<lien>` : une page publiée, sans authentification.
+- `GET /api/workspaces` : les espaces accessibles ; `POST /api/workspaces`, `PATCH /api/workspaces/<id>` (`{ name?, icon?, memberIds? }`) : administrateurs.
+- `GET /api/groups` : les groupes ; `POST /api/groups`, `PATCH`/`DELETE /api/groups/<id>` (`{ name?, memberIds? }`) : administrateurs.

@@ -6,11 +6,13 @@ import {
   WORKSPACE_DOCUMENT,
   pageDocumentName,
   type ChangeNotice,
-  type SessionUser
+  type SessionUser,
+  type WorkspaceInfo
 } from '../shared/collab'
 import type { Presence, ServerSession } from '../renderer/src/platform'
-import { request } from './http'
+import { json, request } from './http'
 import { inboxChanged } from './api'
+import { currentWorkspace, switchWorkspace } from './workspace'
 
 const COLORS = ['#e03e3e', '#d9730d', '#0f7b6c', '#0b6e99', '#6940a5', '#ad1a72', '#64473a']
 
@@ -50,7 +52,7 @@ export function connect(
         return
       }
       if (notice?.type === 'inbox') return inboxChanged()
-      if (notice?.type !== 'changed') return
+      if (notice?.type !== 'changed' || notice.workspace !== currentWorkspace()) return
       // Several changes in a row are reloaded once.
       window.clearTimeout(timer)
       timer = window.setTimeout(onChange, 150)
@@ -95,6 +97,11 @@ export function connect(
     user,
     Settings,
     Feedback,
+    workspaces: {
+      current: currentWorkspace(),
+      list: async () => (await json<{ workspaces: WorkspaceInfo[] }>('/api/workspaces')).workspaces,
+      switchTo: switchWorkspace
+    },
     setPage: (pageId) => workspace.setAwarenessField('pageId', pageId),
     onPresence: (listener) => {
       presenceListeners.add(listener)

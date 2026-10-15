@@ -100,7 +100,17 @@ export function connect(
     workspaces: {
       current: currentWorkspace(),
       list: async () => (await json<{ workspaces: WorkspaceInfo[] }>('/api/workspaces')).workspaces,
-      switchTo: switchWorkspace
+      switchTo: switchWorkspace,
+      locate: async (pageId) => {
+        try {
+          const { workspace } = await json<{ workspace: string }>(
+            `/api/locate/${encodeURIComponent(pageId)}`
+          )
+          return workspace
+        } catch {
+          return null
+        }
+      }
     },
     setPage: (pageId) => workspace.setAwarenessField('pageId', pageId),
     onPresence: (listener) => {

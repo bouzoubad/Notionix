@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ActivityItem, InboxItem } from '../../../shared/types'
-import { useStore } from '../store'
+import { pendComments, useStore } from '../store'
 import { platform } from '../platform'
 import { ago } from '../time'
 import { iconText } from '../icons'
@@ -53,6 +53,12 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
     if (item.kind === 'feedback') {
       useStore.getState().openFeedback(item.ref)
       onClose()
+      return
+    }
+    if (item.workspace && item.pageId) {
+      // In another workspace: it opens on the page (and the discussion).
+      if (item.ref) pendComments(item.pageId, item.ref)
+      platform().session?.workspaces.switchTo(item.workspace.id, item.pageId)
       return
     }
     if (item.pageId) {
@@ -111,7 +117,11 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
                   <span className="inbox-text">
                     <span>{item.text}</span>
                     <small>
-                      {item.pageId ? `${pageLabel(item.pageId)} · ` : ''}
+                      {item.workspace
+                        ? `${item.workspace.name} › ${item.workspace.pageTitle ?? ''}${item.workspace.pageTitle !== null ? ' · ' : ''}`
+                        : item.pageId
+                          ? `${pageLabel(item.pageId)} · `
+                          : ''}
                       {ago(item.createdAt)}
                     </small>
                   </span>

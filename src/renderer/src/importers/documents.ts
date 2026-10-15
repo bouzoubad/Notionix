@@ -3,7 +3,7 @@ import { DOMParser as SchemaParser, type Schema } from '@tiptap/pm/model'
 import { createLowlight } from 'lowlight'
 import MarkdownIt from 'markdown-it'
 import { unzipSync } from 'fflate'
-import { createDocumentExtensions } from '../../../shared/editorExtensions'
+import { createDocumentExtensions, pageLinkHref } from '../../../shared/editorExtensions'
 import type { PageId } from '../../../shared/types'
 import { md5Hex } from './md5'
 
@@ -11,6 +11,8 @@ import { md5Hex } from './md5'
 export interface DocumentImportSummary {
   pages: number
   images: number
+  /** Attached files (PDF, documents…) kept as file blocks */
+  files: number
   /** Images or attachments not taken (unreadable, absent, unsupported) */
   missing: number
   /** Files not recognised */
@@ -43,10 +45,30 @@ function base64Bytes(data: string): Uint8Array {
 /** Resolves an image of the source to a stored src; null drops it. */
 type ImageResolver = (src: string) => Promise<string | null>
 
+/** What a link of the source points to, when it is part of the import. */
+type LinkTarget = { page: PageId } | { file: AttachedFile }
+type LinkResolver = (href: string) => Promise<LinkTarget | null>
+
+interface AttachedFile {
+  src: string
+  name: string
+  size: number
+}
+
+/** A page id chosen before the page exists, so that earlier pages can link to it. */
+export function newPageId(): PageId {
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 class Importer {
   readonly summary: DocumentImportSummary = {
     pages: 0,
     images: 0,
+    files: 0,
     missing: 0,
     skipped: [],
     firstId: null
@@ -59,6 +81,18 @@ class Importer {
       this.summary.images += 1
       return src
     } catch {
+      return null
+    }
+  }
+
+  /** Stores an attached file; null when it is refused (counted as missing). */
+  async saveAttachment(bytes: Uint8Array, name: string): Promise<AttachedFile | null> {
+    try {
+      const src = await window.api.assets.saveFile(bytes, name)
+      this.summary.files += 1
+      return { src, name, size: bytes.length }
+    } catch {
+      this.summary.missing += 1
       return null
     }
   }
@@ -81,7 +115,11 @@ class Importer {
    * Converts HTML to the editor's document: parsed inertly, images stored,
    * then read through the editor schema, which keeps only what it knows.
    */
-  async htmlToContent(body: HTMLElement, resolve: ImageResolver): Promise<string> {
+  async htmlToContent(
+    body: HTMLElement,
+    resolve: ImageResolver,
+    resolveLink: LinkResolver = async () => null
+  ): Promise<string> {
     body
       .querySelectorAll('script, style, link, meta, iframe, object, embed, noscript, form')
       .forEach((el) => el.remove())
@@ -91,10 +129,13 @@ class Importer {
       if (stored) img.setAttribute('src', stored)
       else img.remove()
     }
-    body.querySelectorAll('a[href]').forEach((a) => {
-      if (!/^(https?:|mailto:|notionix:)/i.test(a.getAttribute('href') ?? ''))
-        a.removeAttribute('href')
-    })
+    for (const a of Array.from(body.querySelectorAll('a[href]'))) {
+      const href = a.getAttribute('href') ?? ''
+      const target = /^(https?:|mailto:)/i.test(href) ? null : await resolveLink(href)
+      if (target && 'page' in target) a.setAttribute('href', pageLinkHref(target.page))
+      else if (target) a.replaceWith(fileBlock(body.ownerDocument, target.file))
+      else if (!/^(https?:|mailto:)/i.test(href)) a.removeAttribute('href')
+    }
     const doc = SchemaParser.fromSchema(documentSchema()).parse(body)
     return JSON.stringify(doc.toJSON())
   }
@@ -103,9 +144,11 @@ class Importer {
     parentId: PageId | null,
     title: string,
     content: string,
-    icon?: string
+    icon?: string,
+    id?: PageId
   ): Promise<PageId> {
     const page = await window.api.pages.createWith(parentId, {
+      ...(id ? { id } : {}),
       title: title.slice(0, 500),
       content,
       ...(icon ? { icon } : {})
@@ -121,7 +164,9 @@ class Importer {
     html: string,
     fallbackTitle: string,
     resolve: ImageResolver = async () => null,
-    pick?: (doc: Document) => { title: string | null; body: HTMLElement } | null
+    pick?: (doc: Document) => { title: string | null; body: HTMLElement } | null,
+    resolveLink?: LinkResolver,
+    id?: PageId
   ): Promise<PageId> {
     const doc = new DOMParser().parseFromString(html, 'text/html')
     const picked = pick?.(doc)
@@ -135,7 +180,9 @@ class Importer {
     return this.createPage(
       parentId,
       title || fallbackTitle,
-      await this.htmlToContent(body, resolve)
+      await this.htmlToContent(body, resolve, resolveLink),
+      undefined,
+      id
     )
   }
 
@@ -193,15 +240,20 @@ class Importer {
         : parentId
     for (const note of notes) {
       const title = note.getElementsByTagName('title')[0]?.textContent?.trim() || 'Sans titre'
-      const resources = new Map<string, { bytes: Uint8Array; mime: string }>()
+      const resources = new Map<string, { bytes: Uint8Array; mime: string; name: string }>()
       for (const resource of Array.from(note.getElementsByTagName('resource'))) {
         const data = resource.getElementsByTagName('data')[0]?.textContent ?? ''
         const mime = resource.getElementsByTagName('mime')[0]?.textContent ?? ''
+        const name =
+          resource.getElementsByTagName('file-name')[0]?.textContent?.trim() ||
+          `fichier.${mime.split('/')[1] ?? 'bin'}`
         const bytes = base64Bytes(data)
-        resources.set(md5Hex(bytes), { bytes, mime })
+        resources.set(md5Hex(bytes), { bytes, mime, name })
       }
       const enml = note.getElementsByTagName('content')[0]?.textContent ?? ''
-      const doc = new DOMParser().parseFromString(enml, 'text/html')
+      // ENML is XML: its empty elements (<en-media/>) must be closed for the HTML parser.
+      const html = enml.replace(/<(en-media|en-todo)\b([^>]*?)\s*\/>/g, '<$1$2></$1>')
+      const doc = new DOMParser().parseFromString(html, 'text/html')
       const root = (doc.querySelector('en-note') as HTMLElement | null) ?? doc.body
       // Checkboxes: a line starting with <en-todo> becomes a to-do item.
       for (const todo of Array.from(root.querySelectorAll('en-todo'))) {
@@ -226,6 +278,11 @@ class Importer {
           const img = doc.createElement('img')
           img.setAttribute('src', `enex:${media.getAttribute('hash')}`)
           media.replaceWith(img)
+        } else if (resource) {
+          // PDF, document…: a file block, the file stored with the pages.
+          const file = await this.saveAttachment(resource.bytes, resource.name)
+          if (file) media.replaceWith(fileBlock(doc, file))
+          else media.remove()
         } else {
           this.summary.missing += 1
           media.remove()
@@ -289,23 +346,44 @@ class Importer {
       order.length > 1
         ? await this.createPage(parentId, baseName(file.name), emptyDoc(), '📚')
         : parentId
-    const created = new Map<string, PageId>()
+    // Every page has its id before any is created: links work in both directions.
+    const ids = new Map(order.map((p) => [p, newPageId()]))
+    const attachments = new Map<string, AttachedFile | null>()
     for (const path of order) {
+      const resolveLink: LinkResolver = async (href) => {
+        if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('#')) return null
+        const target = join(dirOf(path), href)
+        const page = ids.get(target)
+        if (page) return { page }
+        const bytes = entries[target]
+        if (!bytes || /\.html?$/i.test(target)) return null
+        if (!attachments.has(target))
+          attachments.set(target, await this.saveAttachment(bytes, target.split('/').pop()!))
+        const attached = attachments.get(target)
+        return attached ? { file: attached } : null
+      }
       const resolve: ImageResolver = async (src) => {
         const bytes = entries[join(dirOf(path), src)]
         return bytes ? this.saveImage(bytes, src.split('/').pop() ?? 'image') : null
       }
       const parentPath = parentOf.get(path)
-      const parent = (parentPath && created.get(parentPath)) || container
+      const parent = (parentPath && ids.get(parentPath)) || container
       const html = decoder.decode(entries[path])
-      const id = await this.htmlPage(parent, html, baseName(path), resolve, (doc) => {
-        // Confluence: the page body, and its title without the space name.
-        const main = doc.getElementById('main-content')
-        if (!main) return null
-        const title = doc.getElementById('title-text')?.textContent?.trim() ?? null
-        return { title: title?.replace(/^[^:]+ : /, '') ?? null, body: main }
-      })
-      created.set(path, id)
+      await this.htmlPage(
+        parent,
+        html,
+        baseName(path),
+        resolve,
+        (doc) => {
+          // Confluence: the page body, and its title without the space name.
+          const main = doc.getElementById('main-content')
+          if (!main) return null
+          const title = doc.getElementById('title-text')?.textContent?.trim() ?? null
+          return { title: title?.replace(/^[^:]+ : /, '') ?? null, body: main }
+        },
+        resolveLink,
+        ids.get(path)
+      )
     }
   }
 
@@ -323,6 +401,17 @@ class Importer {
     if (ext === 'txt') return this.plainText(parentId, await file.text(), file.name)
     this.summary.skipped.push(file.name)
   }
+}
+
+/** The file block of the editor, as HTML its schema reads. */
+function fileBlock(doc: Document, file: AttachedFile): HTMLElement {
+  const div = doc.createElement('div')
+  div.setAttribute('data-type', 'file')
+  div.setAttribute('data-src', file.src)
+  div.setAttribute('data-name', file.name)
+  div.setAttribute('data-size', String(file.size))
+  div.textContent = file.name
+  return div
 }
 
 const emptyDoc = (): string => JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] })

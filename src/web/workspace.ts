@@ -11,8 +11,8 @@ export function currentWorkspace(): string {
   }
 }
 
-/** Opens another workspace: the app starts again on it. */
-export function switchWorkspace(id: string): void {
+/** Opens another workspace, on one of its pages or not: the app starts again on it. */
+export function switchWorkspace(id: string, pageId: string | null = null): void {
   try {
     localStorage.setItem(KEY, id)
     // The page open and the recent pages belong to the previous workspace.
@@ -20,5 +20,5 @@ export function switchWorkspace(id: string): void {
   } catch {
     // Without storage the main workspace stays.
   }
-  location.assign('/')
+  location.assign(pageId ? `/#/page/${encodeURIComponent(pageId)}` : '/')
 }

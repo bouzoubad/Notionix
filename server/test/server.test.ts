@@ -459,6 +459,30 @@ describe('groups and workspaces', () => {
       { id: 'main' },
       { id: ws, name: 'Projet X2', icon: '🚀' }
     ])
+
+    // A link to the page finds its workspace; another account outside it does not.
+    expect((await api(`/api/locate/${page.id}`, { token: bob })).body.workspace).toBe(ws)
+    const carol = await createUser(admin, 'carol@example.com', 'editor')
+    expect((await api(`/api/locate/${page.id}`, { token: carol })).status).toBe(404)
+
+    // Notifications of every workspace reach the inbox, marked with theirs.
+    await wsRpc(alice, 'pages.setShare', page.id, idOf('bob@example.com'), 'edit')
+    const inbox = (
+      await rpc<{ id: string; workspace?: { id: string; pageTitle: string } }[]>(bob, 'inbox.list')
+    ).result
+    expect(inbox).toMatchObject([{ workspace: { id: ws, pageTitle: 'Plan secret' } }])
+    await rpc(bob, 'inbox.markRead', [inbox[0].id])
+    expect(
+      (await wsRpc<{ readAt: number | null }[]>(bob, 'inbox.list')).result[0].readAt
+    ).not.toBeNull()
+
+    // A page id chosen in advance, refused when any workspace already has it.
+    const chosen = '0b5c6a1e-2d3f-4a5b-8c7d-9e0f1a2b3c4d'
+    expect((await rpc<Page>(alice, 'pages.createWith', null, { id: chosen })).result.id).toBe(
+      chosen
+    )
+    expect((await wsRpc(alice, 'pages.createWith', null, { id: chosen })).status).toBe(400)
+    expect((await wsRpc(alice, 'pages.createWith', null, { id: page.id })).status).toBe(400)
   })
 })
 

@@ -7,6 +7,7 @@ import {
   type PageAccess,
   type PageShare,
   type PageSummary,
+  type InboxItem,
   type Person,
   type PersonGroup,
   type SearchFilters
@@ -94,6 +95,15 @@ const people = (ctx: CallContext, v: unknown): string[] => {
   return [...new Set(v.filter((x): x is string => typeof x === 'string' && known.has(x)))]
 }
 
+/** What a call can see beyond its workspace. */
+export interface ServerScope {
+  groups?: () => PersonGroup[]
+  /** Whether no workspace of the server has a page with this id */
+  pageIdFree?: (id: string) => boolean
+  /** The caller's other workspaces, each as its own call context */
+  others?: () => { id: string; name: string; ctx: CallContext }[]
+}
+
 /** What a call knows about its caller. */
 export class CallContext {
   private levels: Map<string, AccessLevel> | null = null
@@ -104,9 +114,13 @@ export class CallContext {
     /** Every account of the workspace, disabled ones included */
     readonly members: () => User[],
     readonly live: LiveDocuments = NO_LIVE,
-    /** Groups of people pages can be shared with */
-    readonly groups: () => PersonGroup[] = () => []
+    readonly server: ServerScope = {}
   ) {}
+
+  /** Groups of people pages can be shared with */
+  groups(): PersonGroup[] {
+    return this.server.groups?.() ?? []
+  }
 
   people(): Person[] {
     return this.members().map((u) => ({
@@ -241,7 +255,11 @@ const METHODS: Record<string, Method> = {
       }
       if (!canonicalDoc(doc as JsonNode)) throw new RpcError('Contenu invalide.')
     }
+    const chosen = optional(r.id, id)
+    if (chosen !== undefined && !(ctx.server.pageIdFree?.(chosen) ?? !ctx.ws.pages.get(chosen)))
+      throw new RpcError('Identifiant de page déjà utilisé.')
     const page = ctx.ws.pages.createWith(parentId, {
+      id: chosen,
       title: optional(r.title, text),
       icon: optional(r.icon, nullableText),
       content,
@@ -434,11 +452,24 @@ const METHODS: Record<string, Method> = {
     ctx.ws.team.resolveThread(first.threadId, flag === true)
   }),
 
-  'inbox.list': read((ctx) =>
-    ctx.ws.team
-      .inbox(ctx.user.id)
-      .filter((item) => item.pageId === null || ctx.level(item.pageId) !== 'none')
-  ),
+  'inbox.list': read((ctx) => {
+    const visible = (c: CallContext): InboxItem[] =>
+      c.ws.team
+        .inbox(c.user.id)
+        .filter((item) => item.pageId === null || c.level(item.pageId) !== 'none')
+    // Notifications of the other workspaces too, marked with theirs.
+    const elsewhere = (ctx.server.others?.() ?? []).flatMap(({ id: wsId, name, ctx: other }) =>
+      visible(other).map((item) => ({
+        ...item,
+        workspace: {
+          id: wsId,
+          name,
+          pageTitle: item.pageId ? other.ws.pages.summary(item.pageId).title : null
+        }
+      }))
+    )
+    return [...visible(ctx), ...elsewhere].sort((a, b) => b.createdAt - a.createdAt)
+  }),
   'inbox.markRead': read((ctx, [list]) => {
     const ids =
       list === null
@@ -449,6 +480,8 @@ const METHODS: Record<string, Method> = {
               throw new RpcError('Liste attendue.')
             })()
     ctx.ws.team.markRead(ctx.user.id, ids)
+    // Notification ids are unique: the others are found in their workspace.
+    for (const other of ctx.server.others?.() ?? []) other.ctx.ws.team.markRead(ctx.user.id, ids)
   }),
   'inbox.activity': read((ctx) =>
     ctx.ws.team

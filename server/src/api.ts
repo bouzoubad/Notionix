@@ -189,6 +189,28 @@ export function createApi({
     }
     return null
   }
+  /** A call in a workspace, which can reach the server's other workspaces. */
+  const context = (
+    wsId: string,
+    workspace: Workspace,
+    user: User,
+    members: () => User[]
+  ): CallContext =>
+    new CallContext(workspace, user, members, collab, {
+      groups: () => groups.list(),
+      pageIdFree: (id) => workspaces.findPage(id) === null,
+      others: () =>
+        workspaces
+          .forUser(user)
+          .filter((w) => w.id !== wsId)
+          .map((w) => ({
+            id: w.id,
+            name: w.name,
+            ctx: new CallContext(workspaces.get(w.id)!, user, () =>
+              workspaces.members(w.id, accounts.list())
+            )
+          }))
+    })
   /** The workspace a request is about, which its caller must belong to. */
   const workspaceOf = (
     req: IncomingMessage,
@@ -411,6 +433,17 @@ export function createApi({
           for (const { id: ws } of workspaces.all()) collab.changed(admin, ws)
           send(res, 200, { group })
         }
+      } else if (path.startsWith('/api/locate/') && method === 'GET') {
+        // The workspace of a page from a link, if the person can open it there.
+        const user = requireUser(req)
+        const pageId = decodeURIComponent(path.slice('/api/locate/'.length))
+        const found = workspaces.findPage(pageId)
+        const visible =
+          found &&
+          workspaces.canUse(user, found.id) &&
+          new CallContext(found.workspace, user, () => []).level(pageId) !== 'none'
+        if (!visible) throw new HttpError(404, 'Page introuvable.')
+        send(res, 200, { workspace: found.id })
       } else if (path === '/api/workspaces' && method === 'GET') {
         const user = requireUser(req)
         send(res, 200, { workspaces: workspaces.forUser(user) })
@@ -444,10 +477,7 @@ export function createApi({
         if (call.readsContent) collab.flush()
         let result: unknown
         try {
-          result = await runCall(
-            call,
-            new CallContext(workspace, user, members, collab, () => groups.list())
-          )
+          result = await runCall(call, context(wsId, workspace, user, members))
         } catch (e) {
           if (e instanceof RpcError) throw e
           if (e instanceof ForbiddenError) throw new HttpError(403, e.message)

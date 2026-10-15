@@ -79,6 +79,9 @@ export function parseOptions(raw: unknown): PageOptions {
   return out
 }
 
+/** Page ids are UUIDs, also when chosen by the caller. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 const VIEW_WINDOW_MS = 30 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -196,9 +199,11 @@ export class PageRepository {
   create(
     parentId: PageId | null,
     access: PageAccess = 'inherit',
-    kind: 'page' | 'synced' = 'page'
+    kind: 'page' | 'synced' = 'page',
+    id: PageId = randomUUID()
   ): Page {
-    const id = randomUUID()
+    if (!UUID.test(id)) throw new Error('Identifiant de page invalide.')
+    if (this.get(id)) throw new Error('Identifiant de page déjà utilisé.')
     const t = this.now()
     const last = this.db
       .prepare('SELECT MAX(position) AS p FROM pages WHERE parent_id IS ?')
@@ -321,7 +326,7 @@ export class PageRepository {
   /** A new page that starts with a title, icon and content. */
   createWith(parentId: PageId | null, init: PageInit): Page {
     return this.inTransaction(() => {
-      const page = this.create(parentId, init.access ?? 'inherit')
+      const page = this.create(parentId, init.access ?? 'inherit', 'page', init.id)
       this.update(page.id, {
         title: init.title,
         icon: init.icon,

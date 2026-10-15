@@ -7,7 +7,7 @@ import type {
   Person,
   PersonGroup
 } from '../../shared/types'
-import type { Presence } from './platform'
+import { platform, type Presence } from './platform'
 
 interface State {
   pages: PageSummary[]
@@ -129,8 +129,44 @@ export const pageUrl = (id: PageId): string =>
 window.addEventListener('hashchange', () => {
   const id = pageIdFromHash(location.hash)
   const state = useStore.getState()
-  if (id !== state.currentId) state.open(id)
+  if (id === state.currentId) return
+  if (id && !state.pages.some((p) => p.id === id)) void openElsewhere(id)
+  else state.open(id)
 })
+
+const PENDING_COMMENTS = 'pendingComments'
+/** A discussion to show once a page of another workspace has opened. */
+export function pendComments(pageId: PageId, threadId: string): void {
+  try {
+    sessionStorage.setItem(PENDING_COMMENTS, JSON.stringify({ pageId, threadId }))
+  } catch {
+    // the page still opens
+  }
+}
+function takePendingComments(pageId: PageId): string | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_COMMENTS)
+    if (!raw) return null
+    const pending = JSON.parse(raw) as { pageId?: unknown; threadId?: unknown }
+    if (pending.pageId !== pageId || typeof pending.threadId !== 'string') return null
+    sessionStorage.removeItem(PENDING_COMMENTS)
+    return pending.threadId
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A link to a page of another workspace (server): that workspace opens on it.
+ * Returns false when no workspace of this person holds the page.
+ */
+async function openElsewhere(id: PageId): Promise<boolean> {
+  const workspaces = platform().session?.workspaces
+  const found = workspaces ? await workspaces.locate(id) : null
+  if (!workspaces || !found || found === workspaces.current) return false
+  workspaces.switchTo(found, id)
+  return true
+}
 
 /** Pages opened lately on this device, newest first. */
 const RECENT_KEY = 'recentPages'
@@ -225,6 +261,11 @@ export const useStore = create<State>((set, get) => ({
     const { currentId } = get()
     const valid = currentId && pages.some((p) => p.id === currentId && !p.trashedAt)
     set({ pages, people, groups, currentId: valid ? currentId : null })
+    // The address names a page this workspace does not have: maybe another one does.
+    const linked = pageIdFromHash(location.hash)
+    if (linked && !pages.some((p) => p.id === linked)) void openElsewhere(linked)
+    const thread = valid ? takePendingComments(currentId) : null
+    if (thread) get().openComments(thread)
   },
   remoteChange: async () => {
     await get().load()

@@ -38,11 +38,14 @@ writeFileSync(
   '# Notes Markdown\n\n- [lien](https://example.com)\n- *point*\n'
 )
 const pngHash = createHash('md5').update(PNG).digest('hex')
+const PDF = Buffer.from('%PDF-1.4\n%%EOF\n')
+const pdfHash = createHash('md5').update(PDF).digest('hex')
 writeFileSync(
   join(tmp, 'carnet.enex'),
   `<?xml version="1.0" encoding="UTF-8"?><en-export>
-  <note><title>Courses</title><content><![CDATA[<?xml version="1.0"?><en-note><div><en-todo checked="true"/>Pain</div><div><en-todo/>Lait</div><en-media hash="${pngHash}" type="image/png"/></en-note>]]></content>
-  <resource><data encoding="base64">${PNG.toString('base64')}</data><mime>image/png</mime></resource></note>
+  <note><title>Courses</title><content><![CDATA[<?xml version="1.0"?><en-note><div><en-todo checked="true"/>Pain</div><div><en-todo/>Lait</div><en-media hash="${pngHash}" type="image/png"/><en-media hash="${pdfHash}" type="application/pdf"/></en-note>]]></content>
+  <resource><data encoding="base64">${PNG.toString('base64')}</data><mime>image/png</mime></resource>
+  <resource><data encoding="base64">${PDF.toString('base64')}</data><mime>application/pdf</mime><resource-attributes><file-name>ticket.pdf</file-name></resource-attributes></resource></note>
   <note><title>Idées</title><content><![CDATA[<en-note><p>Une idée</p></en-note>]]></content></note>
 </en-export>`
 )
@@ -54,11 +57,17 @@ writeFileSync(
     'WIKI/index.html': strToU8(
       `<ul><li><a href="Accueil_1.html">Accueil</a><ul><li><a href="Procedure_2.html">Procédure</a></li></ul></li></ul>`
     ),
-    'WIKI/Accueil_1.html': strToU8(page('Accueil', '<p>Bienvenue</p>')),
-    'WIKI/Procedure_2.html': strToU8(
-      page('Procédure', '<p>Étapes</p><img src="attachments/2/schema.png">')
+    'WIKI/Accueil_1.html': strToU8(
+      page('Accueil', '<p>Bienvenue, voir <a href="Procedure_2.html">la procédure</a></p>')
     ),
-    'WIKI/attachments/2/schema.png': PNG
+    'WIKI/Procedure_2.html': strToU8(
+      page(
+        'Procédure',
+        '<p>Étapes</p><img src="attachments/2/schema.png"><p><a href="attachments/2/guide.pdf">guide.pdf</a></p>'
+      )
+    ),
+    'WIKI/attachments/2/schema.png': PNG,
+    'WIKI/attachments/2/guide.pdf': PDF
   })
 )
 writeFileSync(join(tmp, 'icone.png'), PNG)
@@ -83,7 +92,7 @@ await (
 ).setFiles(['Réunion.docx', 'notes.md', 'carnet.enex', 'confluence.zip'].map((f) => join(tmp, f)))
 await win.locator('.import-report', { hasText: 'page(s) créée(s)' }).waitFor({ timeout: 20000 })
 const report = await win.locator('.import-report').last().innerText()
-assert.match(report, /8 page\(s\) créée\(s\), 2 image\(s\)/, report)
+assert.match(report, /8 page\(s\) créée\(s\), 2 image\(s\), 2 pièce\(s\) jointe\(s\)/, report)
 
 const pages = await win.evaluate(() => window.api.pages.list())
 const byTitle = (t) => pages.find((p) => p.title === t)
@@ -97,6 +106,14 @@ const courses = JSON.parse(
 const kinds = JSON.stringify(courses)
 assert.match(kinds, /"taskItem","attrs":\{"checked":true\}/)
 assert.match(kinds, /"type":"image"/)
+// Forward link: the parent page links to its child, created after it
+const accueil = (await win.evaluate((id) => window.api.pages.get(id), byTitle('Accueil').id))
+  .content
+assert.ok(accueil.includes(`notionix://page/${byTitle('Procédure').id}`), accueil)
+const procedure = (await win.evaluate((id) => window.api.pages.get(id), byTitle('Procédure').id))
+  .content
+assert.match(procedure, /"fileBlock".*"name":"guide.pdf"/)
+assert.match(kinds, /"fileBlock".*"name":"ticket.pdf"/)
 const word = (await win.evaluate((id) => window.api.pages.get(id), byTitle('Compte rendu').id))
   .content
 assert.match(word, /"bold"/)

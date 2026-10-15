@@ -62,6 +62,11 @@ export interface PageOptions {
 
 /** What a page created from a template starts with. */
 export interface PageInit {
+  /**
+   * Id chosen in advance (a UUID), so that pages created together can link to
+   * each other; refused when already used
+   */
+  id?: PageId
   title?: string
   icon?: string | null
   /** ProseMirror JSON document */
@@ -147,6 +152,8 @@ export interface InboxItem {
   ref: string | null
   createdAt: number
   readAt: number | null
+  /** Another workspace of the server holding the notification (absent: the open one) */
+  workspace?: { id: string; name: string; pageTitle: string | null }
 }
 
 export type ActivityKind = 'created' | 'edited' | 'commented' | 'shared' | 'restored' | 'trashed'

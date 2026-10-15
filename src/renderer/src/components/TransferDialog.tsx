@@ -105,7 +105,8 @@ export function TransferDialog(): React.JSX.Element {
               <div className="import-report">
                 <p>
                   {docs.pages} page(s) créée(s)
-                  {docs.images ? `, ${docs.images} image(s)` : ''}.
+                  {docs.images ? `, ${docs.images} image(s)` : ''}
+                  {docs.files ? `, ${docs.files} pièce(s) jointe(s)` : ''}.
                   {docs.missing
                     ? ` ${docs.missing} image(s) ou pièce(s) jointe(s) non reprise(s).`
                     : ''}

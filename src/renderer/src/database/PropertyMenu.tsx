@@ -2,6 +2,9 @@ import { useState } from 'react'
 import {
   OPTION_COLORS,
   PROPERTY_TYPE_LABELS,
+  STATUS_GROUP_LABELS,
+  newId,
+  type StatusGroup,
   TITLE_PROPERTY_ID,
   type DatabaseSchema,
   type OptionColor,
@@ -98,6 +101,36 @@ export function PropertyMenu({
       {prop.type === 'rollup' && (
         <RollupEditor prop={prop} schema={schema} onChange={(rollup) => patchProp({ rollup })} />
       )}
+      {prop.type === 'unique_id' && (
+        <label className="menu-row">
+          Préfixe
+          <input
+            aria-label="Préfixe"
+            placeholder="ex. TÂCHE"
+            defaultValue={prop.idPrefix ?? ''}
+            onBlur={(e) =>
+              e.target.value !== (prop.idPrefix ?? '') &&
+              patchProp({ idPrefix: e.target.value.trim() })
+            }
+          />
+        </label>
+      )}
+      {prop.type === 'relation' && prop.relationDatabaseId && (
+        <label className="menu-row">
+          <input
+            type="checkbox"
+            checked={!!prop.syncedPropertyId}
+            disabled={!!prop.syncedPropertyId}
+            onChange={() => {
+              void window.api.databases
+                .linkRelation(databaseId, prop.id)
+                .then(() => useStore.getState().remoteChange())
+              onClose()
+            }}
+          />
+          Relation à double sens (visible dans la base liée)
+        </label>
+      )}
       {prop.type === 'relation' && (
         <label className="menu-row">
           Base liée
@@ -114,7 +147,7 @@ export function PropertyMenu({
           </select>
         </label>
       )}
-      {(prop.type === 'select' || prop.type === 'multi_select') && (
+      {(prop.type === 'select' || prop.type === 'multi_select' || prop.type === 'status') && (
         <div className="options-editor">
           <div className="menu-label">Options</div>
           {options.map((o) => (
@@ -137,6 +170,25 @@ export function PropertyMenu({
                   </option>
                 ))}
               </select>
+              {prop.type === 'status' && (
+                <select
+                  aria-label={`Étape de ${o.name}`}
+                  value={o.group ?? 'todo'}
+                  onChange={(e) =>
+                    patchProp({
+                      options: options.map((x) =>
+                        x.id === o.id ? { ...x, group: e.target.value as StatusGroup } : x
+                      )
+                    })
+                  }
+                >
+                  {Object.entries(STATUS_GROUP_LABELS).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 aria-label="Nom de l’option"
                 defaultValue={o.name}
@@ -157,6 +209,21 @@ export function PropertyMenu({
               </button>
             </div>
           ))}
+          {prop.type === 'status' && (
+            <button
+              className="menu-item"
+              onClick={() =>
+                patchProp({
+                  options: [
+                    ...options,
+                    { id: newId(), name: 'Nouvelle étape', color: 'gray', group: 'in_progress' }
+                  ]
+                })
+              }
+            >
+              + Ajouter une option
+            </button>
+          )}
         </div>
       )}
       <div className="menu-sep" />

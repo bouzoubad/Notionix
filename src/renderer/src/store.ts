@@ -15,8 +15,8 @@ interface State {
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
   /** Page chooser (link-to-page block…) */
-  pagePicker: { title: string; onPick: (id: PageId) => void } | null
-  pickPage: (title: string, onPick: (id: PageId) => void) => void
+  pagePicker: { title: string; onPick: (id: PageId) => void; kind?: 'database' } | null
+  pickPage: (title: string, onPick: (id: PageId) => void, kind?: 'database') => void
   closePagePicker: () => void
   /** Other people connected to the server workspace, with their open page */
   presence: Presence[]
@@ -90,7 +90,7 @@ export const useStore = create<State>((set, get) => ({
   contentReload: 0,
   comments: { open: false, focus: null, draft: null },
   pagePicker: null,
-  pickPage: (title, onPick) => set({ pagePicker: { title, onPick } }),
+  pickPage: (title, onPick, kind) => set({ pagePicker: { title, onPick, kind } }),
   closePagePicker: () => set({ pagePicker: null }),
   presence: [],
   connected: true,

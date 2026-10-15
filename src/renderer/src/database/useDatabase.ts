@@ -45,9 +45,11 @@ export function useDatabase(id: PageId): DatabaseApi {
   }, [id, revision])
 
   const saveSchema = async (schema: DatabaseSchema): Promise<void> => {
+    const base = data?.schema
     setData((d) => (d ? { ...d, schema } : d))
     try {
-      const saved = await window.api.databases.updateSchema(id, schema)
+      // The schema shown is the base: others' changes made meanwhile are kept.
+      const saved = await window.api.databases.updateSchema(id, schema, base)
       setData((d) => (d ? { ...d, schema: saved } : d))
       // Formulas and rollups depend on the schema: their values are computed again.
       if (saved.properties.some((p) => isComputed(p.type))) await reload()

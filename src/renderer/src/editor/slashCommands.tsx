@@ -113,6 +113,21 @@ export const SLASH_ITEMS: SlashItem[] = [
     }
   },
   {
+    title: 'Vue liée de base de données',
+    hint: 'Une base existante, avec ses propres vues',
+    keywords: ['linked', 'vue', 'liee', 'base', 'database'],
+    run: (e, r) => {
+      chain(e, r).run()
+      useStore
+        .getState()
+        .pickPage(
+          'Vue liée : choisir une base de données',
+          (id) => e.chain().focus().insertLinkedView(id).run(),
+          'database'
+        )
+    }
+  },
+  {
     title: 'Équation',
     hint: 'Bloc LaTeX',
     keywords: ['equation', 'math', 'latex', 'formule', 'tex'],

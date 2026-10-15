@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   VIEW_TYPE_LABELS,
   applyView,
+  parseSchema,
   defaultView,
   type DatabaseSchema,
   type PropertyDef,
@@ -24,15 +25,41 @@ const AVAILABLE_VIEWS = Object.keys(VIEW_COMPONENTS) as ViewType[]
 /** Views as tabs, the toolbar and the active view of a database (full page or inline block). */
 export function DatabaseViewer({
   databaseId,
-  db
+  db: source,
+  linkedViews
 }: {
   databaseId: string
   db: DatabaseApi
+  /** Linked view block: its own views, saved in the block instead of the database */
+  linkedViews?: { views: ViewDef[]; onChange: (views: ViewDef[]) => void }
 }): React.JSX.Element {
+  // A linked view shows the database's rows and properties with the block's views.
+  const db: DatabaseApi =
+    linkedViews && source.data
+      ? {
+          ...source,
+          data: {
+            ...source.data,
+            schema: parseSchema({ ...source.data.schema, views: linkedViews.views })
+          },
+          saveSchema: async (next) => {
+            linkedViews.onChange(next.views)
+            const stored = source.data!.schema
+            if (JSON.stringify(next.properties) !== JSON.stringify(stored.properties))
+              await source.saveSchema({ ...next, views: stored.views })
+          }
+        }
+      : source
   const open = useStore((s) => s.open)
   const [viewId, setViewId] = useState<string | null>(null)
   const [addingView, setAddingView] = useState(false)
   const [viewMenu, setViewMenu] = useState<string | null>(null)
+  const [settings, setSettings] = useState(false)
+  const nest = async (kind: 'subItems' | 'dependencies'): Promise<void> => {
+    setSettings(false)
+    await window.api.databases.enableNesting(databaseId, kind)
+    await db.reload()
+  }
 
   if (!db.data) return <div className="db-loading" />
   const { schema, rows } = db.data
@@ -51,7 +78,14 @@ export function DatabaseViewer({
     const select = schema.properties.find((p) => p.type === 'select')
     const date = schema.properties.find((p) => p.type === 'date')
     if (type === 'board') created.groupBy = select?.id ?? null
-    if (type === 'calendar') created.dateProperty = date?.id ?? null
+    if (type === 'calendar' || type === 'timeline') created.dateProperty = date?.id ?? null
+    if (type === 'chart')
+      created.chart = {
+        type: 'bar',
+        groupBy: (select ?? schema.properties.find((p) => p.type === 'status'))?.id ?? null,
+        aggregate: 'count',
+        valueProperty: null
+      }
     void db.saveSchema({ ...schema, views: [...schema.views, created] })
     setViewId(created.id)
   }
@@ -68,7 +102,13 @@ export function DatabaseViewer({
     values?: Record<string, PropertyValue>,
     templateId?: string
   ): Promise<void> => {
-    await db.addRow({ properties: values, templateId })
+    // A form sends the title with the values.
+    const { title, ...properties } = values ?? {}
+    await db.addRow({
+      properties,
+      templateId,
+      title: typeof title === 'string' && title ? title : undefined
+    })
   }
 
   /** Manual order: the row takes the place of `beforeRowId` among all rows of the database. */
@@ -168,6 +208,39 @@ export function DatabaseViewer({
             )}
           </span>
         </div>
+        <span className="toolbar-anchor">
+          <button
+            className="view-tab"
+            title="Réglages de la base"
+            onClick={() => setSettings(true)}
+          >
+            ⚙
+          </button>
+          {settings && (
+            <Popover onClose={() => setSettings(false)} align="right">
+              <div className="menu-label">Réglages de la base</div>
+              <label className="menu-row">
+                <input
+                  type="checkbox"
+                  checked={!!schema.subItems}
+                  disabled={!!schema.subItems}
+                  onChange={() => void nest('subItems')}
+                />
+                Sous-éléments (lignes imbriquées)
+              </label>
+              <label className="menu-row">
+                <input
+                  type="checkbox"
+                  checked={!!schema.dependencies}
+                  disabled={!!schema.dependencies}
+                  onChange={() => void nest('dependencies')}
+                />
+                Dépendances (« Bloqué par » / « Bloque »)
+              </label>
+              <p className="hint">Pour les retirer, supprimez leurs deux propriétés de relation.</p>
+            </Popover>
+          )}
+        </span>
         <Toolbar
           schema={schema}
           view={view}
@@ -201,7 +274,7 @@ function ViewSettings({
         >
           <option value="">{view.type === 'board' ? 'Choisir…' : 'Aucun groupe'}</option>
           {schema.properties
-            .filter((p) => p.type === 'select' || p.type === 'checkbox')
+            .filter((p) => ['select', 'checkbox', 'status', 'person'].includes(p.type))
             .map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -211,7 +284,7 @@ function ViewSettings({
       </label>
     )
   }
-  if (view.type === 'calendar') {
+  if (view.type === 'calendar' || view.type === 'timeline') {
     return (
       <label className="menu-row">
         Date affichée

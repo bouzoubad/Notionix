@@ -8,6 +8,7 @@ import {
   type SelectOption,
   type ViewDef
 } from '../../../shared/database'
+import { useStore } from '../store'
 
 export const TYPE_ICONS: Record<PropertyType, string> = {
   title: 'Aa',
@@ -24,7 +25,13 @@ export const TYPE_ICONS: Record<PropertyType, string> = {
   created_time: '🕒',
   last_edited_time: '🕒',
   formula: 'ƒ',
-  rollup: 'Σ'
+  rollup: 'Σ',
+  person: '👤',
+  files: '📎',
+  status: '◐',
+  created_by: '👤',
+  last_edited_by: '👤',
+  unique_id: '№'
 }
 
 export interface ViewProps {
@@ -49,11 +56,21 @@ export interface ViewProps {
 /** Rows keep the manual order only when the view has no sort. */
 export const canReorder = (view: ViewDef): boolean => view.sorts.length === 0
 
-/** Property a table or list view is grouped by (select or checkbox), if any. */
+/** Property a table or list view is grouped by (select, status, person or checkbox), if any. */
 export const groupProperty = (schema: DatabaseSchema, view: ViewDef): PropertyDef | undefined =>
   schema.properties.find(
-    (p) => p.id === view.groupBy && (p.type === 'select' || p.type === 'checkbox')
+    (p) =>
+      p.id === view.groupBy &&
+      (p.type === 'select' || p.type === 'checkbox' || p.type === 'status' || p.type === 'person')
   )
+
+/** Name of a page or a person, for relation, person and "created by" values. */
+export const nameOf = (id: string): string | undefined => {
+  const { pages, people } = useStore.getState()
+  const page = pages.find((p) => p.id === id && !p.trashedAt)
+  if (page) return page.title || 'Sans titre'
+  return people.find((p) => p.id === id)?.name
+}
 
 export const visibleProperties = (schema: DatabaseSchema, view: ViewDef): PropertyDef[] => [
   schema.properties.find((p) => p.id === TITLE_PROPERTY_ID)!,

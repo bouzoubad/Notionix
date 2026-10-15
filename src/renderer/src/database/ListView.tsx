@@ -3,7 +3,7 @@ import { groupRows, type DatabaseRow, type PropertyValue } from '../../../shared
 import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
 import { useRowDrag } from './rowDrag'
-import { canReorder, groupProperty, type ViewProps } from './viewTypes'
+import { canReorder, groupProperty, nameOf, type ViewProps } from './viewTypes'
 
 export function ListView({
   schema,
@@ -50,7 +50,7 @@ export function ListView({
   return (
     <div className="list-view">
       {groupProp
-        ? groupRows(rows, groupProp).map((g) => {
+        ? groupRows(rows, groupProp, nameOf).map((g) => {
             const values = { [groupProp.id]: g.value }
             return (
               <Fragment key={g.key ?? 'none'}>

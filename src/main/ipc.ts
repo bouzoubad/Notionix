@@ -73,8 +73,14 @@ export function registerDatabaseHandlers(ipc: IpcMain, dbs: DatabaseRepository):
   ipc.handle('databases:create', (_e, parentId: string | null) => dbs.create(parentId))
   ipc.handle('databases:get', (_e, id: string) => dbs.get(id))
   ipc.handle('databases:getRow', (_e, rowId: string) => dbs.getRow(rowId))
-  ipc.handle('databases:updateSchema', (_e, id: string, schema: unknown) =>
-    dbs.updateSchema(id, schema)
+  ipc.handle('databases:updateSchema', (_e, id: string, schema: unknown, base?: unknown) =>
+    dbs.updateSchema(id, schema, base ?? undefined)
+  )
+  ipc.handle('databases:linkRelation', (_e, id: string, propertyId: string) =>
+    dbs.linkRelation(id, propertyId)
+  )
+  ipc.handle('databases:enableNesting', (_e, id: string, kind: string) =>
+    dbs.enableNesting(id, kind === 'dependencies' ? 'dependencies' : 'subItems')
   )
   ipc.handle('databases:createRow', (_e, id: string, init) => dbs.createRow(id, init ?? {}))
   ipc.handle('databases:updateRow', (_e, rowId: string, values) =>

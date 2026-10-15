@@ -247,7 +247,12 @@ export interface NotionixApi {
     create(parentId: PageId | null): Promise<PageSummary>
     get(id: PageId): Promise<DatabaseData | null>
     getRow(rowId: PageId): Promise<RowData | null>
-    updateSchema(id: PageId, schema: DatabaseSchema): Promise<DatabaseSchema>
+    /** With `base` (the schema the change started from), merges with others' changes */
+    updateSchema(id: PageId, schema: DatabaseSchema, base?: DatabaseSchema): Promise<DatabaseSchema>
+    /** Makes a relation two-way */
+    linkRelation(id: PageId, propertyId: string): Promise<DatabaseSchema>
+    /** Turns on sub-items or dependencies (two linked self-relations) */
+    enableNesting(id: PageId, kind: 'subItems' | 'dependencies'): Promise<DatabaseSchema>
     createRow(databaseId: PageId, init: NewRow): Promise<DatabaseRow>
     updateRow(rowId: PageId, values: Record<string, PropertyValue>): Promise<DatabaseRow>
     setTemplate(rowId: PageId, isTemplate: boolean): Promise<void>

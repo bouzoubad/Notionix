@@ -3,9 +3,12 @@ import {
   convertProperty,
   isComputed,
   defaultSchema,
+  mergeSchema,
+  newId,
   normalizeValue,
   parseRowProperties,
   parseSchema,
+  type PropertyDef,
   type DatabaseRow,
   type DatabaseSchema,
   type PropertyType,
@@ -24,10 +27,12 @@ interface RowRecord {
   position: number
   created_at: number
   updated_at: number
+  created_by: string | null
+  updated_by: string | null
 }
 
 const ROW_COLUMNS =
-  'id, title, icon, cover, properties, is_template, position, created_at, updated_at'
+  'id, title, icon, cover, properties, is_template, position, created_at, updated_at, created_by, updated_by'
 
 /** Databases are pages of kind 'database'; their non-trashed child pages are the rows. */
 export class DatabaseRepository {
@@ -90,13 +95,184 @@ export class DatabaseRepository {
     return { databaseId: parent.parent_id, schema, row }
   }
 
-  updateSchema(id: PageId, raw: unknown): DatabaseSchema {
-    if (!this.schemaOf(id)) throw new Error(`Database not found: ${id}`)
-    const schema = parseSchema(raw)
+  /**
+   * Saves a schema. With `base` (the schema the change started from), the
+   * change is merged into the stored schema, keeping what others changed
+   * meanwhile. New unique-id properties number the existing rows.
+   */
+  updateSchema(id: PageId, raw: unknown, base?: unknown): DatabaseSchema {
+    const current = this.schemaOf(id)
+    if (!current) throw new Error(`Database not found: ${id}`)
+    const next = parseSchema(raw)
+    const schema =
+      base === undefined ? next : parseSchema(mergeSchema(parseSchema(base), next, current))
+    return this.pages.transaction(() => {
+      this.db
+        .prepare(
+          'UPDATE pages SET db_schema = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?'
+        )
+        .run(JSON.stringify(schema), this.pages.now(), this.pages.actor, id)
+      for (const prop of schema.properties)
+        if (prop.type === 'unique_id' && !current.properties.some((p) => p.id === prop.id))
+          this.numberRows(id, schema, prop.id)
+      return schema
+    })
+  }
+
+  /** Gives every row without one the next number of a unique-id property. */
+  private numberRows(databaseId: PageId, schema: DatabaseSchema, propertyId: string): void {
+    const rows = this.stored(databaseId)?.rows ?? []
+    let next = Math.max(0, ...rows.map((r) => Number(r.properties[propertyId] ?? 0))) + 1
+    for (const row of rows) {
+      if (typeof row.properties[propertyId] === 'number') continue
+      this.write(row.id, row.title, { ...row.properties, [propertyId]: next++ }, false)
+    }
+    void schema
+  }
+
+  /** Next number of a unique-id property, for a new row. */
+  private nextNumber(databaseId: PageId, propertyId: string): number {
+    const rows = this.stored(databaseId)?.rows ?? []
+    return Math.max(0, ...rows.map((r) => Number(r.properties[propertyId] ?? 0))) + 1
+  }
+
+  /**
+   * Makes a relation two-way: the linked database gets a relation back,
+   * filled from the current values, and both stay in step from then on.
+   */
+  linkRelation(databaseId: PageId, propertyId: string, name?: string): DatabaseSchema {
+    return this.pages.transaction(() => {
+      const schema = this.schemaOf(databaseId)
+      const prop = schema?.properties.find((p) => p.id === propertyId && p.type === 'relation')
+      if (!schema || !prop?.relationDatabaseId) throw new Error('Relation introuvable.')
+      if (prop.syncedPropertyId) return schema
+      const targetId = prop.relationDatabaseId
+      const reverseId = newId()
+      const self = targetId === databaseId
+      const title = this.pages.summary(databaseId).title || 'Relation'
+      const reverse = {
+        id: reverseId,
+        name: name ?? (self ? `${prop.name} (lié)` : title),
+        type: 'relation' as const,
+        relationDatabaseId: databaseId,
+        syncedPropertyId: propertyId
+      }
+      const updated = {
+        ...schema,
+        properties: [
+          ...schema.properties.map((p) =>
+            p.id === propertyId ? { ...p, syncedPropertyId: reverseId } : p
+          ),
+          ...(self ? [reverse] : [])
+        ]
+      }
+      this.updateSchema(databaseId, updated)
+      if (!self) {
+        const target = this.schemaOf(targetId)
+        if (!target) throw new Error('Base liée introuvable.')
+        this.updateSchema(targetId, { ...target, properties: [...target.properties, reverse] })
+      }
+      // The reverse values come from the existing links.
+      const rows = this.stored(databaseId)?.rows ?? []
+      const back = new Map<string, string[]>()
+      for (const row of rows)
+        for (const linked of (row.properties[propertyId] as string[] | undefined) ?? [])
+          back.set(linked, [...(back.get(linked) ?? []), row.id])
+      for (const [linked, ids] of back) this.setRaw(linked, reverseId, ids)
+      return this.schemaOf(databaseId)!
+    })
+  }
+
+  /** Sub-items (parent / sub-items) or dependencies (blocked by / blocking): two linked self-relations. */
+  enableNesting(databaseId: PageId, kind: 'subItems' | 'dependencies'): DatabaseSchema {
+    return this.pages.transaction(() => {
+      const schema = this.schemaOf(databaseId)
+      if (!schema) throw new Error(`Database not found: ${databaseId}`)
+      if (schema[kind]) return schema
+      const [first, second] =
+        kind === 'subItems' ? ['Élément parent', 'Sous-éléments'] : ['Bloqué par', 'Bloque']
+      const a = newId()
+      const b = newId()
+      const props = [
+        {
+          id: a,
+          name: first,
+          type: 'relation' as const,
+          relationDatabaseId: databaseId,
+          syncedPropertyId: b
+        },
+        {
+          id: b,
+          name: second,
+          type: 'relation' as const,
+          relationDatabaseId: databaseId,
+          syncedPropertyId: a
+        }
+      ]
+      return this.updateSchema(databaseId, {
+        ...schema,
+        properties: [...schema.properties, ...props],
+        [kind]:
+          kind === 'subItems'
+            ? { parentPropertyId: a, childrenPropertyId: b }
+            : { blockedByPropertyId: a, blockingPropertyId: b }
+      })
+    })
+  }
+
+  /** Writes one stored value of a row, without touching the rest (synced relations). */
+  private setRaw(rowId: PageId, propertyId: string, value: string[] | null): void {
+    const record = this.db
+      .prepare('SELECT title, properties FROM pages WHERE id = ?')
+      .get(rowId) as { title: string; properties: string | null } | undefined
+    if (!record) return
+    let props: Record<string, unknown> = {}
+    try {
+      props = JSON.parse(record.properties ?? '{}') ?? {}
+    } catch {
+      props = {}
+    }
+    if (value && value.length) props[propertyId] = value
+    else delete props[propertyId]
     this.db
-      .prepare('UPDATE pages SET db_schema = ?, updated_at = ?, version = version + 1 WHERE id = ?')
-      .run(JSON.stringify(schema), this.pages.now(), id)
-    return schema
+      .prepare('UPDATE pages SET properties = ?, version = version + 1 WHERE id = ?')
+      .run(JSON.stringify(props), rowId)
+  }
+
+  /**
+   * Keeps two-way relations in step after `rowId`'s value of `prop` went from
+   * `before` to `after`: linked rows gain or lose this row in their property.
+   */
+  private syncRelation(prop: PropertyDef, rowId: PageId, before: string[], after: string[]): void {
+    if (prop.type !== 'relation' || !prop.syncedPropertyId || !prop.relationDatabaseId) return
+    const target = this.schemaOf(prop.relationDatabaseId)
+    const reverse = target?.properties.find((p) => p.id === prop.syncedPropertyId)
+    if (!target || !reverse) return
+    const single = target.subItems?.parentPropertyId === reverse.id
+    const valueOf = (id: string): string[] => {
+      const row = this.db.prepare('SELECT properties FROM pages WHERE id = ?').get(id) as
+        { properties: string | null } | undefined
+      const v = parseRowProperties(row?.properties ?? null, target)[reverse.id]
+      return Array.isArray(v) ? v : []
+    }
+    for (const id of after.filter((x) => !before.includes(x))) {
+      // A sub-item has one parent: it leaves its previous one.
+      if (single)
+        for (const old of valueOf(id))
+          if (old !== rowId)
+            this.setRaw(
+              old,
+              prop.id,
+              valueOf(old).filter((x) => x !== id)
+            )
+      this.setRaw(id, reverse.id, single ? [rowId] : [...new Set([...valueOf(id), rowId])])
+    }
+    for (const id of before.filter((x) => !after.includes(x)))
+      this.setRaw(
+        id,
+        reverse.id,
+        valueOf(id).filter((x) => x !== rowId)
+      )
   }
 
   createRow(databaseId: PageId, init: NewRow = {}): DatabaseRow {
@@ -120,7 +296,13 @@ export class DatabaseRepository {
         if (!init.title) title = template.title
       }
       values = { ...values, ...normalizeAll(schema, init.properties ?? {}) }
+      for (const prop of schema.properties)
+        if (prop.type === 'unique_id') values[prop.id] = this.nextNumber(databaseId, prop.id)
       this.write(page.id, title, values)
+      for (const prop of schema.properties) {
+        const v = values[prop.id]
+        if (Array.isArray(v)) this.syncRelation(prop, page.id, [], v)
+      }
       return this.getRow(page.id)!.row
     })
   }
@@ -129,18 +311,30 @@ export class DatabaseRepository {
   updateRow(rowId: PageId, values: Record<string, unknown>): DatabaseRow {
     const data = this.getRow(rowId)
     if (!data) throw new Error(`Row not found: ${rowId}`)
-    const merged: Record<string, PropertyValue> = { ...data.row.properties }
-    for (const [key, value] of Object.entries(values)) {
-      const prop = data.schema.properties.find((p) => p.id === key)
-      if (!prop || prop.type === 'title' || isComputed(prop.type)) continue
-      const v = normalizeValue(prop, value)
-      if (v === null) delete merged[key]
-      else merged[key] = v
-    }
-    const title = typeof values.title === 'string' ? values.title : data.row.title
-    // The row read above carries computed values: only stored ones are written.
-    this.write(rowId, title, normalizeAll(data.schema, merged))
-    return this.getRow(rowId)!.row
+    return this.pages.transaction(() => {
+      const merged: Record<string, PropertyValue> = { ...data.row.properties }
+      const changed: { prop: PropertyDef; before: string[]; after: string[] }[] = []
+      for (const [key, value] of Object.entries(values)) {
+        const prop = data.schema.properties.find((p) => p.id === key)
+        if (!prop || prop.type === 'title' || isComputed(prop.type) || prop.type === 'unique_id')
+          continue
+        let v = normalizeValue(prop, value)
+        // A sub-item has a single parent: the last one chosen.
+        if (data.schema.subItems?.parentPropertyId === prop.id && Array.isArray(v))
+          v = v.filter((x) => x !== rowId).slice(-1)
+        if (prop.type === 'relation') {
+          const before = Array.isArray(merged[key]) ? (merged[key] as string[]) : []
+          changed.push({ prop, before, after: Array.isArray(v) ? v : [] })
+        }
+        if (v === null || (Array.isArray(v) && v.length === 0)) delete merged[key]
+        else merged[key] = v
+      }
+      const title = typeof values.title === 'string' ? values.title : data.row.title
+      // The row read above carries computed values: only stored ones are written.
+      this.write(rowId, title, normalizeAll(data.schema, merged))
+      for (const c of changed) this.syncRelation(c.prop, rowId, c.before, c.after)
+      return this.getRow(rowId)!.row
+    })
   }
 
   setTemplate(rowId: PageId, isTemplate: boolean): void {
@@ -173,6 +367,7 @@ export class DatabaseRepository {
         else next[propertyId] = v
         this.write(row.id, row.title, normalizeAll(schema, next), false)
       }
+      if (type === 'unique_id') this.numberRows(databaseId, schema, propertyId)
       return schema
     })
   }
@@ -235,5 +430,7 @@ const toRow = (r: RowRecord, schema: DatabaseSchema): DatabaseRow => ({
   isTemplate: r.is_template === 1,
   position: r.position,
   createdAt: r.created_at,
-  updatedAt: r.updated_at
+  updatedAt: r.updated_at,
+  createdBy: r.created_by,
+  updatedBy: r.updated_by
 })

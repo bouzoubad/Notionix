@@ -5,6 +5,8 @@ declare module '@tiptap/core' {
     databaseView: {
       /** Inserts a block showing the database `databaseId` inside the page */
       insertDatabaseView: (databaseId: string) => ReturnType
+      /** Inserts a view of an existing database, with views of its own */
+      insertLinkedView: (databaseId: string) => ReturnType
     }
   }
 }
@@ -26,6 +28,12 @@ export const DatabaseView = Node.create({
         default: null,
         parseHTML: (el) => el.getAttribute('data-database-id'),
         renderHTML: (attrs) => ({ 'data-database-id': attrs.databaseId })
+      },
+      /** Linked view: the block keeps its own views (JSON) instead of the database's */
+      views: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-views'),
+        renderHTML: (attrs) => (attrs.views ? { 'data-views': attrs.views } : {})
       }
     }
   },
@@ -43,7 +51,27 @@ export const DatabaseView = Node.create({
       insertDatabaseView:
         (databaseId) =>
         ({ commands }) =>
-          commands.insertContent({ type: this.name, attrs: { databaseId } })
+          commands.insertContent({ type: this.name, attrs: { databaseId } }),
+      insertLinkedView:
+        (databaseId) =>
+        ({ commands }) =>
+          commands.insertContent({
+            type: this.name,
+            attrs: {
+              databaseId,
+              views: JSON.stringify([
+                {
+                  id: 'linked',
+                  name: 'Vue liée',
+                  type: 'table',
+                  filters: [],
+                  filterMode: 'and',
+                  sorts: [],
+                  hidden: []
+                }
+              ])
+            }
+          })
     }
   }
 })

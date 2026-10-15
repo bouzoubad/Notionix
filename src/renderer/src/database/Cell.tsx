@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
   OPTION_COLORS,
+  STATUS_GROUP_LABELS,
   displayValue,
+  fileEntry,
+  fileValue,
   newId,
   parseNumber,
   rowValue,
@@ -12,6 +15,7 @@ import {
   type SelectOption
 } from '../../../shared/database'
 import { useStore } from '../store'
+import { platform } from '../platform'
 import { OptionTag } from './OptionTag'
 import { ComputedValue } from './ComputedEditors'
 import { Popover } from './Popover'
@@ -24,7 +28,7 @@ export interface CellProps {
   onCreateOption: (prop: PropertyDef, option: SelectOption) => Promise<void>
 }
 
-const READ_ONLY = new Set(['created_time', 'last_edited_time'])
+const READ_ONLY = new Set(['created_time', 'last_edited_time', 'unique_id'])
 
 /** Displays a property value and edits it in place, according to its type. */
 export function Cell(props: CellProps): React.JSX.Element {
@@ -47,7 +51,19 @@ export function Cell(props: CellProps): React.JSX.Element {
       )
     case 'select':
     case 'multi_select':
+    case 'status':
       return <SelectCell {...props} />
+    case 'person':
+      return <PersonCell {...props} />
+    case 'created_by':
+    case 'last_edited_by':
+      return (
+        <div className="cell readonly">
+          <People ids={Array.isArray(value) ? (value as string[]) : []} />
+        </div>
+      )
+    case 'files':
+      return <FilesCell {...props} />
     case 'date':
       return <DateCell {...props} />
     case 'relation':
@@ -188,13 +204,18 @@ function SelectCell({ prop, row, onChange, onCreateOption }: CellProps): React.J
             />
           </div>
           <div className="select-options">
-            {matching.map((o) => (
-              <button key={o.id} className="select-option" onClick={() => toggle(o.id)}>
-                <OptionTag option={o} />
-                {selected.includes(o.id) && <span className="check">✓</span>}
-              </button>
+            {matching.map((o, i) => (
+              <span key={o.id}>
+                {prop.type === 'status' && o.group !== matching[i - 1]?.group && (
+                  <div className="menu-label">{STATUS_GROUP_LABELS[o.group ?? 'todo']}</div>
+                )}
+                <button className="select-option" onClick={() => toggle(o.id)}>
+                  <OptionTag option={o} />
+                  {selected.includes(o.id) && <span className="check">✓</span>}
+                </button>
+              </span>
             ))}
-            {query.trim() && !exact && (
+            {query.trim() && !exact && prop.type !== 'status' && (
               <button className="select-option" onClick={() => void create()}>
                 Créer{' '}
                 <OptionTag
@@ -347,6 +368,147 @@ function RelationCell({ prop, row, onChange }: CellProps): React.JSX.Element {
               </div>
             </>
           )}
+        </Popover>
+      )}
+    </div>
+  )
+}
+
+const initials = (name: string): string =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+
+/** People as small badges with their names. */
+export function People({ ids }: { ids: string[] }): React.JSX.Element {
+  const people = useStore((s) => s.people)
+  return (
+    <span className="tags">
+      {ids.map((id) => {
+        const p = people.find((x) => x.id === id)
+        return (
+          <span key={id} className="person-chip">
+            <span className="person-avatar">{initials(p?.name ?? '?')}</span>
+            {p?.name ?? 'Compte supprimé'}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+function PersonCell({ prop, row, onChange }: CellProps): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const people = useStore((s) => s.people)
+  const raw = row.properties[prop.id]
+  const selected: string[] = Array.isArray(raw) ? raw : []
+  const toggle = (id: string): void => {
+    const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]
+    onChange(next.length ? next : null)
+  }
+  const matching = people.filter(
+    (p) => !p.disabled && p.name.toLowerCase().includes(query.trim().toLowerCase())
+  )
+  return (
+    <div className="cell" tabIndex={0} onClick={() => setOpen(true)}>
+      <People ids={selected} />
+      {open && (
+        <Popover onClose={() => setOpen(false)} className="select-popover">
+          <div className="select-current">
+            <input
+              autoFocus
+              placeholder="Rechercher une personne"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && matching[0] && toggle(matching[0].id)}
+            />
+          </div>
+          <div className="select-options">
+            {matching.map((p) => (
+              <button key={p.id} className="select-option" onClick={() => toggle(p.id)}>
+                <span className="person-chip">
+                  <span className="person-avatar">{initials(p.name)}</span>
+                  {p.name}
+                  {p.id === (platform().session?.user.id ?? 'local') ? ' (vous)' : ''}
+                </span>
+                {selected.includes(p.id) && <span className="check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </Popover>
+      )}
+    </div>
+  )
+}
+
+function FilesCell({ prop, row, onChange }: CellProps): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const showNotice = useStore((s) => s.showNotice)
+  const raw = row.properties[prop.id]
+  const files: string[] = Array.isArray(raw) ? raw : []
+  const add = (): void => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.onchange = async () => {
+      setBusy(true)
+      const added: string[] = []
+      for (const file of input.files ?? []) {
+        try {
+          const src = await window.api.assets.saveFile(
+            new Uint8Array(await file.arrayBuffer()),
+            file.name
+          )
+          added.push(fileValue(src, file.name))
+        } catch (e) {
+          showNotice(`Fichier non ajouté (${file.name}) : ${e instanceof Error ? e.message : e}`)
+        }
+      }
+      setBusy(false)
+      if (added.length) onChange([...files, ...added])
+    }
+    input.click()
+  }
+  return (
+    <div className="cell" tabIndex={0} onClick={() => setOpen(true)}>
+      <span className="tags">
+        {files.map((f) => (
+          <span key={f} className="file-chip">
+            📎 {fileEntry(f).name}
+          </span>
+        ))}
+      </span>
+      {open && (
+        <Popover onClose={() => setOpen(false)} className="select-popover">
+          <div className="select-options">
+            {files.map((f) => {
+              const { src, name } = fileEntry(f)
+              return (
+                <div key={f} className="file-row">
+                  <button onClick={() => void window.api.assets.download(src, name)}>
+                    📎 {name}
+                  </button>
+                  <button
+                    title="Retirer"
+                    onClick={() => {
+                      const next = files.filter((x) => x !== f)
+                      onChange(next.length ? next : null)
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+            <button className="select-option" disabled={busy} onClick={add}>
+              {busy ? 'Envoi…' : '+ Ajouter un fichier'}
+            </button>
+          </div>
         </Popover>
       )}
     </div>

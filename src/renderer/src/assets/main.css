@@ -1436,6 +1436,16 @@ main {
 .db-table .title-col {
   min-width: 240px;
 }
+/* Browsers ignore min-width on table cells: their content holds the width,
+   and narrow places (inline databases) scroll sideways instead. */
+.db-table td > .cell,
+.db-table .col-head {
+  min-width: 130px;
+}
+.db-table .title-col > .cell,
+.db-table .title-col .col-head {
+  min-width: 220px;
+}
 .col-head {
   width: 100%;
   padding: 6px 8px;
@@ -1892,6 +1902,9 @@ button:focus:not(:focus-visible) {
 }
 .inline-database .db-table {
   font-size: 14px;
+  /* Not the fixed layout of the page's own tables */
+  table-layout: auto;
+  width: auto;
 }
 .inline-database .board,
 .inline-database .gallery {
@@ -2980,4 +2993,284 @@ button:focus:not(:focus-visible) {
   padding: 4px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
+}
+
+/* People and files in databases */
+.person-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.person-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--nx-blue-bg);
+  color: var(--nx-blue);
+  font-size: 9px;
+  font-weight: 700;
+}
+.file-chip {
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.file-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.file-row button {
+  padding: 4px 6px;
+  border-radius: 4px;
+  text-align: left;
+}
+.file-row button:hover {
+  background: var(--bg-hover);
+}
+
+/* Sub-items */
+.title-col {
+  position: relative;
+}
+.sub-row {
+  display: flex;
+  align-items: flex-start;
+}
+.sub-row > .cell {
+  flex: 1;
+}
+.sub-indent {
+  flex: none;
+  width: 18px;
+  padding-top: 7px;
+}
+.sub-toggle {
+  width: 18px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Timeline */
+.timeline-view {
+  margin-top: 8px;
+}
+.timeline-tools {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.timeline-tools select,
+.timeline-tools button {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+.timeline-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  user-select: none;
+}
+.timeline-header {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.timeline-day {
+  flex: none;
+  padding: 4px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.timeline-day.weekend {
+  background: var(--bg-sidebar);
+}
+.timeline-day.today {
+  color: #fff;
+  background: #e03e3e;
+  border-radius: 4px;
+}
+.timeline-rows {
+  position: relative;
+}
+.timeline-arrows {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.timeline-arrows path {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+}
+.timeline-arrows marker path {
+  fill: var(--text-muted);
+  stroke: none;
+}
+.timeline-bar {
+  position: absolute;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--nx-blue-bg);
+  border: 1px solid var(--nx-blue);
+  color: var(--text);
+  font-size: 13px;
+  cursor: grab;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.timeline-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timeline-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+.timeline-undated {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.timeline-undated button {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* Chart */
+.chart-view {
+  margin-top: 8px;
+}
+.chart-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.chart-settings select {
+  margin-left: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+.chart-svg {
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+}
+.chart-grid {
+  stroke: var(--border);
+}
+.chart-axis,
+.chart-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+.chart-value {
+  fill: var(--text);
+  font-size: 11px;
+}
+.chart-line {
+  fill: none;
+  stroke: var(--nx-blue);
+  stroke-width: 2.5;
+}
+.chart-point {
+  fill: var(--nx-blue);
+}
+.donut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+}
+.donut-total {
+  fill: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+}
+.donut-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+.donut-legend li {
+  margin: 4px 0;
+}
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+/* Form */
+.form-view {
+  max-width: 560px;
+  margin: 12px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.form-view h3 {
+  margin: 0 0 14px;
+}
+.form-field {
+  display: block;
+  margin-bottom: 12px;
+}
+.form-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.form-field .cell {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.form-actions button.primary {
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+}
+.form-actions button:disabled {
+  opacity: 0.5;
+}
+.linked-mark {
+  color: var(--text-muted);
 }

@@ -40,7 +40,10 @@ await win.keyboard.type('Ligne colorée')
 await win.locator('.editor .ProseMirror > p').first().hover()
 await win.locator('.block-handle').click()
 await win.locator('.block-menu').getByRole('button', { name: 'Couleur ›' }).click()
-await win.locator('.block-menu').getByRole('button', { name: /Fond rouge/ }).click()
+await win
+  .locator('.block-menu')
+  .getByRole('button', { name: /Fond rouge/ })
+  .click()
 await win.locator(".editor p[data-color='red_background']").waitFor()
 
 // Turn into a toggle heading
@@ -93,7 +96,10 @@ const hidden = await win.evaluate(async () =>
   (await window.api.pages.list()).filter((p) => p.kind === 'synced')
 )
 assert.equal(hidden.length, 1)
-const source = await win.evaluate(async (id) => (await window.api.pages.get(id)).content, hidden[0].id)
+const source = await win.evaluate(
+  async (id) => (await window.api.pages.get(id)).content,
+  hidden[0].id
+)
 assert.ok(source.includes('Contenu partagé'), 'synced content saved in its hidden page')
 assert.equal(await win.locator('.sidebar .row', { hasText: 'Sans titre' }).count(), 0)
 

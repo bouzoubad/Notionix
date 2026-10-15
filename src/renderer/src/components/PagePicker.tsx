@@ -12,7 +12,13 @@ export function PagePicker(): React.JSX.Element | null {
   if (!picker) return null
   const q = fold(query)
   const matches = pages
-    .filter((p) => !p.trashedAt && p.kind !== 'synced' && (!q || fold(p.title).includes(q)))
+    .filter(
+      (p) =>
+        !p.trashedAt &&
+        p.kind !== 'synced' &&
+        (!picker.kind || p.kind === picker.kind) &&
+        (!q || fold(p.title).includes(q))
+    )
     .slice(0, 30)
   const pick = (id: string): void => {
     picker.onPick(id)

@@ -2,7 +2,7 @@ import { groupRows, type PropertyValue } from '../../../shared/database'
 import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
 import { useRowDrag } from './rowDrag'
-import { canReorder, type ViewProps } from './viewTypes'
+import { canReorder, nameOf, type ViewProps } from './viewTypes'
 
 /**
  * Kanban columns, one per option of the grouping property (select or
@@ -30,10 +30,12 @@ export function BoardView({
   }
   const drag = useRowDrag(true, move)
   const prop = schema.properties.find(
-    (p) => p.id === view.groupBy && (p.type === 'select' || p.type === 'checkbox')
+    (p) => p.id === view.groupBy && ['select', 'checkbox', 'status', 'person'].includes(p.type)
   )
   if (!prop) {
-    const choices = schema.properties.filter((p) => p.type === 'select' || p.type === 'checkbox')
+    const choices = schema.properties.filter((p) =>
+      ['select', 'checkbox', 'status', 'person'].includes(p.type)
+    )
     return (
       <div className="view-empty">
         {choices.length ? (
@@ -67,7 +69,7 @@ export function BoardView({
   }
   return (
     <div className="board">
-      {groupRows(rows, prop).map((g) => {
+      {groupRows(rows, prop, nameOf).map((g) => {
         const values = { [prop.id]: g.value }
         return (
           <div

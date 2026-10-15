@@ -413,9 +413,23 @@ const METHODS: Record<string, Method> = {
     ctx.need(id(p), 'read')
     return ctx.ws.databases.getRow(id(p))
   }),
-  'databases.updateSchema': write((ctx, [p, schema]) => {
+  'databases.updateSchema': write((ctx, [p, schema, base]) => {
     ctx.need(id(p), 'edit')
-    return ctx.ws.databases.updateSchema(id(p), schema)
+    return ctx.ws.databases.updateSchema(id(p), schema, base ?? undefined)
+  }),
+  'databases.linkRelation': write((ctx, [p, property]) => {
+    ctx.need(id(p), 'edit')
+    const prop = ctx.ws.databases.schemaOf(id(p))?.properties.find((x) => x.id === text(property))
+    // The other database gets a property too: editing it is needed.
+    if (prop?.relationDatabaseId) ctx.need(prop.relationDatabaseId, 'edit')
+    return ctx.ws.databases.linkRelation(id(p), text(property))
+  }),
+  'databases.enableNesting': write((ctx, [p, kind]) => {
+    ctx.need(id(p), 'edit')
+    return ctx.ws.databases.enableNesting(
+      id(p),
+      kind === 'dependencies' ? 'dependencies' : 'subItems'
+    )
   }),
   'databases.createRow': write((ctx, [p, init]) => {
     ctx.need(id(p), 'edit')

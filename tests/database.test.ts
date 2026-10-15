@@ -8,6 +8,7 @@ import {
   compareValues,
   convertProperty,
   defaultView,
+  mergeSchema,
   groupRows,
   matchesFilter,
   normalizeValue,
@@ -65,6 +66,8 @@ const row = (
   position: n,
   createdAt: 0,
   updatedAt: 0,
+  createdBy: null,
+  updatedBy: null,
   ...extra
 })
 
@@ -375,5 +378,49 @@ describe('DatabaseRepository', () => {
     const copied = dbs.get(copy.id)!
     expect(copied.schema.properties.map((p) => p.id)).toContain('status')
     expect(copied.rows.map((r) => [r.title, r.properties.status])).toEqual([['r', 'todo']])
+  })
+})
+
+describe('schema merge', () => {
+  it('keeps the changes of both people', () => {
+    const base = {
+      properties: [
+        { id: 'title', name: 'Nom', type: 'title' as const },
+        { id: 'a', name: 'A', type: 'text' as const },
+        { id: 'b', name: 'B', type: 'text' as const }
+      ],
+      views: [defaultView()]
+    }
+    // Someone else renamed B and added C meanwhile.
+    const current = {
+      ...base,
+      properties: [
+        base.properties[0],
+        base.properties[1],
+        { ...base.properties[2], name: 'B renommée' },
+        { id: 'c', name: 'C', type: 'number' as const }
+      ]
+    }
+    // This person renamed A and added D.
+    const next = {
+      ...base,
+      properties: [
+        base.properties[0],
+        { ...base.properties[1], name: 'A renommée' },
+        base.properties[2],
+        { id: 'd', name: 'D', type: 'checkbox' as const }
+      ]
+    }
+    const merged = mergeSchema(base, next, current)
+    expect(merged.properties.map((p) => p.name)).toEqual([
+      'Nom',
+      'A renommée',
+      'B renommée',
+      'D',
+      'C'
+    ])
+    // Deleting a property others did not touch removes it.
+    const removed = mergeSchema(base, { ...base, properties: base.properties.slice(0, 2) }, current)
+    expect(removed.properties.map((p) => p.id)).toEqual(['title', 'a', 'c'])
   })
 })

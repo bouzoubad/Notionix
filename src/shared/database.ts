@@ -21,6 +21,12 @@ export type PropertyType =
   | 'last_edited_time'
   | 'formula'
   | 'rollup'
+  | 'person'
+  | 'files'
+  | 'status'
+  | 'created_by'
+  | 'last_edited_by'
+  | 'unique_id'
 
 export const OPTION_COLORS = [
   'gray',
@@ -39,6 +45,15 @@ export interface SelectOption {
   id: string
   name: string
   color: OptionColor
+  /** status: the stage the option belongs to */
+  group?: StatusGroup
+}
+
+export type StatusGroup = 'todo' | 'in_progress' | 'done'
+export const STATUS_GROUP_LABELS: Record<StatusGroup, string> = {
+  todo: 'À faire',
+  in_progress: 'En cours',
+  done: 'Terminé'
 }
 
 export interface PropertyDef {
@@ -49,6 +64,10 @@ export interface PropertyDef {
   options?: SelectOption[]
   /** relation: the database whose rows can be linked */
   relationDatabaseId?: string | null
+  /** relation: the property of the linked database kept in step (two-way relation) */
+  syncedPropertyId?: string | null
+  /** unique_id: text before the number (e.g. "TÂCHE") */
+  idPrefix?: string
   /** formula: expression, e.g. prop("Prix") * 1.2 */
   formula?: string
   /** rollup: aggregates a property of the rows linked by a relation */
@@ -116,7 +135,19 @@ export const isComputedError = (v: PropertyValue | undefined): v is ComputedErro
 /** Formulas and rollups are computed when read, never stored. */
 export const isComputed = (type: PropertyType): boolean => type === 'formula' || type === 'rollup'
 
-export type ViewType = 'table' | 'board' | 'list' | 'gallery' | 'calendar'
+export type ViewType =
+  'table' | 'board' | 'list' | 'gallery' | 'calendar' | 'timeline' | 'chart' | 'form'
+
+export type ChartType = 'bar' | 'line' | 'donut'
+
+export interface ChartConfig {
+  type: ChartType
+  /** property whose values make the bars or slices */
+  groupBy: string | null
+  /** 'count' counts rows; 'sum'/'average' use `valueProperty` (a number) */
+  aggregate: 'count' | 'sum' | 'average'
+  valueProperty: string | null
+}
 
 export type FilterOperator =
   | 'contains'
@@ -156,8 +187,11 @@ export interface ViewDef {
   sorts: Sort[]
   /** board: select property used for the columns */
   groupBy?: string | null
-  /** calendar: date property placing the rows */
+  /** calendar and timeline: date property placing the rows */
   dateProperty?: string | null
+  /** timeline: width of a day */
+  timelineScale?: 'week' | 'month'
+  chart?: ChartConfig
   /** properties hidden in this view (the title is always shown) */
   hidden: string[]
 }
@@ -165,6 +199,10 @@ export interface ViewDef {
 export interface DatabaseSchema {
   properties: PropertyDef[]
   views: ViewDef[]
+  /** Sub-items: rows nest under the row named by `parentPropertyId` */
+  subItems?: { parentPropertyId: string; childrenPropertyId: string } | null
+  /** Dependencies: rows blocked by other rows */
+  dependencies?: { blockedByPropertyId: string; blockingPropertyId: string } | null
 }
 
 export interface DatabaseRow {
@@ -177,6 +215,8 @@ export interface DatabaseRow {
   position: number
   createdAt: number
   updatedAt: number
+  createdBy: string | null
+  updatedBy: string | null
 }
 
 export const TITLE_PROPERTY_ID = 'title'
@@ -196,7 +236,13 @@ export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   created_time: 'Date de création',
   last_edited_time: 'Dernière modification',
   formula: 'Formule',
-  rollup: 'Rollup'
+  rollup: 'Rollup',
+  person: 'Personne',
+  files: 'Fichiers et médias',
+  status: 'Statut',
+  created_by: 'Créé par',
+  last_edited_by: 'Modifié par',
+  unique_id: 'Identifiant'
 }
 
 export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
@@ -204,7 +250,10 @@ export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
   board: 'Board',
   list: 'Liste',
   gallery: 'Galerie',
-  calendar: 'Calendrier'
+  calendar: 'Calendrier',
+  timeline: 'Chronologie',
+  chart: 'Graphique',
+  form: 'Formulaire'
 }
 
 const PROPERTY_TYPES = new Set(Object.keys(PROPERTY_TYPE_LABELS))
@@ -217,8 +266,26 @@ const COMPUTED: ReadonlySet<PropertyType> = new Set([
   'created_time',
   'last_edited_time',
   'formula',
-  'rollup'
+  'rollup',
+  'created_by',
+  'last_edited_by'
 ])
+
+/** Types whose value is set by Notionix, never typed in a cell. */
+export const READ_ONLY_TYPES: ReadonlySet<PropertyType> = new Set([
+  'created_time',
+  'last_edited_time',
+  'created_by',
+  'last_edited_by',
+  'unique_id'
+])
+
+/** Options of a new status property. */
+export const defaultStatusOptions = (): SelectOption[] => [
+  { id: newId(), name: 'Pas commencé', color: 'gray', group: 'todo' },
+  { id: newId(), name: 'En cours', color: 'blue', group: 'in_progress' },
+  { id: newId(), name: 'Terminé', color: 'green', group: 'done' }
+]
 
 export const newId = (): string => globalThis.crypto.randomUUID().slice(0, 8)
 
@@ -259,8 +326,13 @@ export function parseSchema(raw: unknown): DatabaseSchema {
     if ((type === 'title') !== (id === TITLE_PROPERTY_ID)) continue
     seen.add(id)
     const def: PropertyDef = { id, name: str(p.name, 'Sans nom'), type }
-    if (type === 'select' || type === 'multi_select') def.options = parseOptions(p.options)
-    if (type === 'relation') def.relationDatabaseId = str(p.relationDatabaseId) || null
+    if (type === 'select' || type === 'multi_select' || type === 'status')
+      def.options = parseOptions(p.options, type === 'status')
+    if (type === 'relation') {
+      def.relationDatabaseId = str(p.relationDatabaseId) || null
+      def.syncedPropertyId = str(p.syncedPropertyId) || null
+    }
+    if (type === 'unique_id') def.idPrefix = str(p.idPrefix).slice(0, 20)
     if (type === 'formula') def.formula = str(p.formula)
     if (type === 'rollup') {
       const r = isRecord(p.rollup) ? p.rollup : {}
@@ -323,18 +395,50 @@ export function parseSchema(raw: unknown): DatabaseSchema {
             ]
           : []
       ),
-      groupBy: byType(v.groupBy, ['select', 'checkbox']),
+      groupBy: byType(v.groupBy, ['select', 'checkbox', 'status', 'person']),
       dateProperty: byType(v.dateProperty, ['date', 'created_time', 'last_edited_time']),
+      timelineScale: v.timelineScale === 'month' ? 'month' : 'week',
+      ...(type === 'chart' ? { chart: parseChart(v.chart, properties) } : {}),
       hidden: (Array.isArray(v.hidden) ? v.hidden : []).filter(
         (h): h is string => typeof h === 'string' && ids.has(h) && h !== TITLE_PROPERTY_ID
       )
     })
   }
   if (views.length === 0) views.push(defaultView('table'))
-  return { properties, views }
+  const schema: DatabaseSchema = { properties, views }
+  const relation = (id: unknown): string | null =>
+    properties.some((p) => p.id === id && p.type === 'relation') ? (id as string) : null
+  if (isRecord(input.subItems)) {
+    const parent = relation(input.subItems.parentPropertyId)
+    const children = relation(input.subItems.childrenPropertyId)
+    if (parent && children)
+      schema.subItems = { parentPropertyId: parent, childrenPropertyId: children }
+  }
+  if (isRecord(input.dependencies)) {
+    const blockedBy = relation(input.dependencies.blockedByPropertyId)
+    const blocking = relation(input.dependencies.blockingPropertyId)
+    if (blockedBy && blocking)
+      schema.dependencies = { blockedByPropertyId: blockedBy, blockingPropertyId: blocking }
+  }
+  return schema
 }
 
-function parseOptions(raw: unknown): SelectOption[] {
+function parseChart(raw: unknown, properties: PropertyDef[]): ChartConfig {
+  const c = isRecord(raw) ? raw : {}
+  const has = (id: unknown, types?: PropertyType[]): string | null => {
+    const p = properties.find((x) => x.id === id)
+    return p && (!types || types.includes(p.type)) ? p.id : null
+  }
+  const aggregate = c.aggregate === 'sum' || c.aggregate === 'average' ? c.aggregate : 'count'
+  return {
+    type: c.type === 'line' || c.type === 'donut' ? c.type : 'bar',
+    groupBy: has(c.groupBy),
+    aggregate,
+    valueProperty: has(c.valueProperty, ['number', 'formula', 'rollup'])
+  }
+}
+
+function parseOptions(raw: unknown, status = false): SelectOption[] {
   const out: SelectOption[] = []
   const seen = new Set<string>()
   for (const o of Array.isArray(raw) ? raw : []) {
@@ -343,7 +447,9 @@ function parseOptions(raw: unknown): SelectOption[] {
     if (!id || seen.has(id)) continue
     seen.add(id)
     const color = OPTION_COLORS.includes(o.color as OptionColor) ? (o.color as OptionColor) : 'gray'
-    out.push({ id, name: str(o.name), color })
+    const option: SelectOption = { id, name: str(o.name), color }
+    if (status) option.group = o.group === 'in_progress' || o.group === 'done' ? o.group : 'todo'
+    out.push(option)
   }
   return out
 }
@@ -385,10 +491,26 @@ export function normalizeValue(prop: PropertyDef, value: unknown): PropertyValue
       return typeof value === 'number' && Number.isFinite(value) ? value : null
     case 'checkbox':
       return value === true
-    case 'select': {
+    case 'select':
+    case 'status': {
       const id = typeof value === 'string' ? value : null
       return id && prop.options?.some((o) => o.id === id) ? id : null
     }
+    case 'person': {
+      if (!Array.isArray(value)) return null
+      const ids = [...new Set(value.filter((v): v is string => typeof v === 'string' && v !== ''))]
+      return ids.length ? ids : null
+    }
+    case 'files': {
+      if (!Array.isArray(value)) return null
+      const files = value.filter(
+        (v): v is string =>
+          typeof v === 'string' && /^(notionix-asset:\/\/file\/|https?:\/\/)/.test(v)
+      )
+      return files.length ? files : null
+    }
+    case 'unique_id':
+      return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
     case 'multi_select': {
       if (!Array.isArray(value)) return null
       const ids = [...new Set(value.filter((v) => typeof v === 'string'))].filter((id) =>
@@ -437,10 +559,26 @@ export function rowValue(row: DatabaseRow, prop: PropertyDef): PropertyValue {
       return { start: localDateTime(row.createdAt) }
     case 'last_edited_time':
       return { start: localDateTime(row.updatedAt) }
+    case 'created_by':
+      return row.createdBy ? [row.createdBy] : null
+    case 'last_edited_by':
+      return row.updatedBy ? [row.updatedBy] : null
     default:
       return row.properties[prop.id] ?? null
   }
 }
+
+/** A file of a files property: its stored src and its name (after '#'). */
+export function fileEntry(value: string): { src: string; name: string } {
+  const i = value.indexOf('#')
+  if (i < 0) return { src: value, name: value.split('/').pop() ?? 'Fichier' }
+  return { src: value.slice(0, i), name: decodeURIComponent(value.slice(i + 1)) || 'Fichier' }
+}
+export const fileValue = (src: string, name: string): string => `${src}#${encodeURIComponent(name)}`
+
+/** "TÂCHE-12", or "12" without a prefix. */
+export const uniqueIdText = (prop: PropertyDef, n: number): string =>
+  prop.idPrefix ? `${prop.idPrefix}-${n}` : String(n)
 
 export function localDateTime(ms: number): string {
   const d = new Date(ms)
@@ -532,7 +670,21 @@ export function displayValue(
     case 'checkbox':
       return value === true ? 'Oui' : 'Non'
     case 'select':
+    case 'status':
       return typeof value === 'string' ? optionName(prop, value) : ''
+    case 'person':
+    case 'created_by':
+    case 'last_edited_by':
+      return Array.isArray(value)
+        ? value
+            .map((id) => relationTitle(id) ?? '')
+            .filter(Boolean)
+            .join(', ')
+        : ''
+    case 'files':
+      return Array.isArray(value) ? value.map((v) => fileEntry(v).name).join(', ') : ''
+    case 'unique_id':
+      return typeof value === 'number' ? uniqueIdText(prop, value) : ''
     case 'multi_select':
       return Array.isArray(value)
         ? value
@@ -596,9 +748,25 @@ export function operatorsFor(type: PropertyType): { op: FilterOperator; label: s
         ...empty
       ]
     case 'select':
+    case 'status':
       return [{ op: 'equals', label: 'est' }, { op: 'not_equals', label: 'n’est pas' }, ...empty]
     case 'relation':
+    case 'files':
       return empty
+    case 'person':
+    case 'created_by':
+    case 'last_edited_by':
+      return [
+        { op: 'contains', label: 'contient' },
+        { op: 'not_contains', label: 'ne contient pas' },
+        ...empty
+      ]
+    case 'unique_id':
+      return [
+        { op: 'equals', label: '=' },
+        { op: 'gt', label: '>' },
+        { op: 'lt', label: '<' }
+      ]
     case 'multi_select':
       return [
         { op: 'contains', label: 'contient' },
@@ -660,7 +828,16 @@ export function matchesFilter(prop: PropertyDef, value: PropertyValue, filter: F
       return true
     }
     case 'select':
+    case 'status':
       return op === 'not_equals' ? value !== target : value === target
+    case 'unique_id': {
+      const n = Number(String(target).replace(/^\D*-?/, ''))
+      if (!Number.isFinite(n) || typeof value !== 'number') return true
+      return op === 'gt' ? value > n : op === 'lt' ? value < n : value === n
+    }
+    case 'person':
+    case 'created_by':
+    case 'last_edited_by':
     case 'multi_select':
     case 'relation': {
       const has = Array.isArray(value) && value.includes(String(target))
@@ -697,10 +874,12 @@ export function compareValues(prop: PropertyDef, a: PropertyValue, b: PropertyVa
   if (isComputed(prop.type)) return compareComputed(a, b)
   switch (prop.type) {
     case 'number':
+    case 'unique_id':
       return (a as number) - (b as number)
     case 'checkbox':
       return Number(a === true) - Number(b === true)
     case 'select':
+    case 'status':
     case 'multi_select': {
       const rank = (v: PropertyValue): number => {
         const id = Array.isArray(v) ? v[0] : v
@@ -765,10 +944,37 @@ export interface RowGroup {
 }
 
 /**
- * Groups of a board or of a grouped table/list: one per option of a select
- * property ("no value" first), or checked / not checked for a checkbox.
+ * Groups of a board or of a grouped table/list: one per option of a select or
+ * status property ("no value" first), checked / not checked for a checkbox,
+ * or one per person (`nameOf` gives their names).
  */
-export function groupRows(rows: DatabaseRow[], prop: PropertyDef): RowGroup[] {
+export function groupRows(
+  rows: DatabaseRow[],
+  prop: PropertyDef,
+  nameOf: (id: string) => string | undefined = () => undefined
+): RowGroup[] {
+  if (prop.type === 'person') {
+    const ids = [
+      ...new Set(rows.flatMap((r) => (r.properties[prop.id] as string[] | undefined) ?? []))
+    ]
+    const groups: RowGroup[] = [
+      { key: null, option: null, label: `Sans ${prop.name}`, value: null, rows: [] },
+      ...ids.map((id) => ({
+        key: id as string | null,
+        option: null,
+        label: nameOf(id) ?? 'Inconnu',
+        value: [id] as PropertyValue,
+        rows: [] as DatabaseRow[]
+      }))
+    ]
+    const byKey = new Map(groups.map((g) => [g.key, g]))
+    for (const row of rows) {
+      const v = row.properties[prop.id]
+      const first = Array.isArray(v) && v.length ? v[0] : null
+      ;(byKey.get(first) ?? groups[0]).rows.push(row)
+    }
+    return groups
+  }
   const groups: RowGroup[] =
     prop.type === 'checkbox'
       ? [
@@ -791,7 +997,52 @@ export function groupRows(rows: DatabaseRow[], prop: PropertyDef): RowGroup[] {
     const key = prop.type === 'checkbox' ? String(v === true) : typeof v === 'string' ? v : null
     ;(byKey.get(key) ?? groups[0]).rows.push(row)
   }
-  return groups
+  // A status without value has no "no value" column when every row has one.
+  return prop.type === 'status' && groups[0].rows.length === 0 ? groups.slice(1) : groups
+}
+
+/**
+ * Three-way merge of a schema changed by this person (`base` → `next`) into
+ * the schema stored now (`current`), which others may have changed meanwhile:
+ * properties and views are merged by id, so both sets of changes are kept.
+ */
+export function mergeSchema(
+  base: DatabaseSchema,
+  next: DatabaseSchema,
+  current: DatabaseSchema
+): DatabaseSchema {
+  const mergeList = <T extends { id: string }>(b: T[], n: T[], c: T[]): T[] => {
+    const inBase = new Map(b.map((x) => [x.id, JSON.stringify(x)]))
+    const inNext = new Map(n.map((x) => [x.id, x]))
+    const out: T[] = []
+    for (const item of c) {
+      const mine = inNext.get(item.id)
+      // Removed by this person: dropped; changed by this person: their version.
+      if (!mine && inBase.has(item.id)) continue
+      out.push(mine && JSON.stringify(mine) !== inBase.get(item.id) ? mine : item)
+    }
+    // Added by this person, at their position.
+    n.forEach((item, i) => {
+      if (inBase.has(item.id) || out.some((x) => x.id === item.id)) return
+      const after = i > 0 ? out.findIndex((x) => x.id === n[i - 1].id) : -1
+      out.splice(after + 1, 0, item)
+    })
+    // The order this person gave to the items both know.
+    const order = new Map(n.map((x, i) => [x.id, i]))
+    const known = out
+      .filter((x) => order.has(x.id))
+      .sort((x, y) => order.get(x.id)! - order.get(y.id)!)
+    let k = 0
+    return out.map((x) => (order.has(x.id) ? known[k++] : x))
+  }
+  const changed = (key: 'subItems' | 'dependencies'): boolean =>
+    JSON.stringify(base[key] ?? null) !== JSON.stringify(next[key] ?? null)
+  return {
+    properties: mergeList(base.properties, next.properties, current.properties),
+    views: mergeList(base.views, next.views, current.views),
+    subItems: changed('subItems') ? next.subItems : current.subItems,
+    dependencies: changed('dependencies') ? next.dependencies : current.dependencies
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -947,8 +1198,9 @@ export function convertProperty(
   )
   const property: PropertyDef = { id: prop.id, name: prop.name, type }
   const values = new Map<string, PropertyValue>()
-  if (type === 'select' || type === 'multi_select') {
+  if (type === 'select' || type === 'multi_select' || type === 'status') {
     const options: SelectOption[] = [...(prop.options ?? [])]
+    if (type === 'status' && options.length === 0) options.push(...defaultStatusOptions())
     const optionFor = (name: string): string => {
       const existing = options.find((o) => o.name === name)
       if (existing) return existing.id
@@ -966,15 +1218,25 @@ export function convertProperty(
           ? splitMulti(texts.get(row.id) ?? '')
           : [(texts.get(row.id) ?? '').trim()].filter(Boolean)
       const ids = names.map(optionFor)
-      values.set(row.id, type === 'select' ? (ids[0] ?? null) : ids.length ? ids : null)
+      values.set(row.id, type === 'multi_select' ? (ids.length ? ids : null) : (ids[0] ?? null))
     }
     const used = new Set([...values.values()].flat())
-    property.options = options.filter(
-      (o) => used.has(o.id) || prop.options?.some((p) => p.id === o.id)
-    )
+    property.options = options
+      .filter(
+        (o) =>
+          used.has(o.id) ||
+          prop.options?.some((p) => p.id === o.id) ||
+          (type === 'status' && o.group !== undefined)
+      )
+      .map((o) =>
+        type === 'status'
+          ? { ...o, group: o.group ?? 'todo' }
+          : { id: o.id, name: o.name, color: o.color }
+      )
     return { property, values }
   }
   if (type === 'relation') property.relationDatabaseId = prop.relationDatabaseId ?? null
+  if (type === 'unique_id') property.idPrefix = ''
   if (type === 'formula') property.formula = prop.formula ?? ''
   if (type === 'rollup')
     property.rollup = prop.rollup ?? {
@@ -986,6 +1248,8 @@ export function convertProperty(
     const text = texts.get(row.id) ?? ''
     let value: PropertyValue = null
     if (prop.type === 'relation' && type === 'relation') value = row.properties[prop.id] ?? null
+    else if (prop.type === 'person' && type === 'person') value = row.properties[prop.id] ?? null
+    else if (type === 'person' || type === 'files' || type === 'unique_id') value = null
     else if (type === 'number') value = parseNumber(text)
     else if (type === 'checkbox') value = parseCheckbox(text) ?? (text !== '' ? true : false)
     else if (type === 'date') value = parseDate(text)

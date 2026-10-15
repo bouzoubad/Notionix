@@ -71,7 +71,9 @@ const row = (title: string, properties: DatabaseRow['properties']): DatabaseRow 
   isTemplate: false,
   position: n,
   createdAt: 0,
-  updatedAt: 0
+  updatedAt: 0,
+  createdBy: null,
+  updatedBy: null
 })
 
 describe('computeDatabase', () => {

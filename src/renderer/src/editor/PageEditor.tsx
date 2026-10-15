@@ -4,7 +4,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { common, createLowlight } from 'lowlight'
 import type { Page } from '../../../shared/types'
 import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editorExtensions'
-import { ancestorsOf, useStore } from '../store'
+import { useStore } from '../store'
 import { SlashCommands } from './slashCommands'
 import { FileHandler } from '@tiptap/extension-file-handler'
 import { InteractiveCallout } from './CalloutView'
@@ -14,7 +14,8 @@ import { IMAGE_TYPES, insertImages } from './images'
 import { PageDecorations } from '../components/PageDecorations'
 import { RowProperties } from '../database/RowProperties'
 import { InteractiveDatabaseView } from '../database/InlineDatabase'
-import { canEdit, platform, type SharedPage } from '../platform'
+import { canEditPage, platform, type SharedPage } from '../platform'
+import { PageTopBar } from '../components/PageTopBar'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -67,7 +68,7 @@ function LoadedEditor({
   const pending = useRef<{ content?: string; title?: string }>({})
   const timer = useRef<number | undefined>(undefined)
   const titleInput = useRef<HTMLInputElement>(null)
-  const editable = canEdit()
+  const editable = summary ? canEditPage(summary) : false
 
   // A title renamed by someone else shows up unless this person is typing one.
   const remoteTitle = summary?.title
@@ -158,7 +159,10 @@ function LoadedEditor({
         })
   })
 
-  const crumbs = ancestorsOf(pages, page.id)
+  // Sharing or locking can change while the page is open.
+  useEffect(() => {
+    if (editor && editor.isEditable !== editable) editor.setEditable(editable)
+  }, [editor, editable])
   useEffect(() => {
     const onInsert = (e: Event): void => editMath((e as CustomEvent<boolean>).detail, '', null)
     window.addEventListener('notionix:insert-math', onInsert)
@@ -167,16 +171,7 @@ function LoadedEditor({
 
   return (
     <div className="page">
-      <div className="breadcrumbs">
-        {crumbs.map((c) => (
-          <button key={c.id} onClick={() => open(c.id)}>
-            {c.icon ?? ''} {c.title || 'Sans titre'}
-          </button>
-        ))}
-        <span>
-          {summary?.icon ?? ''} {title || 'Sans titre'}
-        </span>
-      </div>
+      {summary && <PageTopBar page={summary} title={title} />}
       {summary && <PageDecorations page={summary} />}
       <div className="page-body">
         <input

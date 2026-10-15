@@ -9,8 +9,8 @@ const scryptAsync = promisify(scrypt) as (
   options: object
 ) => Promise<Buffer>
 
-export type Role = 'admin' | 'editor' | 'reader'
-export const ROLES: Role[] = ['admin', 'editor', 'reader']
+export type Role = 'admin' | 'editor' | 'reader' | 'guest'
+export const ROLES: Role[] = ['admin', 'editor', 'reader', 'guest']
 
 export interface User {
   id: string

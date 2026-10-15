@@ -12,7 +12,8 @@ interface Account extends SessionUser {
 const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrateur',
   editor: 'Éditeur',
-  reader: 'Lecture seule'
+  reader: 'Lecture seule',
+  guest: 'Invité (pages partagées)'
 }
 const MIN_PASSWORD = 10
 

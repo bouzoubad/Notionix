@@ -8,14 +8,22 @@ const api: NotionixApi = {
   pages: {
     list: () => call('pages:list'),
     get: (id) => call('pages:get', id),
-    create: (parentId) => call('pages:create', parentId),
+    create: (parentId, access) => call('pages:create', parentId, access),
     update: (id, patch) => call('pages:update', id, patch),
     move: (id, parentId, index) => call('pages:move', id, parentId, index),
     trash: (id) => call('pages:trash', id),
     restore: (id) => call('pages:restore', id),
     deleteForever: (id) => call('pages:deleteForever', id),
     duplicate: (id) => call('pages:duplicate', id),
-    search: (q) => call('pages:search', q)
+    search: (q) => call('pages:search', q),
+    setAccess: (id, access) => call('pages:setAccess', id, access),
+    setSpace: (id, flag) => call('pages:setSpace', id, flag),
+    shares: (id) => call('pages:shares', id),
+    setShare: (id, userId, level) => call('pages:setShare', id, userId, level),
+    backlinks: (id) => call('pages:backlinks', id)
+  },
+  people: {
+    list: () => call('people:list')
   },
   databases: {
     create: (parentId) => call('databases:create', parentId),

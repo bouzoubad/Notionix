@@ -1,8 +1,10 @@
 import { create } from 'zustand'
-import type { PageId, PagePatch, PageSummary } from '../../shared/types'
+import type { PageAccess, PageId, PagePatch, PageSummary, Person } from '../../shared/types'
 
 interface State {
   pages: PageSummary[]
+  /** People of the workspace (one on the desktop app) */
+  people: Person[]
   currentId: PageId | null
   expanded: Record<PageId, boolean>
   searchOpen: boolean
@@ -19,7 +21,7 @@ interface State {
   load: () => Promise<void>
   open: (id: PageId | null) => void
   toggle: (id: PageId) => void
-  createPage: (parentId: PageId | null) => Promise<void>
+  createPage: (parentId: PageId | null, access?: PageAccess) => Promise<void>
   createDatabase: (parentId: PageId | null) => Promise<PageId>
   createRow: (databaseId: PageId) => Promise<void>
   /** Creates a database under `parentId` without leaving the page, then calls `link` with its id */
@@ -48,6 +50,7 @@ function notify(set: (partial: Partial<State>) => void, message: string): void {
 
 export const useStore = create<State>((set, get) => ({
   pages: [],
+  people: [],
   currentId: localStorage.getItem('currentId'),
   expanded: JSON.parse(localStorage.getItem('expanded') ?? '{}'),
   searchOpen: false,
@@ -59,10 +62,10 @@ export const useStore = create<State>((set, get) => ({
   setMathEdit: (mathEdit) => set({ mathEdit }),
 
   load: async () => {
-    const pages = await api.list()
+    const [pages, people] = await Promise.all([api.list(), window.api.people.list()])
     const { currentId } = get()
     const valid = currentId && pages.some((p) => p.id === currentId && !p.trashedAt)
-    set({ pages, currentId: valid ? currentId : null })
+    set({ pages, people, currentId: valid ? currentId : null })
   },
   remoteChange: async () => {
     await get().load()
@@ -99,8 +102,8 @@ export const useStore = create<State>((set, get) => ({
     await get().load()
     get().open(row.id)
   },
-  createPage: async (parentId) => {
-    const page = await api.create(parentId)
+  createPage: async (parentId, access) => {
+    const page = await api.create(parentId, access)
     if (parentId) {
       const expanded = { ...get().expanded, [parentId]: true }
       localStorage.setItem('expanded', JSON.stringify(expanded))
@@ -152,7 +155,25 @@ export const useStore = create<State>((set, get) => ({
 export const childrenOf = (pages: PageSummary[], parentId: PageId | null): PageSummary[] =>
   parentId !== null && pages.some((p) => p.id === parentId && p.kind === 'database')
     ? []
-    : directChildren(pages, parentId)
+    : parentId === null
+      ? rootsOf(pages)
+      : directChildren(pages, parentId)
+
+/**
+ * Top of the tree: top-level pages, plus pages whose parent this person
+ * cannot see (shared with them on their own), unless they are database rows.
+ */
+const rootsOf = (pages: PageSummary[]): PageSummary[] => {
+  const ids = new Set(pages.map((p) => p.id))
+  return pages
+    .filter(
+      (p) =>
+        !p.trashedAt &&
+        (p.parentId === null || !ids.has(p.parentId)) &&
+        !(p.parentId !== null && p.isTemplate)
+    )
+    .sort((a, b) => a.position - b.position)
+}
 
 const directChildren = (pages: PageSummary[], parentId: PageId | null): PageSummary[] =>
   pages

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { Extensions } from '@tiptap/core'
 import type { SessionUser } from '../../shared/collab'
+import { atLeast, type PageSummary } from '../../shared/types'
 
 /** A page opened for editing together: its editor extensions, and how to close it. */
 export interface SharedPage {
@@ -42,5 +43,6 @@ export function setPlatform(next: Platform): void {
 
 export const displaySrc = (src: string): string => current.imageSrc?.display(src) ?? src
 
-/** Readers of a server workspace see pages without changing them. */
-export const canEdit = (): boolean => current.session?.user.role !== 'reader'
+/** Whether this person may change the page: their level on it, and the page not locked. */
+export const canEditPage = (page: Pick<PageSummary, 'level' | 'options'>): boolean =>
+  atLeast(page.level, 'edit') && !page.options.locked

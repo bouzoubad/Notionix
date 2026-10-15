@@ -5,6 +5,8 @@ import { prosemirrorJSONToYDoc, yXmlFragmentToProseMirrorRootNode } from '@tipta
 import { documentSchema } from '../../src/core/transfer/canonicalDoc'
 import { PAGE_FIELD, WORKSPACE_DOCUMENT, pageIdOf } from '../../src/shared/collab'
 import type { Accounts, User } from './auth'
+import { resolveLevels } from '../../src/core/access'
+import { atLeast } from '../../src/shared/types'
 import type { Workspace } from './workspace'
 
 export interface CollabContext {
@@ -25,7 +27,10 @@ export class PageDocuments {
   extension(): Extension {
     return {
       onLoadDocument: async ({ documentName, document }) => this.load(documentName, document),
-      onStoreDocument: async ({ documentName, document }) => this.save(documentName, document)
+      onStoreDocument: async ({ documentName, document, lastContext }) =>
+        this.workspace.pages.as((lastContext as CollabContext | undefined)?.user?.id ?? null, () =>
+          this.save(documentName, document)
+        )
     }
   }
 
@@ -122,9 +127,15 @@ export function authenticate(
     if (documentName !== WORKSPACE_DOCUMENT && id === null) throw new Error('Document inconnu.')
     const user = accounts.authenticate(token) ?? accounts.authenticate(cookieToken(requestHeaders))
     if (!user) throw new Error('Session invalide ou expirée.')
-    if (id !== null && !workspace.pages.get(id)) throw new Error('Page introuvable.')
-    // The workspace channel only carries the server's notices.
-    if (user.role === 'reader' || id === null) connectionConfig.readOnly = true
+    if (id === null) {
+      // The workspace channel only carries the server's notices.
+      connectionConfig.readOnly = true
+      return { user }
+    }
+    const level =
+      resolveLevels(workspace.pages.list(), workspace.pages.allShares(), user).get(id) ?? 'none'
+    if (level === 'none') throw new Error('Page introuvable.')
+    if (!atLeast(level, 'edit')) connectionConfig.readOnly = true
     return { user }
   }
 }

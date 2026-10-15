@@ -200,12 +200,15 @@ export class DatabaseRepository {
   ): void {
     this.db
       .prepare(
-        `UPDATE pages SET title = ?, properties = ?, version = version + 1${touch ? ', updated_at = ?' : ''} WHERE id = ?`
+        `UPDATE pages SET title = ?, properties = ?, version = version + 1${touch ? ', updated_at = ?, updated_by = ?' : ''} WHERE id = ?`
       )
       .run(
-        ...([title, JSON.stringify(values), ...(touch ? [this.pages.now()] : []), id] as (
-          string | number
-        )[])
+        ...([
+          title,
+          JSON.stringify(values),
+          ...(touch ? [this.pages.now(), this.pages.actor] : []),
+          id
+        ] as (string | number | null)[])
       )
     this.pages.reindex(id)
   }

@@ -9,7 +9,8 @@ import {
   registerAssetHandlers,
   registerDatabaseHandlers,
   registerPageHandlers,
-  registerTransferHandlers
+  registerTransferHandlers,
+  LOCAL_PERSON
 } from './ipc'
 import { DatabaseRepository } from '../core/db/databaseRepository'
 import { AssetStore } from '../core/assets'
@@ -59,6 +60,7 @@ app.whenReady().then(() => {
 
   const db = openDatabase(join(app.getPath('userData'), 'notionix.db'))
   const repo = new PageRepository(db)
+  repo.actor = LOCAL_PERSON.id
   const assets = new AssetStore(join(app.getPath('userData'), 'assets'))
   protocol.handle(ASSET_SCHEME, (request) => {
     const name = decodeURIComponent(new URL(request.url).pathname.slice(1))

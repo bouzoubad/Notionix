@@ -27,5 +27,5 @@ export interface SessionUser {
   id: string
   email: string
   name: string
-  role: 'admin' | 'editor' | 'reader'
+  role: 'admin' | 'editor' | 'reader' | 'guest'
 }

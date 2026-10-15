@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ImportSummary } from '../../../shared/types'
 import { useStore } from '../store'
-import { canEdit, platform } from '../platform'
+import { platform } from '../platform'
 
 export function TransferDialog(): React.JSX.Element {
   const setOpen = useStore((s) => s.setTransferOpen)
@@ -47,7 +47,7 @@ export function TransferDialog(): React.JSX.Element {
             </p>
             <button
               className="primary"
-              disabled={busy || !canEdit()}
+              disabled={busy || ['reader', 'guest'].includes(platform().session?.user.role ?? '')}
               onClick={() => void runImport()}
             >
               {busy ? 'Import en cours…' : 'Choisir un export Notion…'}

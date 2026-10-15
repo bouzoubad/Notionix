@@ -9,8 +9,9 @@ import { Accounts, AuthError, LoginThrottle, ROLES, type Role, type User } from 
 import { MAX_ASSET_BYTES } from '../../src/core/assets'
 import { importNotionExport } from '../../src/core/transfer/notionImport'
 import { buildMarkdownArchive } from '../../src/core/transfer/markdownExport'
-import { resolveCall, RpcError } from './rpc'
+import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
 import type { Workspace } from './workspace'
+import type { Person } from '../../src/shared/types'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -153,6 +154,9 @@ export function createApi({
     return user
   }
   const editors: Role[] = ['admin', 'editor']
+  /** Everyone's name, for authors, mentions and sharing. */
+  const people = (): Person[] =>
+    accounts.list().map((u) => ({ id: u.id, name: u.name, email: u.email, disabled: u.disabled }))
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://localhost')
@@ -217,15 +221,15 @@ export function createApi({
       } else if (path === '/api/rpc' && method === 'POST') {
         const user = requireUser(req)
         const body = await readJson(req)
-        const call = resolveCall(str(body.method) ?? '', body.args ?? [], user.role)
+        const call = resolveCall(str(body.method) ?? '', body.args ?? [])
         if (call === null) throw new HttpError(404, 'Opération inconnue.')
-        if (call === 'forbidden') throw new HttpError(403, 'Droits insuffisants.')
         if (call.readsContent) collab.flush()
         let result: unknown
         try {
-          result = call.method.run(workspace, call.args)
+          result = runCall(call, new CallContext(workspace, user, people))
         } catch (e) {
           if (e instanceof RpcError) throw e
+          if (e instanceof ForbiddenError) throw new HttpError(403, e.message)
           throw new HttpError(400, e instanceof Error ? e.message : String(e))
         }
         if (call.method.write) collab.changed(user)
@@ -236,18 +240,28 @@ export function createApi({
         try {
           const file = join(dir, 'export.zip')
           await saveBody(req, file, MAX_IMPORT_BYTES)
-          const summary = await importNotionExport(workspace.pages, file, workspace.assets)
+          // The import awaits between steps: its pages are written as the importer.
+          workspace.pages.actor = user.id
+          const summary = await importNotionExport(workspace.pages, file, workspace.assets).finally(
+            () => (workspace.pages.actor = null)
+          )
           collab.changed(user)
           send(res, 200, { result: summary })
         } finally {
           await rm(dir, { recursive: true, force: true })
         }
       } else if (path === '/api/transfer/export' && method === 'GET') {
-        requireUser(req)
+        const user = requireUser(req)
         collab.flush()
         const page = url.searchParams.get('page')
+        // Only the pages the person can read are exported.
+        const ctx = new CallContext(workspace, user, people)
+        if (page) ctx.need(page, 'read')
         const archive = await buildMarkdownArchive(
-          workspace.pages,
+          {
+            list: () => ctx.filter(workspace.pages.list()),
+            get: (id) => (ctx.level(id) === 'none' ? null : workspace.pages.get(id))
+          },
           workspace.databases,
           workspace.assets,
           page || null
@@ -312,6 +326,8 @@ export function createApi({
         send(res, e.status, { error: e.message })
       } else if (e instanceof RpcError) {
         send(res, 400, { error: e.message })
+      } else if (e instanceof ForbiddenError) {
+        send(res, 403, { error: e.message })
       } else {
         console.error(e)
         send(res, 500, { error: 'Erreur interne du serveur.' })

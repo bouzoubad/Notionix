@@ -13,14 +13,28 @@ export function Sidebar(): React.JSX.Element {
   const setTrashOpen = useStore((s) => s.setTrashOpen)
   const setTransferOpen = useStore((s) => s.setTransferOpen)
   const createDatabase = useStore((s) => s.createDatabase)
+  const session = platform().session
   const [drag, setDrag] = useState<string | null>(null)
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
-  const session = platform().session
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const favorites = pages.filter((p) => p.favorite && !p.trashedAt)
+  const open = useStore((s) => s.open)
+  const web = session !== null
+  const me = session?.user.id ?? null
+  const canCreate = !session || (session.user.role !== 'guest' && session.user.role !== 'reader')
+  // Sections: teamspaces, the workspace, private pages, and pages shared on their own.
   const roots = childrenOf(pages, null)
+  const spaces = roots.filter((p) => p.isSpace && p.parentId === null)
+  const isPrivate = (p: PageSummary): boolean =>
+    p.parentId === null && p.access === 'restricted' && p.createdBy === me
+  const isShared = (p: PageSummary): boolean =>
+    p.parentId !== null || (p.access === 'restricted' && p.createdBy !== me)
+  const others = roots.filter((p) => !(p.isSpace && p.parentId === null))
+  const mine = web ? others.filter(isPrivate) : []
+  const shared = web ? others.filter((p) => !isPrivate(p) && isShared(p)) : []
+  const team = others.filter((p) => !mine.includes(p) && !shared.includes(p))
 
   const dropOn = (target: PageSummary, where: 'before' | 'inside' | 'after'): void => {
     if (!drag || drag === target.id) return
@@ -33,6 +47,7 @@ export function Sidebar(): React.JSX.Element {
       void move(drag, target.parentId, where === 'before' ? i : i + 1)
     }
   }
+  const rowProps = { drag, setDrag, drop, setDrop, dropOn }
 
   return (
     <aside className="sidebar">
@@ -47,40 +62,57 @@ export function Sidebar(): React.JSX.Element {
         <button onClick={() => void createPage(null)}>+ Nouvelle page</button>
         <button onClick={() => void createDatabase(null)}>+ Nouvelle base de données</button>
       </div>
-      {favorites.length > 0 && (
-        <section>
-          <h4>Favoris</h4>
-          {favorites.map((p) => (
-            <Row
-              key={p.id}
-              page={p}
-              depth={0}
-              flat
-              drag={drag}
-              setDrag={setDrag}
-              drop={drop}
-              setDrop={setDrop}
-              dropOn={dropOn}
-            />
-          ))}
-        </section>
-      )}
-      <section className="tree">
-        <h4>Pages</h4>
-        {roots.map((p) => (
-          <Row
-            key={p.id}
-            page={p}
-            depth={0}
-            drag={drag}
-            setDrag={setDrag}
-            drop={drop}
-            setDrop={setDrop}
-            dropOn={dropOn}
+      <div className="sidebar-sections">
+        {favorites.length > 0 && (
+          <section>
+            <h4>Favoris</h4>
+            {favorites.map((p) => (
+              <Row
+                key={p.id}
+                page={p}
+                depth={0}
+                flat
+                drag={drag}
+                setDrag={setDrag}
+                drop={drop}
+                setDrop={setDrop}
+                dropOn={dropOn}
+              />
+            ))}
+          </section>
+        )}
+        {spaces.map((space) => (
+          <TreeSection
+            key={space.id}
+            title={`${space.icon ?? '👥'} ${space.title || 'Espace sans titre'}`}
+            onTitle={() => open(space.id)}
+            onAdd={space.level !== 'read' ? () => void createPage(space.id) : undefined}
+            pages={childrenOf(pages, space.id)}
+            rowProps={rowProps}
           />
         ))}
-        {roots.length === 0 && <p className="empty">Aucune page. Créez-en une.</p>}
-      </section>
+        {(canCreate || team.length > 0) && (
+          <TreeSection
+            title={web ? 'Espace d’équipe' : 'Pages'}
+            onAdd={canCreate ? () => void createPage(null) : undefined}
+            pages={team}
+            rowProps={rowProps}
+            empty="Aucune page. Créez-en une."
+          />
+        )}
+        {web && canCreate && (
+          <TreeSection
+            title="Privé"
+            onAdd={() => void createPage(null, 'restricted')}
+            pages={mine}
+            rowProps={rowProps}
+            empty="Vos pages visibles par vous seul."
+          />
+        )}
+        {shared.length > 0 && (
+          <TreeSection title="Partagé avec moi" pages={shared} rowProps={rowProps} />
+        )}
+      </div>
       <div className="sidebar-footer">
         <button onClick={() => setTransferOpen(true)}>Importer / Exporter</button>
         <button onClick={() => setTrashOpen(true)}>Corbeille</button>
@@ -101,6 +133,45 @@ export function Sidebar(): React.JSX.Element {
         {session && settingsOpen && <session.Settings onClose={() => setSettingsOpen(false)} />}
       </div>
     </aside>
+  )
+}
+
+function TreeSection({
+  title,
+  onTitle,
+  onAdd,
+  pages,
+  rowProps,
+  empty
+}: {
+  title: string
+  onTitle?: () => void
+  onAdd?: () => void
+  pages: PageSummary[]
+  rowProps: Omit<RowProps, 'page' | 'depth' | 'flat'>
+  empty?: string
+}): React.JSX.Element {
+  return (
+    <section className="tree">
+      <h4 className="tree-title">
+        {onTitle ? (
+          <button className="tree-title-label" onClick={onTitle}>
+            {title}
+          </button>
+        ) : (
+          <span className="tree-title-label">{title}</span>
+        )}
+        {onAdd && (
+          <button className="tree-add" title="Nouvelle page" onClick={onAdd}>
+            +
+          </button>
+        )}
+      </h4>
+      {pages.map((p) => (
+        <Row key={p.id} page={p} depth={0} {...rowProps} />
+      ))}
+      {pages.length === 0 && empty && <p className="empty">{empty}</p>}
+    </section>
   )
 }
 

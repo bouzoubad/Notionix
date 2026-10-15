@@ -267,6 +267,92 @@ describe('workspace operations', () => {
   })
 })
 
+describe('access to pages', () => {
+  it('keeps private pages private, shares them, and limits guests to what is shared', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const guest = await createUser(admin, 'invite@example.com', 'guest')
+    const people = (await rpc<{ id: string; email: string }[]>(alice, 'people.list')).result
+    const idOf = (email: string): string => people.find((p) => p.email === email)!.id
+
+    const wiki = (await rpc<Page>(alice, 'pages.create', null)).result
+    const secret = (await rpc<Page>(alice, 'pages.create', null, 'restricted')).result
+    const child = (await rpc<Page>(alice, 'pages.create', secret.id)).result
+    expect((await rpc<Page>(alice, 'pages.get', secret.id)).result.level).toBe('full')
+
+    const seen = async (token: string): Promise<string[]> =>
+      (await rpc<PageSummary[]>(token, 'pages.list')).result.map((p) => p.id)
+    expect(await seen(bob)).toEqual([wiki.id])
+    expect(await seen(admin)).toEqual([wiki.id])
+    expect(await seen(guest)).toEqual([])
+    expect((await rpc(bob, 'pages.get', secret.id)).status).toBe(400)
+    expect((await rpc(bob, 'pages.update', child.id, { title: 'x' })).status).toBe(400)
+    expect((await rpc(bob, 'pages.create', secret.id)).status).toBe(400)
+    expect((await rpc(guest, 'pages.create', null)).status).toBe(403)
+    // Search does not reveal private pages.
+    await rpc(alice, 'pages.update', secret.id, { title: 'Budget confidentiel' })
+    expect((await rpc<unknown[]>(bob, 'pages.search', 'confidentiel')).result).toEqual([])
+
+    // Sharing the private page: bob may read it and its sub-page, not edit.
+    expect(
+      (await rpc(bob, 'pages.setShare', secret.id, idOf('bob@example.com'), 'read')).status
+    ).toBe(400)
+    await rpc(alice, 'pages.setShare', secret.id, idOf('bob@example.com'), 'read')
+    expect((await seen(bob)).sort()).toEqual([wiki.id, secret.id, child.id].sort())
+    expect((await rpc(bob, 'pages.update', child.id, { title: 'x' })).status).toBe(403)
+    expect((await rpc(bob, 'pages.setAccess', secret.id, 'workspace')).status).toBe(403)
+
+    // A guest invited on the sub-page only sees that page, and may edit it.
+    await rpc(alice, 'pages.setShare', child.id, idOf('invite@example.com'), 'edit')
+    expect(await seen(guest)).toEqual([child.id])
+    expect((await rpc(guest, 'pages.update', child.id, { title: 'Relu' })).status).toBe(200)
+    expect((await rpc(guest, 'pages.get', wiki.id)).status).toBe(400)
+    expect(
+      (await rpc<PageSummary[]>(alice, 'pages.list')).result.find((p) => p.id === child.id)
+        ?.updatedBy
+    ).toBe(idOf('invite@example.com'))
+
+    // Opening the page to the workspace.
+    await rpc(alice, 'pages.setAccess', secret.id, 'workspace')
+    expect((await rpc<Page>(admin, 'pages.get', secret.id)).result.level).toBe('full')
+    await rpc(alice, 'pages.setSpace', wiki.id, true)
+    expect((await rpc<Page>(bob, 'pages.get', wiki.id)).result.isSpace).toBe(true)
+  })
+
+  it('refuses the shared document of a page one cannot see, and opens it read-only for readers', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const secret = (await rpc<Page>(admin, 'pages.create', null, 'restricted')).result
+    const open = (await rpc<Page>(admin, 'pages.create', null)).result
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const denied = connect(`page:${secret.id}`, bob)
+    await until(() => denied.failures.length > 0)
+    const reader = connect(`page:${open.id}`, await createUser(admin, 'r@example.com', 'reader'))
+    await reader.synced
+    reader.doc.getXmlFragment(PAGE_FIELD).insert(0, [paragraph('tentative')])
+    const editor = connect(`page:${open.id}`, admin)
+    await editor.synced
+    await new Promise((r) => setTimeout(r, 200))
+    expect(texts(editor.doc)).not.toContain('tentative')
+    for (const c of [denied, reader, editor]) c.provider.destroy()
+  })
+
+  it('exports only the pages one can read', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const visible = (await rpc<Page>(admin, 'pages.create', null)).result
+    await rpc(admin, 'pages.update', visible.id, { title: 'Publique' })
+    const secret = (await rpc<Page>(admin, 'pages.create', null, 'restricted')).result
+    await rpc(admin, 'pages.update', secret.id, { title: 'Secrète' })
+    const res = await call('/api/transfer/export', { token: bob })
+    const zip = Buffer.from(await res.arrayBuffer())
+    expect(res.headers.get('x-notionix-pages')).toBe('1')
+    expect(zip.includes(Buffer.from('Publique'))).toBe(true)
+    expect(zip.includes(Buffer.from('Secrète'))).toBe(false)
+    expect((await call(`/api/transfer/export?page=${secret.id}`, { token: bob })).status).toBe(400)
+  })
+})
+
 describe('shared pages', () => {
   it('starts from the stored content, syncs editors, keeps readers read-only and writes content back', async () => {
     const admin = await login(ADMIN.email, ADMIN.password)

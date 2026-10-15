@@ -524,7 +524,14 @@ describe('Markdown export', () => {
       updatedAt: t,
       version: 1,
       kind: 'page',
-      isTemplate: false
+      isTemplate: false,
+      createdBy: null,
+      updatedBy: null,
+      access: 'inherit',
+      isSpace: false,
+      options: {},
+      publicToken: null,
+      level: 'full'
     })
     const summaries = [
       mk('1', null, 'Accueil', 1),

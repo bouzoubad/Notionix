@@ -23,7 +23,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     return Number.isFinite(n) && n > 0 ? n : fallback
   }
   return {
-    port: number(env.NOTIONIX_PORT, 8080),
+    // 0 picks a free port (tests).
+    port: env.NOTIONIX_PORT === '0' ? 0 : number(env.NOTIONIX_PORT, 8080),
     host: env.NOTIONIX_HOST ?? '127.0.0.1',
     dataDir: env.NOTIONIX_DATA_DIR ?? join(process.cwd(), 'data'),
     sessionDays: number(env.NOTIONIX_SESSION_DAYS, 30),

@@ -35,14 +35,22 @@ export const webApi: NotionixApi = {
   pages: {
     list: () => rpc('pages.list'),
     get: (id) => rpc('pages.get', id),
-    create: (parentId) => rpc('pages.create', parentId),
+    create: (parentId, access) => rpc('pages.create', parentId, access),
     update: (id, patch) => rpc('pages.update', id, patch),
     move: (id, parentId, index) => rpc('pages.move', id, parentId, index),
     trash: (id) => rpc('pages.trash', id),
     restore: (id) => rpc('pages.restore', id),
     deleteForever: (id) => rpc('pages.deleteForever', id),
     duplicate: (id) => rpc('pages.duplicate', id),
-    search: (q) => rpc('pages.search', q)
+    search: (q) => rpc('pages.search', q),
+    setAccess: (id, access) => rpc('pages.setAccess', id, access),
+    setSpace: (id, flag) => rpc('pages.setSpace', id, flag),
+    shares: (id) => rpc('pages.shares', id),
+    setShare: (id, userId, level) => rpc('pages.setShare', id, userId, level),
+    backlinks: (id) => rpc('pages.backlinks', id)
+  },
+  people: {
+    list: () => rpc('people.list')
   },
   databases: {
     create: (parentId) => rpc('databases.create', parentId),

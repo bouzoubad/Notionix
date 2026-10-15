@@ -112,9 +112,42 @@ kbd {
   font-weight: 600;
   color: var(--text-muted);
 }
-.tree {
+.sidebar-sections {
   flex: 1;
-  padding-bottom: 12px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.tree {
+  padding-bottom: 8px;
+}
+.sidebar h4.tree-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-right: 8px;
+}
+.tree-title-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+.tree-add {
+  visibility: hidden;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 18px;
+}
+.tree-title:hover .tree-add {
+  visibility: visible;
+}
+.tree-add:hover {
+  background: var(--bg-hover);
 }
 .row {
   position: relative;
@@ -234,8 +267,102 @@ main {
 .breadcrumbs button::after {
   content: ' /';
 }
-.breadcrumbs span {
+.breadcrumbs span.crumb-current {
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+.breadcrumbs .topbar-actions button {
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: var(--text);
+}
+.breadcrumbs .topbar-actions button::after {
+  content: none;
+}
+.breadcrumbs .topbar-actions button:hover,
+.breadcrumbs .topbar-actions button.active {
+  background: var(--bg-hover);
+}
+.topbar-anchor {
+  position: relative;
+}
+.share-menu {
+  width: 380px;
+  padding: 10px 12px 12px;
+  color: var(--text);
+  font-size: 13px;
+}
+.share-menu h5 {
+  margin: 6px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.share-menu select {
+  max-width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+.share-hint {
+  margin: 4px 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.share-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.share-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+.share-list li span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-invite {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.share-invite select:first-child {
+  flex: 1 1 160px;
+}
+.share-invite button {
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+}
+.share-invite button:disabled {
+  opacity: 0.5;
+}
+.share-space {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 .page-body {
   max-width: 900px;

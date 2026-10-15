@@ -1,7 +1,17 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'crypto'
-import type { Page, PageId, PagePatch, PageSummary, SearchHit } from '../../shared/types'
-import { docToText } from './text'
+import type {
+  Page,
+  PageAccess,
+  PageId,
+  PageOptions,
+  PagePatch,
+  PageShare,
+  PageSummary,
+  SearchHit
+} from '../../shared/types'
+import type { ShareRow } from '../access'
+import { docLinks, docToText } from './text'
 import { displayValue, parseRowProperties, parseSchema } from '../../shared/database'
 
 interface Row {
@@ -19,10 +29,39 @@ interface Row {
   version: number
   kind: string
   is_template: number
+  created_by: string | null
+  updated_by: string | null
+  access: string
+  is_space: number
+  options: string | null
+  public_token: string | null
 }
 
 const SUMMARY_COLUMNS =
-  'id, parent_id, title, icon, cover, position, favorite, trashed_at, created_at, updated_at, version, kind, is_template'
+  'id, parent_id, title, icon, cover, position, favorite, trashed_at, created_at, updated_at, version, kind, is_template, created_by, updated_by, access, is_space, options, public_token'
+
+const ACCESSES: PageAccess[] = ['inherit', 'workspace', 'restricted']
+const SHARE_LEVELS: PageShare['level'][] = ['read', 'comment', 'edit', 'full']
+
+/** Page options as stored; unknown keys and values are dropped. */
+export function parseOptions(raw: unknown): PageOptions {
+  let input: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      input = JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  }
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return {}
+  const o = input as Record<string, unknown>
+  const out: PageOptions = {}
+  if (o.fullWidth === true) out.fullWidth = true
+  if (o.smallText === true) out.smallText = true
+  if (o.font === 'serif' || o.font === 'mono') out.font = o.font
+  if (o.locked === true) out.locked = true
+  return out
+}
 
 const EMPTY_DOC = '{"type":"doc","content":[{"type":"paragraph"}]}'
 
@@ -59,13 +98,25 @@ const toSummary = (r: Omit<Row, 'content'>): PageSummary => ({
   updatedAt: r.updated_at,
   version: r.version,
   kind: r.kind === 'database' ? 'database' : 'page',
-  isTemplate: r.is_template === 1
+  isTemplate: r.is_template === 1,
+  createdBy: r.created_by,
+  updatedBy: r.updated_by,
+  access: ACCESSES.includes(r.access as PageAccess) ? (r.access as PageAccess) : 'inherit',
+  isSpace: r.is_space === 1,
+  options: parseOptions(r.options),
+  publicToken: r.public_token,
+  level: 'full'
 })
 
 const toPage = (r: Row): Page => ({ ...toSummary(r), content: r.content })
 
 export class PageRepository {
   private txDepth = 0
+  /**
+   * Account making the current changes, recorded as creator and last editor.
+   * Set around each server call (calls run synchronously, one at a time).
+   */
+  actor: string | null = null
 
   constructor(
     readonly db: DatabaseSync,
@@ -84,7 +135,19 @@ export class PageRepository {
     return row ? toPage(row) : null
   }
 
-  create(parentId: PageId | null): Page {
+  /** Runs `fn` on behalf of `actor`. */
+  as<T>(actor: string | null, fn: () => T): T {
+    const previous = this.actor
+    this.actor = actor
+    try {
+      return fn()
+    } finally {
+      this.actor = previous
+    }
+  }
+
+  /** A new page; `access` sets who sees a top-level page ('restricted': private). */
+  create(parentId: PageId | null, access: PageAccess = 'inherit'): Page {
     const id = randomUUID()
     const t = this.now()
     const last = this.db
@@ -92,9 +155,9 @@ export class PageRepository {
       .get(parentId) as { p: number | null }
     this.db
       .prepare(
-        'INSERT INTO pages (id, parent_id, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO pages (id, parent_id, position, created_at, updated_at, created_by, updated_by, access) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(id, parentId, (last.p ?? 0) + 1, t, t)
+      .run(id, parentId, (last.p ?? 0) + 1, t, t, this.actor, this.actor, access)
     this.reindex(id)
     return this.get(id)!
   }
@@ -111,9 +174,10 @@ export class PageRepository {
     if (patch.cover !== undefined) set('cover', patch.cover)
     if (patch.content !== undefined) set('content', patch.content)
     if (patch.favorite !== undefined) set('favorite', patch.favorite ? 1 : 0)
+    if (patch.options !== undefined) set('options', JSON.stringify(parseOptions(patch.options)))
     if (sets.length === 0) return this.summary(id)
-    sets.push('updated_at = ?', 'version = version + 1')
-    values.push(this.now(), id)
+    sets.push('updated_at = ?', 'updated_by = ?', 'version = version + 1')
+    values.push(this.now(), this.actor, id)
     const res = this.db.prepare(`UPDATE pages SET ${sets.join(', ')} WHERE id = ?`).run(...values)
     if (res.changes === 0) throw new Error(`Page not found: ${id}`)
     if (patch.title !== undefined || patch.content !== undefined) this.reindex(id)
@@ -150,9 +214,92 @@ export class PageRepository {
             : (before + after) / 2
     this.db
       .prepare(
-        'UPDATE pages SET parent_id = ?, position = ?, updated_at = ?, version = version + 1 WHERE id = ?'
+        'UPDATE pages SET parent_id = ?, position = ?, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?'
       )
-      .run(parentId, position, this.now(), id)
+      .run(parentId, position, this.now(), this.actor, id)
+  }
+
+  // -------------------------------------------------------------------------
+  // Access and sharing
+
+  setAccess(id: PageId, access: PageAccess): PageSummary {
+    if (!ACCESSES.includes(access)) throw new Error('Accès inconnu.')
+    this.touch(id, 'access = ?', access)
+    return this.summary(id)
+  }
+
+  /** Shows a top-level page as a teamspace section in the sidebar. */
+  setSpace(id: PageId, isSpace: boolean): PageSummary {
+    if (isSpace && this.summary(id).parentId !== null)
+      throw new Error('Seule une page de premier niveau peut devenir un espace.')
+    this.touch(id, 'is_space = ?', isSpace ? 1 : 0)
+    return this.summary(id)
+  }
+
+  shares(id: PageId): PageShare[] {
+    return (
+      this.db
+        .prepare('SELECT user_id, level FROM page_shares WHERE page_id = ? ORDER BY rowid')
+        .all(id) as { user_id: string; level: PageShare['level'] }[]
+    ).map((r) => ({ userId: r.user_id, level: r.level }))
+  }
+
+  allShares(): ShareRow[] {
+    return (
+      this.db.prepare('SELECT page_id, user_id, level FROM page_shares').all() as {
+        page_id: string
+        user_id: string
+        level: PageShare['level']
+      }[]
+    ).map((r) => ({ pageId: r.page_id, userId: r.user_id, level: r.level }))
+  }
+
+  /** Shares a page (and its sub-pages) with a person; a null level stops sharing. */
+  setShare(id: PageId, userId: string, level: PageShare['level'] | null): void {
+    this.summary(id)
+    if (level === null) {
+      this.db.prepare('DELETE FROM page_shares WHERE page_id = ? AND user_id = ?').run(id, userId)
+      return
+    }
+    if (!SHARE_LEVELS.includes(level)) throw new Error('Niveau de partage inconnu.')
+    this.db
+      .prepare(
+        `INSERT INTO page_shares (page_id, user_id, level) VALUES (?, ?, ?)
+         ON CONFLICT(page_id, user_id) DO UPDATE SET level = excluded.level`
+      )
+      .run(id, userId, level)
+  }
+
+  /** Publishes a page with a public read-only token, or unpublishes it (null). */
+  setPublicToken(id: PageId, token: string | null): PageSummary {
+    this.touch(id, 'public_token = ?', token)
+    return this.summary(id)
+  }
+
+  findByPublicToken(token: string): PageId | null {
+    const row = this.db.prepare('SELECT id FROM pages WHERE public_token = ?').get(token) as
+      { id: string } | undefined
+    return row?.id ?? null
+  }
+
+  /** Pages whose content links to `id` (links, mentions, link-to-page blocks). */
+  backlinks(id: PageId): PageSummary[] {
+    const ids = this.db
+      .prepare(
+        `SELECT l.from_id AS id FROM page_links l JOIN pages p ON p.id = l.from_id
+         WHERE l.to_id = ? AND l.from_id != ? AND p.trashed_at IS NULL`
+      )
+      .all(id, id) as { id: string }[]
+    return ids.map((r) => this.summary(r.id))
+  }
+
+  private touch(id: PageId, assignment: string, value: string | number | null): void {
+    const res = this.db
+      .prepare(
+        `UPDATE pages SET ${assignment}, updated_at = ?, updated_by = ?, version = version + 1 WHERE id = ?`
+      )
+      .run(value, this.now(), this.actor, id)
+    if (res.changes === 0) throw new Error(`Page not found: ${id}`)
   }
 
   /** Trash the page and its whole subtree with one shared timestamp. */
@@ -240,8 +387,8 @@ export class PageRepository {
       let created = 0
       let containerId: PageId | null = null
       const insert = this.db.prepare(
-        `INSERT INTO pages (id, parent_id, title, content, position, created_at, updated_at, source, kind, db_schema, properties, is_template)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO pages (id, parent_id, title, content, position, created_at, updated_at, source, kind, db_schema, properties, is_template, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const nextPosition = new Map<PageId | null, number>()
       const position = (parent: PageId | null): number => {
@@ -274,7 +421,9 @@ export class PageRepository {
               'page',
               null,
               null,
-              0
+              0,
+              this.actor,
+              this.actor
             )
             this.reindex(containerId)
             created += 1
@@ -293,7 +442,9 @@ export class PageRepository {
           node.kind ?? 'page',
           node.dbSchema ?? null,
           node.properties ?? null,
-          node.isTemplate ? 1 : 0
+          node.isTemplate ? 1 : 0,
+          this.actor,
+          this.actor
         )
         this.reindex(node.id)
         created += 1
@@ -306,8 +457,8 @@ export class PageRepository {
     const copy = this.create(parentId)
     this.db
       .prepare(
-        `UPDATE pages SET (icon, cover, kind, db_schema, properties, is_template) =
-           (SELECT icon, cover, kind, db_schema, properties, is_template FROM pages WHERE id = ?)
+        `UPDATE pages SET (icon, cover, kind, db_schema, properties, is_template, options) =
+           (SELECT icon, cover, kind, db_schema, properties, is_template, options FROM pages WHERE id = ?)
          WHERE id = ?`
       )
       .run(src.id, copy.id)
@@ -364,6 +515,9 @@ export class PageRepository {
     this.db
       .prepare('INSERT INTO page_fts (id, title, body) VALUES (?, ?, ?)')
       .run(id, row.title, body)
+    this.db.prepare('DELETE FROM page_links WHERE from_id = ?').run(id)
+    const link = this.db.prepare('INSERT OR IGNORE INTO page_links (from_id, to_id) VALUES (?, ?)')
+    for (const to of docLinks(row.content)) link.run(id, to)
   }
 
   /** Runs `fn` atomically; nested calls join the outer transaction. */

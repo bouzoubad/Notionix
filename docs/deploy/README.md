@@ -18,19 +18,41 @@ Production :     Navigateurs ──HTTPS / WSS──▶ IIS (certificat) ──H
 - Une copie de ce dépôt sur la machine (pour construire l'image), ou l'image déjà construite (`docker save` / `docker load`).
 - L'ordinateur serveur doit rester allumé et ne pas se mettre en veille pendant les heures de travail.
 
-## 2. Phase de test sur le réseau local
+## 2. Phase de test sur le réseau local (serveur Linux, par SSH)
 
-1. Dans `server/docker-compose.yml`, remplacer l'e-mail et le mot de passe du premier administrateur (10 caractères minimum).
-2. Depuis la racine du dépôt :
+```
+# Docker présent ? Sinon : curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER (puis se reconnecter)
+docker --version && docker compose version
 
-   ```
-   docker compose -f server/docker-compose.yml up -d --build
-   ```
+git clone https://github.com/bouzoubad/Notionix.git ~/notionix
+cd ~/notionix
 
-3. Sur le serveur : `curl http://127.0.0.1:8080/api/health` répond `{"ok":true,...}`.
-4. Trouver l'adresse IP du serveur (`ipconfig` sous Windows, `ipconfig getifaddr en0` sous macOS) et, depuis un autre poste, ouvrir `http://<adresse>:8080`.
-5. Si la page ne s'ouvre pas depuis un autre poste : autoriser le port 8080 en entrée dans le pare-feu du serveur (Windows : _Pare-feu Windows Defender > Paramètres avancés > Règles de trafic entrant > Nouvelle règle > Port TCP 8080_, profil « Privé » ou « Domaine »). Une adresse IP fixe (réservation DHCP) ou un nom DNS interne évite de redonner l'adresse à chaque changement.
-6. Se connecter avec le compte administrateur, puis retirer les deux lignes `NOTIONIX_ADMIN_*` du fichier compose (le compte reste).
+# Réglages locaux, jamais versionnés (git pull ne les touche pas)
+cat > server/.env <<'CONF'
+NOTIONIX_ADMIN_EMAIL=admin@entreprise.fr
+NOTIONIX_ADMIN_PASSWORD=un-mot-de-passe-long
+CONF
+chmod 600 server/.env
+
+docker compose -f server/docker-compose.yml up -d --build
+curl http://127.0.0.1:8080/api/health        # {"ok":true,...}
+hostname -I                                  # adresse à donner aux collègues
+sudo ufw status | grep -q active && sudo ufw allow 8080/tcp   # si le pare-feu ufw est actif
+```
+
+Depuis un autre poste : `http://<adresse>:8080`. Après la première connexion de l'administrateur, retirer les deux lignes de `server/.env` (le compte reste). Une adresse fixe (réservation DHCP) ou un nom DNS interne évite de redonner l'adresse.
+
+Serveur Windows : mêmes commandes dans PowerShell avec Docker Desktop (WSL 2) ; le pare-feu se règle dans _Pare-feu Windows Defender > Règles de trafic entrant > Port TCP 8080_.
+
+### Mettre à jour après des modifications
+
+Les données (volume Docker) et les comptes sont conservés à chaque mise à jour :
+
+```
+cd ~/notionix && sh server/update.sh
+```
+
+(récupère la dernière version poussée sur GitHub, reconstruit l'image, relance le conteneur, vérifie qu'il répond ; quelques secondes de coupure, les éditeurs ouverts se reconnectent seuls).
 
 **Reprendre les pages de l'app de bureau** (une seule fois, avant que l'équipe commence) : les deux bases ont le même format. App de bureau fermée, conteneur arrêté :
 
@@ -61,7 +83,7 @@ Sécurité : mots de passe hachés (scrypt), session par jeton aléatoire dont s
 
 Prérequis IIS : **URL Rewrite**, **Application Request Routing (ARR)** et la fonctionnalité Windows **WebSocket Protocol** ; dans le Gestionnaire IIS, au niveau du serveur, _Application Request Routing Cache > Server Proxy Settings_ > cocher **Enable proxy**. Un certificat de l'entreprise pour le nom DNS choisi (ex. `notionix.entreprise.local`), reconnu par les postes du domaine.
 
-1. Dans `server/docker-compose.yml`, remplacer la ligne de port par `- '127.0.0.1:8080:8080'`, puis `docker compose -f server/docker-compose.yml up -d`.
+1. Ajouter `NOTIONIX_PUBLISH=127.0.0.1:8080` dans `server/.env`, puis `docker compose -f server/docker-compose.yml up -d`.
 2. Créer un site IIS (ex. « Notionix ») avec une liaison **HTTPS 443** sur le nom DNS et le certificat ; pas de liaison HTTP, ou une redirection vers HTTPS.
 3. Copier `docs/deploy/web.config` à la racine physique du site (un dossier vide suffit).
 4. Depuis un poste : `https://notionix.entreprise.local`.

@@ -58,7 +58,7 @@ docker compose -f server/docker-compose.yml up -d --build
 - Comptes : `admin` (gère les comptes), `editor`, `reader` (lecture seule, imposée par le serveur). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
 - Données dans un volume : `workspace.db` (même format que la base de l'app de bureau), `notionix-server.db` (comptes, documents partagés), `assets/`.
 
-Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
+Mise à jour du serveur après des modifications poussées sur GitHub : `sh server/update.sh` (données et comptes conservés). Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
 
 ## Aperçu
 

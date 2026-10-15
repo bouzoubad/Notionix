@@ -1,6 +1,9 @@
 # Notionix server: web client, accounts, real-time collaboration.
 #   docker compose -f server/docker-compose.yml up -d --build   (from the repository root)
 # Then open http://<server address>:8080 from any computer on the network.
+# Settings come from server/.env (not versioned), so `git pull` never conflicts:
+#   NOTIONIX_ADMIN_EMAIL / NOTIONIX_ADMIN_PASSWORD  first administrator (only when no account exists)
+#   NOTIONIX_PUBLISH  where the port is published: 8080 (network, default) or 127.0.0.1:8080 (behind IIS)
 services:
   notionix:
     build:
@@ -9,16 +12,11 @@ services:
     image: notionix-server
     restart: unless-stopped
     ports:
-      # Test phase: reachable from the local network, plain HTTP.
-      - '8080:8080'
-      # Behind IIS (HTTPS) on the same machine, use this line instead:
-      # - '127.0.0.1:8080:8080'
+      - '${NOTIONIX_PUBLISH:-8080}:8080'
     volumes:
       - notionix-data:/data
     environment:
-      # First administrator, created only when no account exists yet.
-      # Change the password before the first start; remove both lines afterwards.
-      NOTIONIX_ADMIN_EMAIL: admin@entreprise.local
-      NOTIONIX_ADMIN_PASSWORD: change-moi-tout-de-suite
+      NOTIONIX_ADMIN_EMAIL: ${NOTIONIX_ADMIN_EMAIL:-}
+      NOTIONIX_ADMIN_PASSWORD: ${NOTIONIX_ADMIN_PASSWORD:-}
 volumes:
   notionix-data:

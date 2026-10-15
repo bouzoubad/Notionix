@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ImportSummary } from '../../../shared/types'
 import { useStore } from '../store'
+import { canEdit, platform } from '../platform'
 
 export function TransferDialog(): React.JSX.Element {
   const setOpen = useStore((s) => s.setTransferOpen)
@@ -10,6 +11,7 @@ export function TransferDialog(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
+  const web = platform().kind === 'web'
 
   const runImport = async (): Promise<void> => {
     setBusy(true)
@@ -38,10 +40,16 @@ export function TransferDialog(): React.JSX.Element {
               Dans Notion : <em>Paramètres</em> &gt;{' '}
               <em>Exporter tout le contenu de l’espace de travail</em>, format{' '}
               <strong>Markdown &amp; CSV</strong>, avec « Inclure les sous-pages » et « Créer des
-              dossiers pour les sous-pages ». Choisissez ensuite le fichier .zip reçu (ou le dossier
-              extrait). Tout reste sur cet ordinateur.
+              dossiers pour les sous-pages ».{' '}
+              {web
+                ? 'Choisissez ensuite le fichier .zip reçu : son contenu rejoint l’espace partagé du serveur.'
+                : 'Choisissez ensuite le fichier .zip reçu (ou le dossier extrait). Tout reste sur cet ordinateur.'}
             </p>
-            <button className="primary" disabled={busy} onClick={() => void runImport()}>
+            <button
+              className="primary"
+              disabled={busy || !canEdit()}
+              onClick={() => void runImport()}
+            >
               {busy ? 'Import en cours…' : 'Choisir un export Notion…'}
             </button>
             {error && <p className="error">Import impossible : {error}</p>}

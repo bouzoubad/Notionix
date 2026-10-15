@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { displaySrc } from '../platform'
 
 /** Gradient covers; the value stored in the page is `gradient:<index>`. */
 export const GRADIENT_COVERS = [
@@ -15,5 +16,7 @@ export function coverStyle(cover: string): CSSProperties {
   if (gradient)
     return { backgroundImage: GRADIENT_COVERS[Number(gradient[1])] ?? GRADIENT_COVERS[0] }
   // Covers are stored images (notionix-asset://…); anything else is ignored.
-  return cover.startsWith('notionix-asset://') ? { backgroundImage: `url("${cover}")` } : {}
+  return cover.startsWith('notionix-asset://')
+    ? { backgroundImage: `url("${displaySrc(cover)}")` }
+    : {}
 }

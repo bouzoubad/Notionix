@@ -5,16 +5,17 @@
   </picture>
 </p>
 
-<p align="center"><strong>Un espace de travail à la Notion, 100 % local.<br>Vos pages restent sur votre ordinateur, et vous pouvez y migrer votre Notion en quelques clics.</strong></p>
+<p align="center"><strong>Un espace de travail à la Notion, local ou partagé sur votre réseau.<br>Vos pages restent chez vous, et vous pouvez y migrer votre Notion en quelques clics.</strong></p>
 
-Notionix est une réimplémentation originale (aucun code ni asset Notion) : pages imbriquées, éditeur de blocs, recherche instantanée, et surtout **un import direct de vos exports Notion** et un export Markdown pour repartir quand vous voulez. Sync et mode en ligne : prévus plus tard.
+Notionix est une réimplémentation originale (aucun code ni asset Notion) : pages imbriquées, éditeur de blocs, recherche instantanée, et surtout **un import direct de vos exports Notion** et un export Markdown pour repartir quand vous voulez. Deux façons de l'utiliser : **l'app de bureau**, 100 % locale, ou **le serveur Notionix** pour travailler à plusieurs depuis un navigateur, en temps réel, sur votre réseau.
 
 ## Points forts
 
 - **Importez votre Notion** : un export « Markdown & CSV » (`.zip` ou dossier) devient des pages Notionix, hiérarchie et liens entre pages compris. Réimport sans doublon, sans jamais écraser vos modifications.
 - **Bases de données** : propriétés typées (texte, nombre, sélection, multi-sélection, date, case à cocher, URL, e-mail, téléphone, relation, **formule**, **rollup**, dates de création/modification), vues tableau, board, liste, galerie et calendrier, filtres, tris, **groupes**, ordre manuel des lignes par glisser-déposer, modèles de lignes.
 - **Exportez quand vous voulez** : tout (ou une page et ses sous-pages) en Markdown, dans l'organisation d'un export Notion.
-- **Local d'abord** : aucun compte, aucun jeton, aucune connexion ; tout est dans une base SQLite sur votre machine.
+- **Local d'abord** : l'app de bureau n'a besoin d'aucun compte ni d'aucune connexion ; tout est dans une base SQLite sur votre machine.
+- **À plusieurs, chez vous** : le serveur Notionix (un conteneur Docker) sert l'application dans le navigateur, avec comptes, rôles et édition simultanée d'une même page (curseurs des autres visibles).
 - **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, tableaux, images (stockées en local), callouts, toggles, équations LaTeX (KaTeX) ; menu `/`, menu de mise en forme sur la sélection, blocs déplaçables à la poignée ⋮⋮, icônes et couvertures de pages.
 - **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K`), favoris, corbeille.
 - **Thème clair et sombre** selon le système.
@@ -44,6 +45,21 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 
 **Dans l'autre sens.** « Exporter toutes les pages… » (archive `.zip`) ou « ⋯ > Exporter en Markdown » sur une page (sous-pages incluses) : un fichier `.md` par page, un dossier par page ayant des sous-pages, liens entre pages relatifs. Les bases sont exportées en CSV au format Notion, leurs lignes en pages. Notion sait réimporter ce format (_Importer > Texte & Markdown_, _CSV_). L'import par l'API Notion (jeton d'intégration) pourra venir avec la phase en ligne.
 
+## Travailler à plusieurs (serveur Notionix)
+
+Le serveur tourne sur une machine du réseau ; chacun ouvre `http://<adresse-du-serveur>:8080` dans son navigateur et se connecte avec son compte.
+
+```
+docker compose -f server/docker-compose.yml up -d --build
+```
+
+- Même application que sur le bureau (pages, bases de données, images, import Notion par envoi du `.zip`, export Markdown téléchargé), sur un espace partagé.
+- Édition simultanée : le contenu de chaque page est un document Yjs partagé (Hocuspocus) ; titres, arborescence et bases se mettent à jour chez tout le monde.
+- Comptes : `admin` (gère les comptes), `editor`, `reader` (lecture seule, imposée par le serveur). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
+- Données dans un volume : `workspace.db` (même format que la base de l'app de bureau), `notionix-server.db` (comptes, documents partagés), `assets/`.
+
+Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
+
 ## Aperçu
 
 | Thème clair                                                           | Thème sombre                                                       |
@@ -56,7 +72,7 @@ Captures régénérées par `npm run build && node scripts/screenshots.mjs` (pro
 
 ## Stack
 
-Electron 39, React 19, TypeScript, TipTap 3 (ProseMirror), Zustand, SQLite via `node:sqlite` (FTS5, aucune dépendance native à recompiler), Vitest, Playwright (smoke e2e).
+Electron 39, React 19, TypeScript, TipTap 3 (ProseMirror), Zustand, SQLite via `node:sqlite` (FTS5, aucune dépendance native à recompiler), Vitest, Playwright (smoke e2e). Serveur : Node 22, Hocuspocus 4 + Yjs, un seul fichier JavaScript (esbuild) et le client web (Vite) dans une image Docker.
 
 ## Lancer
 
@@ -67,9 +83,10 @@ npm run dev      # développement
 npm test         # tests unitaires (repository SQLite)
 npm run test:e2e # build + smoke test Electron
 npm run typecheck && npm run lint
+npm run server   # serveur + client web sur http://localhost:8080
 ```
 
-## État actuel (phases 1, 2 et 3 et import/export Notion terminés)
+## État actuel (phases 1, 2 et 3, import/export Notion et serveur collaboratif terminés)
 
 - Pages imbriquées, arbre en sidebar, glisser-déposer pour réordonner ou imbriquer, favoris, duplication (sous-pages incluses), fil d'Ariane.
 - Corbeille : sous-arbre mis à la corbeille ensemble, restauration, suppression définitive.
@@ -80,7 +97,8 @@ npm run typecheck && npm run lint
 - Bases de données (page de type base) : schéma de propriétés typées, valeurs validées à chaque écriture, vues tableau/board/liste/galerie/calendrier en onglets, filtres (et/ou) et tris par vue, changement de type avec conversion des valeurs, options colorées, relations vers une autre base, modèles de lignes, recherche dans les valeurs. Les lignes s'ouvrent comme des pages avec leurs propriétés sous le titre.
 - Formules (langage proche de Notion : `prop("Prix") * 1.2`, `if`, texte, nombres, dates ; aide et validation dans l'éditeur) et rollups (somme, moyenne, médiane, min/max, comptes, pourcentages, dates extrêmes, valeurs) calculés à la lecture, jamais stockés, références circulaires signalées. Groupes par sélection ou case à cocher dans les vues tableau, liste et board ; ordre manuel des lignes par glisser-déposer quand la vue n'est pas triée (changer de groupe change la valeur).
 - Import d'un export Notion (Markdown & CSV) et export Markdown, voir « Migrer depuis Notion ».
-- Données : `pages(id, parent_id, position, version, updated_at…)`, `version` incrémentée à chaque écriture pour préparer la sync.
+- Données : `pages(id, parent_id, position, version, updated_at…)`, `version` incrémentée à chaque écriture.
+- Serveur Notionix (phase de test sur réseau local) : client web servi par le serveur, comptes et rôles, édition simultanée des pages (Yjs, curseurs), mise à jour en direct de l'arborescence, des titres et des bases, images partagées, import Notion et export Markdown, image Docker validée (API, recherche, sauvegarde à chaud).
 
 ## Identité visuelle
 
@@ -95,10 +113,12 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 - Valider sur un vrai export les cas encore non rencontrés : relations entre bases, colonnes nombre et case à cocher, toggles.
 - Embeds (YouTube…) : reportés, ils supposent du réseau ; à reprendre avec la phase en ligne.
+- Serveur : écran d'administration des comptes dans l'app (aujourd'hui en ligne de commande), HTTPS (IIS ou proxy) avant toute sortie de la phase de test, présence (qui est sur quelle page), adaptation mobile et installation sur téléphone (PWA, nécessite HTTPS).
+- App de bureau : se connecter à un serveur Notionix (aujourd'hui seulement locale) et y envoyer ses pages locales.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
-- Plus tard : sync et en ligne (contenu aujourd'hui stocké comme un document TipTap JSON par page ; une sync fine par bloc demandera un modèle de blocs ou un CRDT).
 
 ## Limites connues
 
-- Le contenu d'une page est un seul document JSON : pas de bloc adressable individuellement.
+- Le contenu d'une page est un seul document JSON (côté serveur : un document Yjs par page) : pas de bloc adressable individuellement.
+- Serveur : propriétés et schémas des bases s'écrivent en « dernier qui écrit gagne » (le contenu des pages, lui, fusionne les modifications simultanées) ; en HTTP simple, mots de passe et contenus circulent en clair sur le réseau.
 - `node:sqlite` est expérimental dans Node 22 (avertissement au lancement).

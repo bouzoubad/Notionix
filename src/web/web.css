@@ -1,0 +1,67 @@
+/* Web client only: sign-in page and messages before the app loads. */
+.login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 16px;
+  background: var(--bg-sidebar);
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 340px;
+  padding: 28px 24px;
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+.login-logo {
+  display: block;
+  width: 180px;
+  margin: 0 auto 8px;
+}
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.login-card input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+}
+.login-card button.primary {
+  padding: 9px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.login-card button:disabled {
+  opacity: 0.6;
+}
+.login-card .error {
+  margin: 0;
+  color: #e03e3e;
+  font-size: 13px;
+}
+.login-warning {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.web-error {
+  padding: 40px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}

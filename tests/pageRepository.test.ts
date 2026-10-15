@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { migrate } from '../src/main/db/database'
-import { PageRepository } from '../src/main/db/pageRepository'
+import { migrate } from '../src/core/db/database'
+import { PageRepository } from '../src/core/db/pageRepository'
 
 const doc = (text: string): string =>
   JSON.stringify({

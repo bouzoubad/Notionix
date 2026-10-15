@@ -4,21 +4,21 @@ import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { strToU8, unzipSync, zipSync } from 'fflate'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { migrate } from '../src/main/db/database'
-import { PageRepository } from '../src/main/db/pageRepository'
-import { canonicalDoc } from '../src/main/transfer/canonicalDoc'
-import { docToMarkdown } from '../src/main/transfer/docToMarkdown'
-import { exportPagesAsMarkdown, zipMarkdown } from '../src/main/transfer/markdownExport'
-import { markdownToDoc, newStats, type JsonNode } from '../src/main/transfer/markdownToDoc'
+import { migrate } from '../src/core/db/database'
+import { PageRepository } from '../src/core/db/pageRepository'
+import { canonicalDoc } from '../src/core/transfer/canonicalDoc'
+import { docToMarkdown } from '../src/core/transfer/docToMarkdown'
+import { exportPagesAsMarkdown, zipMarkdown } from '../src/core/transfer/markdownExport'
+import { markdownToDoc, newStats, type JsonNode } from '../src/core/transfer/markdownToDoc'
 import {
   importNotionExport,
   planNotionImport,
   splitFrontMatter
-} from '../src/main/transfer/notionImport'
-import { parseNotionName, resolveRelative } from '../src/main/transfer/notionNames'
+} from '../src/core/transfer/notionImport'
+import { parseNotionName, resolveRelative } from '../src/core/transfer/notionNames'
 import type { Page, PageSummary } from '../src/shared/types'
-import type { SourceFile } from '../src/main/transfer/sources'
-import { AssetStore } from '../src/main/assets'
+import type { SourceFile } from '../src/core/transfer/sources'
+import { AssetStore } from '../src/core/assets'
 
 const ID_A = 'a'.repeat(32)
 const ID_B = 'b'.repeat(32)

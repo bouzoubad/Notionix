@@ -2,7 +2,12 @@ import type { DatabaseSync } from 'node:sqlite'
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
 
-const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number, options: object) => Promise<Buffer>
+const scryptAsync = promisify(scrypt) as (
+  password: string,
+  salt: Buffer,
+  keylen: number,
+  options: object
+) => Promise<Buffer>
 
 export type Role = 'admin' | 'editor' | 'reader'
 export const ROLES: Role[] = ['admin', 'editor', 'reader']
@@ -77,7 +82,9 @@ export class Accounts {
   }
 
   list(): User[] {
-    return (this.db.prepare('SELECT * FROM users ORDER BY name').all() as unknown as UserRow[]).map(toUser)
+    return (this.db.prepare('SELECT * FROM users ORDER BY name').all() as unknown as UserRow[]).map(
+      toUser
+    )
   }
 
   byId(id: string): User | null {
@@ -85,7 +92,12 @@ export class Accounts {
     return row ? toUser(row) : null
   }
 
-  async create(input: { email: string; name: string; role: Role; password: string }): Promise<User> {
+  async create(input: {
+    email: string
+    name: string
+    role: Role
+    password: string
+  }): Promise<User> {
     const email = input.email.trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+$/.test(email)) throw new AuthError('Adresse e-mail invalide.', 400)
     if (!ROLES.includes(input.role)) throw new AuthError('Rôle invalide.', 400)
@@ -95,43 +107,76 @@ export class Accounts {
     }
     const id = randomUUID()
     this.db
-      .prepare('INSERT INTO users (id, email, name, role, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, email, input.name.trim() || email, input.role, await hashPassword(input.password), this.now())
+      .prepare(
+        'INSERT INTO users (id, email, name, role, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run(
+        id,
+        email,
+        input.name.trim() || email,
+        input.role,
+        await hashPassword(input.password),
+        this.now()
+      )
     return this.byId(id)!
   }
 
-  async update(id: string, patch: { name?: string; role?: Role; password?: string; disabled?: boolean }): Promise<User> {
+  async update(
+    id: string,
+    patch: { name?: string; role?: Role; password?: string; disabled?: boolean }
+  ): Promise<User> {
     const user = this.byId(id)
     if (!user) throw new AuthError('Compte introuvable.', 404)
-    if (patch.role !== undefined && !ROLES.includes(patch.role)) throw new AuthError('Rôle invalide.', 400)
-    const losesAdmin = user.role === 'admin' && ((patch.role && patch.role !== 'admin') || patch.disabled === true)
-    if (losesAdmin && this.activeAdmins() <= 1) throw new AuthError('Il doit rester au moins un administrateur actif.', 409)
-    if (patch.name !== undefined) this.db.prepare('UPDATE users SET name = ? WHERE id = ?').run(patch.name.trim() || user.email, id)
-    if (patch.role !== undefined) this.db.prepare('UPDATE users SET role = ? WHERE id = ?').run(patch.role, id)
-    if (patch.disabled !== undefined) this.db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(patch.disabled ? 1 : 0, id)
+    if (patch.role !== undefined && !ROLES.includes(patch.role))
+      throw new AuthError('Rôle invalide.', 400)
+    const losesAdmin =
+      user.role === 'admin' && ((patch.role && patch.role !== 'admin') || patch.disabled === true)
+    if (losesAdmin && this.activeAdmins() <= 1)
+      throw new AuthError('Il doit rester au moins un administrateur actif.', 409)
+    if (patch.name !== undefined)
+      this.db
+        .prepare('UPDATE users SET name = ? WHERE id = ?')
+        .run(patch.name.trim() || user.email, id)
+    if (patch.role !== undefined)
+      this.db.prepare('UPDATE users SET role = ? WHERE id = ?').run(patch.role, id)
+    if (patch.disabled !== undefined)
+      this.db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(patch.disabled ? 1 : 0, id)
     if (patch.password !== undefined) {
       checkPassword(patch.password)
-      this.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await hashPassword(patch.password), id)
+      this.db
+        .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        .run(await hashPassword(patch.password), id)
     }
     // A new password, a disabled account or a lower role ends the open sessions.
-    if (patch.password !== undefined || patch.disabled === true || patch.role !== undefined) this.endSessions(id)
+    if (patch.password !== undefined || patch.disabled === true || patch.role !== undefined)
+      this.endSessions(id)
     return this.byId(id)!
   }
 
   private activeAdmins(): number {
-    return (this.db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled = 0").get() as { n: number }).n
+    return (
+      this.db
+        .prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled = 0")
+        .get() as { n: number }
+    ).n
   }
 
   /** Checks the password and opens a session; the same error for an unknown account and a wrong password. */
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
-    const row = this.db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase()) as UserRow | undefined
-    const ok = row ? await verifyPassword(password, row.password_hash) : await hashPassword(password).then(() => false)
+    const row = this.db
+      .prepare('SELECT * FROM users WHERE email = ?')
+      .get(email.trim().toLowerCase()) as UserRow | undefined
+    const ok = row
+      ? await verifyPassword(password, row.password_hash)
+      : await hashPassword(password).then(() => false)
     if (!row || !ok) throw new AuthError('E-mail ou mot de passe incorrect.', 401)
     if (row.disabled === 1) throw new AuthError('Ce compte est désactivé.', 403)
     const token = randomBytes(32).toString('base64url')
     const t = this.now()
     this.db
-      .prepare('INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
+      .prepare(
+        'INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
+      )
       .run(tokenHash(token), row.id, t, t + this.sessionDays * 864e5)
     return { token, user: toUser(row) }
   }
@@ -163,7 +208,10 @@ export class Accounts {
 
 function checkPassword(password: string): void {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
-    throw new AuthError(`Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`, 400)
+    throw new AuthError(
+      `Le mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`,
+      400
+    )
   }
 }
 
@@ -187,7 +235,10 @@ export class LoginThrottle {
   fail(key: string): void {
     const entry = this.failures.get(key)
     const expired = !entry || entry.until <= this.now()
-    this.failures.set(key, { count: expired ? 1 : entry.count + 1, until: this.now() + this.windowMs })
+    this.failures.set(key, {
+      count: expired ? 1 : entry.count + 1,
+      until: this.now() + this.windowMs
+    })
   }
 
   succeed(key: string): void {

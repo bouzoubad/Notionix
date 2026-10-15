@@ -11,6 +11,9 @@ import {
   type PropertyValue
 } from '../../shared/database'
 import type { JsonNode } from './markdownToDoc'
+import type { PageRepository } from '../db/pageRepository'
+import type { DatabaseRepository } from '../db/databaseRepository'
+import type { AssetStore } from '../assets'
 
 export interface ExportedFile {
   path: string
@@ -204,4 +207,36 @@ export function zipMarkdown(
   // Images are already compressed.
   for (const a of attachments) entries[a.path] = [a.bytes, { level: 0 }]
   return zipSync(entries, { level: 6 })
+}
+
+export interface MarkdownArchive {
+  /** Suggested file name: "<title>.md" for a lone page, "<title>.zip" otherwise */
+  fileName: string
+  bytes: Uint8Array
+  pages: number
+}
+
+/**
+ * Exports a page and its sub-pages (or every page when `pageId` is null) as a
+ * single Markdown file, or a zip when there are several files or images.
+ */
+export async function buildMarkdownArchive(
+  repo: Pick<PageRepository, 'list' | 'get'>,
+  dbs: Pick<DatabaseRepository, 'get'>,
+  assets: Pick<AssetStore, 'read'>,
+  pageId: PageId | null
+): Promise<MarkdownArchive> {
+  const { files, attachments } = await exportPagesAsMarkdown(
+    repo.list(),
+    (id) => repo.get(id),
+    (src) => assets.read(src),
+    pageId,
+    (id) => dbs.get(id)
+  )
+  if (files.length === 0) throw new Error('Aucune page à exporter.')
+  const single = files.length === 1 && attachments.length === 0
+  const title = pageId ? safeName(repo.get(pageId)?.title ?? '') : 'Notionix'
+  return single
+    ? { fileName: `${title}.md`, bytes: strToU8(files[0].markdown), pages: 1 }
+    : { fileName: `${title}.zip`, bytes: zipMarkdown(files, attachments), pages: files.length }
 }

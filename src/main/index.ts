@@ -3,16 +3,16 @@ import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { openDatabase } from './db/database'
-import { PageRepository } from './db/pageRepository'
+import { openDatabase } from '../core/db/database'
+import { PageRepository } from '../core/db/pageRepository'
 import {
   registerAssetHandlers,
   registerDatabaseHandlers,
   registerPageHandlers,
   registerTransferHandlers
 } from './ipc'
-import { DatabaseRepository } from './db/databaseRepository'
-import { AssetStore } from './assets'
+import { DatabaseRepository } from '../core/db/databaseRepository'
+import { AssetStore } from '../core/assets'
 import { ASSET_SCHEME } from '../shared/assets'
 
 protocol.registerSchemesAsPrivileged([
@@ -57,7 +57,7 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.notionix')
   if (process.platform === 'darwin') app.dock?.setIcon(icon)
 
-  const db = openDatabase()
+  const db = openDatabase(join(app.getPath('userData'), 'notionix.db'))
   const repo = new PageRepository(db)
   const assets = new AssetStore(join(app.getPath('userData'), 'assets'))
   protocol.handle(ASSET_SCHEME, (request) => {

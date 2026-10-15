@@ -14,6 +14,7 @@ import { IMAGE_TYPES, insertImages } from './images'
 import { PageDecorations } from '../components/PageDecorations'
 import { RowProperties } from '../database/RowProperties'
 import { InteractiveDatabaseView } from '../database/InlineDatabase'
+import { canEdit, platform, type SharedPage } from '../platform'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -29,12 +30,34 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
       cancelled = true
     }
   }, [pageId])
+  // On a server, the page's content is a document edited together.
+  const session = platform().session
+  const [shared, setShared] = useState<{ id: string; page: SharedPage } | null>(null)
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    const opened = session.openPage(pageId)
+    void opened.ready.then(() => {
+      if (!cancelled) setShared({ id: pageId, page: opened })
+    })
+    return () => {
+      cancelled = true
+      opened.destroy()
+    }
+  }, [session, pageId])
   const page = loaded?.id === pageId ? loaded.page : null
-  if (!page) return null
-  return <LoadedEditor key={page.id} page={page} />
+  const sharedPage = shared?.id === pageId ? shared.page : null
+  if (!page || (session && !sharedPage)) return null
+  return <LoadedEditor key={page.id} page={page} shared={sharedPage} />
 }
 
-function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
+function LoadedEditor({
+  page,
+  shared
+}: {
+  page: Page
+  shared: SharedPage | null
+}): React.JSX.Element {
   const patch = useStore((s) => s.patch)
   const pages = useStore((s) => s.pages)
   const open = useStore((s) => s.open)
@@ -43,6 +66,15 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
   const isRow = pages.some((p) => p.id === page.parentId && p.kind === 'database')
   const pending = useRef<{ content?: string; title?: string }>({})
   const timer = useRef<number | undefined>(undefined)
+  const titleInput = useRef<HTMLInputElement>(null)
+  const editable = canEdit()
+
+  // A title renamed by someone else shows up unless this person is typing one.
+  const remoteTitle = summary?.title
+  useEffect(() => {
+    if (remoteTitle === undefined || pending.current.title !== undefined) return
+    if (document.activeElement !== titleInput.current) setTitle(remoteTitle)
+  }, [remoteTitle])
 
   const flush = (): void => {
     window.clearTimeout(timer.current)
@@ -88,7 +120,10 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
       ...createDocumentExtensions(lowlight, {
         callout: InteractiveCallout,
         databaseView: InteractiveDatabaseView,
-        onMathClick: (node, pos) => editMath(node.type.name === 'inlineMath', node.attrs.latex, pos)
+        onMathClick: (node, pos) =>
+          editMath(node.type.name === 'inlineMath', node.attrs.latex, pos),
+        imageSrc: platform().imageSrc,
+        collaboration: shared?.extensions
       }),
       FileHandler.configure({
         allowedMimeTypes: IMAGE_TYPES,
@@ -113,8 +148,14 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
         return true
       }
     },
-    content: JSON.parse(page.content),
-    onUpdate: ({ editor }) => schedule({ content: JSON.stringify(editor.getJSON()) })
+    editable,
+    // A shared page gets its content from the server's document.
+    ...(shared
+      ? {}
+      : {
+          content: JSON.parse(page.content),
+          onUpdate: ({ editor }) => schedule({ content: JSON.stringify(editor.getJSON()) })
+        })
   })
 
   const crumbs = ancestorsOf(pages, page.id)
@@ -139,8 +180,10 @@ function LoadedEditor({ page }: { page: Page }): React.JSX.Element {
       {summary && <PageDecorations page={summary} />}
       <div className="page-body">
         <input
+          ref={titleInput}
           className="page-title"
           value={title}
+          readOnly={!editable}
           placeholder="Sans titre"
           autoFocus={!page.title}
           onChange={(e) => {

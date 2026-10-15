@@ -8,7 +8,9 @@ if (command) {
 } else {
   const config = readConfig()
   const running = await startServer(config)
-  console.log(`Notionix server à l’écoute sur ${running.url} (données : ${config.dataDir})`)
+  console.log(
+    `Notionix à l’écoute sur ${config.host}:${config.port} (données : ${config.dataDir}, application web : ${config.webDir ?? 'aucune'})`
+  )
   let stopping = false
   const stop = async (): Promise<void> => {
     if (stopping) return

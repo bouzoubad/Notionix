@@ -536,6 +536,47 @@ main {
   padding: 5px 10px;
   color: var(--text-muted);
 }
+.sidebar-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 0 0 10px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.sidebar-account .account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-account button {
+  flex: none;
+  font-size: 12px;
+}
+/* Other people's carets in a shared page */
+.collaboration-carets__caret {
+  position: relative;
+  margin: 0 -1px;
+  border-left: 1px solid;
+  border-right: 1px solid;
+  word-break: normal;
+  pointer-events: none;
+}
+.collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  padding: 0 4px;
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: none;
+}
 .dialog.transfer {
   width: 640px;
 }

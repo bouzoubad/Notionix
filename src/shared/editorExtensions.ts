@@ -1,9 +1,9 @@
-import type { AnyExtension, Extensions } from '@tiptap/core'
+import type { AnyExtension, Extensions, Node } from '@tiptap/core'
 import { StarterKit } from '@tiptap/starter-kit'
 import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
-import { Image } from '@tiptap/extension-image'
+import { Image, type ImageOptions } from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details'
 import type { createLowlight } from 'lowlight'
@@ -29,6 +29,13 @@ export interface DocumentExtensionOverrides {
   databaseView?: AnyExtension
   /** Opens the equation editor (renderer only) */
   onMathClick?: (node: PmNode, pos: number) => void
+  /**
+   * Maps a stored image src to the URL the page loads, and back for pasted
+   * HTML (web client: notionix-asset://file/<name> is served under /api/assets).
+   */
+  imageSrc?: { display: (src: string) => string; stored: (url: string) => string }
+  /** Real-time collaboration brings its own undo history (renderer only) */
+  collaboration?: Extensions
 }
 
 /**
@@ -42,12 +49,13 @@ export function createDocumentExtensions(
   return [
     StarterKit.configure({
       codeBlock: false,
+      ...(overrides.collaboration ? { undoRedo: false as const } : {}),
       link: { openOnClick: false, autolink: true, protocols: [PAGE_LINK_PROTOCOL] }
     }),
     CodeBlockLowlight.configure({ lowlight }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    Image.configure({
+    (overrides.imageSrc ? mappedImage(overrides.imageSrc) : Image).configure({
       inline: false,
       allowBase64: false,
       resize: { enabled: true, alwaysPreserveAspectRatio: true, minWidth: 48 }
@@ -63,6 +71,29 @@ export function createDocumentExtensions(
       onClick: overrides.onMathClick
     }),
     overrides.callout ?? Callout,
-    overrides.databaseView ?? DatabaseView
+    overrides.databaseView ?? DatabaseView,
+    ...(overrides.collaboration ?? [])
   ]
 }
+
+/** Image whose stored src stays canonical while the page shows `display(src)`. */
+const mappedImage = ({
+  display,
+  stored
+}: NonNullable<DocumentExtensionOverrides['imageSrc']>): Node<ImageOptions> =>
+  Image.extend({
+    addAttributes() {
+      return {
+        ...this.parent?.(),
+        src: {
+          default: null,
+          parseHTML: (el: HTMLElement) => {
+            const src = el.getAttribute('src')
+            return src === null ? null : stored(src)
+          },
+          renderHTML: (attrs: Record<string, unknown>) =>
+            typeof attrs.src === 'string' ? { src: display(attrs.src) } : {}
+        }
+      }
+    }
+  })

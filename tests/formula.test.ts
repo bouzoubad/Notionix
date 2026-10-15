@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { FormulaError, evaluate, parseFormula, type FormulaValue } from '../src/shared/formula'
 import { computeDatabase, type DatabaseSource } from '../src/shared/computed'
 import { defaultView, type DatabaseRow, type PropertyDef } from '../src/shared/database'
-import { migrate } from '../src/main/db/database'
-import { PageRepository } from '../src/main/db/pageRepository'
-import { DatabaseRepository } from '../src/main/db/databaseRepository'
+import { migrate } from '../src/core/db/database'
+import { PageRepository } from '../src/core/db/pageRepository'
+import { DatabaseRepository } from '../src/core/db/databaseRepository'
 
 const run = (src: string, props: Record<string, FormulaValue> = {}): FormulaValue =>
   evaluate(parseFormula(src), {

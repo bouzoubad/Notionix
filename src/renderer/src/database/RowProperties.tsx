@@ -14,6 +14,7 @@ import { TYPE_ICONS } from './viewTypes'
 export function RowProperties({ rowId }: { rowId: string }): React.JSX.Element | null {
   const [data, setData] = useState<RowData | null>(null)
   const showNotice = useStore((s) => s.showNotice)
+  const revision = useStore((s) => s.revision)
 
   useEffect(() => {
     let cancelled = false
@@ -23,7 +24,7 @@ export function RowProperties({ rowId }: { rowId: string }): React.JSX.Element |
     return () => {
       cancelled = true
     }
-  }, [rowId])
+  }, [rowId, revision])
 
   if (!data) return null
   const update = async (values: Record<string, PropertyValue>): Promise<void> => {

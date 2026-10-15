@@ -1,8 +1,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { migrate } from '../src/main/db/database'
-import { PageRepository } from '../src/main/db/pageRepository'
-import { DatabaseRepository } from '../src/main/db/databaseRepository'
+import { migrate } from '../src/core/db/database'
+import { PageRepository } from '../src/core/db/pageRepository'
+import { DatabaseRepository } from '../src/core/db/databaseRepository'
 import {
   applyView,
   compareValues,

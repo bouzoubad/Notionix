@@ -9,6 +9,10 @@ interface State {
   trashOpen: boolean
   transferOpen: boolean
   notice: string | null
+  /** Increased when another person changed pages or databases (server workspace) */
+  revision: number
+  /** Reloads what another person may have changed */
+  remoteChange: () => Promise<void>
   /** Equation being edited, and how to write the result back (null removes it) */
   mathEdit: { latex: string; inline: boolean; apply: (latex: string | null) => void } | null
   setMathEdit: (edit: State['mathEdit']) => void
@@ -50,6 +54,7 @@ export const useStore = create<State>((set, get) => ({
   trashOpen: false,
   transferOpen: false,
   notice: null,
+  revision: 0,
   mathEdit: null,
   setMathEdit: (mathEdit) => set({ mathEdit }),
 
@@ -58,6 +63,10 @@ export const useStore = create<State>((set, get) => ({
     const { currentId } = get()
     const valid = currentId && pages.some((p) => p.id === currentId && !p.trashedAt)
     set({ pages, currentId: valid ? currentId : null })
+  },
+  remoteChange: async () => {
+    await get().load()
+    set({ revision: get().revision + 1 })
   },
   open: (id) => {
     if (id) localStorage.setItem('currentId', id)

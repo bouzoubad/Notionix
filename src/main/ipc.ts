@@ -1,11 +1,11 @@
 import { writeFile } from 'fs/promises'
 import type { BrowserWindow, Dialog, IpcMain } from 'electron'
 import type { ExportSummary, ImportSummary } from '../shared/types'
-import type { PageRepository } from './db/pageRepository'
-import type { AssetStore } from './assets'
-import type { DatabaseRepository } from './db/databaseRepository'
-import { exportPagesAsMarkdown, safeName, zipMarkdown } from './transfer/markdownExport'
-import { importNotionExport } from './transfer/notionImport'
+import type { PageRepository } from '../core/db/pageRepository'
+import type { AssetStore } from '../core/assets'
+import type { DatabaseRepository } from '../core/db/databaseRepository'
+import { buildMarkdownArchive } from '../core/transfer/markdownExport'
+import { importNotionExport } from '../core/transfer/notionImport'
 
 export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   ipc.handle('pages:list', () => repo.list())
@@ -74,20 +74,12 @@ export function registerTransferHandlers(
   ipc.handle(
     'transfer:exportMarkdown',
     async (_e, pageId: string | null): Promise<ExportSummary | null> => {
-      const { files, attachments } = await exportPagesAsMarkdown(
-        repo.list(),
-        (id) => repo.get(id),
-        (src) => assets.read(src),
-        pageId,
-        (id) => dbs.get(id)
-      )
-      if (files.length === 0) throw new Error('Aucune page à exporter.')
-      const single = files.length === 1 && attachments.length === 0
-      const title = pageId ? safeName(repo.get(pageId)?.title ?? '') : 'Notionix'
+      const archive = await buildMarkdownArchive(repo, dbs, assets, pageId)
+      const md = archive.fileName.endsWith('.md')
       const options = {
         title: 'Exporter en Markdown',
-        defaultPath: single ? `${title}.md` : `${title}.zip`,
-        filters: single
+        defaultPath: archive.fileName,
+        filters: md
           ? [{ name: 'Markdown', extensions: ['md'] }]
           : [{ name: 'Archive ZIP', extensions: ['zip'] }]
       }
@@ -96,8 +88,8 @@ export function registerTransferHandlers(
         ? await deps.dialog.showSaveDialog(win, options)
         : await deps.dialog.showSaveDialog(options)
       if (result.canceled || !result.filePath) return null
-      await writeFile(result.filePath, single ? files[0].markdown : zipMarkdown(files, attachments))
-      return { path: result.filePath, pages: files.length }
+      await writeFile(result.filePath, archive.bytes)
+      return { path: result.filePath, pages: archive.pages }
     }
   )
 }

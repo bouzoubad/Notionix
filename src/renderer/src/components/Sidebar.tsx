@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { childrenOf, useStore } from '../store'
 import { Logo } from './Logo'
+import { platform } from '../platform'
 import type { PageSummary } from '../../../shared/types'
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
@@ -15,6 +16,7 @@ export function Sidebar(): React.JSX.Element {
   const [drag, setDrag] = useState<string | null>(null)
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
+  const session = platform().session
 
   const favorites = pages.filter((p) => p.favorite && !p.trashedAt)
   const roots = childrenOf(pages, null)
@@ -81,6 +83,15 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-footer">
         <button onClick={() => setTransferOpen(true)}>Importer / Exporter</button>
         <button onClick={() => setTrashOpen(true)}>Corbeille</button>
+        {session && (
+          <div className="sidebar-account" title={session.user.email}>
+            <span className="account-name">
+              {session.user.name}
+              {session.user.role === 'reader' ? ' (lecture seule)' : ''}
+            </span>
+            <button onClick={() => void session.logout()}>Se déconnecter</button>
+          </div>
+        )}
       </div>
     </aside>
   )

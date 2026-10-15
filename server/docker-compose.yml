@@ -1,4 +1,6 @@
-# docker compose -f server/docker-compose.yml up -d --build   (from the repository root)
+# Notionix server: web client, accounts, real-time collaboration.
+#   docker compose -f server/docker-compose.yml up -d --build   (from the repository root)
+# Then open http://<server address>:8080 from any computer on the network.
 services:
   notionix:
     build:
@@ -6,14 +8,16 @@ services:
       dockerfile: server/Dockerfile
     image: notionix-server
     restart: unless-stopped
-    # Reachable only from the host itself: IIS forwards HTTPS traffic to it.
     ports:
-      - '127.0.0.1:8080:8080'
+      # Test phase: reachable from the local network, plain HTTP.
+      - '8080:8080'
+      # Behind IIS (HTTPS) on the same machine, use this line instead:
+      # - '127.0.0.1:8080:8080'
     volumes:
       - notionix-data:/data
     environment:
       # First administrator, created only when no account exists yet.
-      # Remove these two lines after the first start.
+      # Change the password before the first start; remove both lines afterwards.
       NOTIONIX_ADMIN_EMAIL: admin@entreprise.local
       NOTIONIX_ADMIN_PASSWORD: change-moi-tout-de-suite
 volumes:

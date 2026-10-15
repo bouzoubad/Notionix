@@ -26,6 +26,8 @@ const fail = (e: unknown): void =>
 /** Loads a database and applies edits optimistically, then with the stored result. */
 export function useDatabase(id: PageId): DatabaseApi {
   const [data, setData] = useState<DatabaseData | null>(null)
+  // Changes made by other people (server workspace) reload the database.
+  const revision = useStore((s) => s.revision)
 
   const reload = useCallback(async () => {
     const next = await window.api.databases.get(id)
@@ -40,7 +42,7 @@ export function useDatabase(id: PageId): DatabaseApi {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, revision])
 
   const saveSchema = async (schema: DatabaseSchema): Promise<void> => {
     setData((d) => (d ? { ...d, schema } : d))

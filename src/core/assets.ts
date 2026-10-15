@@ -6,6 +6,16 @@ import { ASSET_NAME, assetNameFromSrc, assetSrc, detectImageType } from '../shar
 
 export const MAX_ASSET_BYTES = 50 * 1024 * 1024
 
+const MEDIA_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  avif: 'image/avif',
+  bmp: 'image/bmp'
+}
+
 /**
  * Content-addressed image store under the user data folder. The same bytes
  * are stored once; files are never modified after being written.
@@ -28,6 +38,26 @@ export class AssetStore {
       await rename(temp, target)
     }
     return assetSrc(name)
+  }
+
+  /**
+   * Stores an image sent under its final name (by a client that computed it):
+   * the name must match the bytes' hash and type.
+   */
+  async put(name: string, bytes: Uint8Array): Promise<void> {
+    if (!ASSET_NAME.test(name)) throw new Error('Nom de fichier invalide.')
+    const [hash, ext] = name.split('.')
+    if (createHash('sha256').update(bytes).digest('hex') !== hash)
+      throw new Error('Le contenu ne correspond pas au nom.')
+    if (detectImageType(bytes, name) !== ext) throw new Error("Type d'image incorrect.")
+    if ((await this.save(bytes, name)) !== assetSrc(name)) throw new Error('Image refusée.')
+  }
+
+  /** Bytes and media type of a stored asset, or null for an invalid or unknown name. */
+  async load(name: string): Promise<{ bytes: Uint8Array; type: string } | null> {
+    const path = this.pathOf(name)
+    if (!path) return null
+    return { bytes: new Uint8Array(await readFile(path)), type: MEDIA_TYPES[name.split('.')[1]] }
   }
 
   /** Absolute path of a stored asset, or null for an invalid or unknown name. */

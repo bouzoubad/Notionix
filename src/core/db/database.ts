@@ -1,6 +1,4 @@
 import { DatabaseSync } from 'node:sqlite'
-import { join } from 'path'
-import { app } from 'electron'
 
 const MIGRATIONS: string[] = [
   `CREATE TABLE pages (
@@ -29,9 +27,10 @@ const MIGRATIONS: string[] = [
    ALTER TABLE pages ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0;`
 ]
 
-export function openDatabase(file = join(app.getPath('userData'), 'notionix.db')): DatabaseSync {
+/** Opens (and migrates) a workspace database: the app's local file or the server's shared one. */
+export function openDatabase(file: string): DatabaseSync {
   const db = new DatabaseSync(file)
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;')
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
   migrate(db)
   return db
 }

@@ -13,6 +13,16 @@ export function assetNameFromSrc(src: string): string | null {
   return ASSET_NAME.test(name) ? name : null
 }
 
+/** Where the web client loads a stored image from (the server checks the session). */
+export const assetWebPath = (name: string): string => `/api/assets/${name}`
+
+/** Stored src of an image shown by the web client, or `url` unchanged for any other image. */
+export function assetSrcFromWebPath(url: string): string {
+  const match = /^(?:https?:\/\/[^/]+)?\/api\/assets\/([^/?#]+)$/.exec(url)
+  const name = match ? decodeURIComponent(match[1]) : ''
+  return ASSET_NAME.test(name) ? assetSrc(name) : url
+}
+
 const EXTENSIONS: Record<string, string> = {
   png: 'png',
   jpg: 'jpg',

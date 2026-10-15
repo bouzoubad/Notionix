@@ -208,6 +208,9 @@ export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
 }
 
 const PROPERTY_TYPES = new Set(Object.keys(PROPERTY_TYPE_LABELS))
+
+export const isPropertyType = (v: unknown): v is PropertyType =>
+  typeof v === 'string' && PROPERTY_TYPES.has(v)
 const VIEW_TYPES = new Set(Object.keys(VIEW_TYPE_LABELS))
 const COMPUTED: ReadonlySet<PropertyType> = new Set([
   'title',

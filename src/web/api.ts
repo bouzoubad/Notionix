@@ -1,5 +1,6 @@
 import type { ExportSummary, ImportSummary, NotionixApi } from '../shared/types'
 import { json, request, rpc } from './http'
+import { assetNameFromSrc, assetWebPath } from '../shared/assets'
 
 /** Lets the user pick one file; null when the picker is closed without a choice. */
 function pickFile(accept: string): Promise<File | null> {
@@ -40,7 +41,7 @@ export const webApi: NotionixApi = {
   pages: {
     list: () => rpc('pages.list'),
     get: (id) => rpc('pages.get', id),
-    create: (parentId, access) => rpc('pages.create', parentId, access),
+    create: (parentId, access, kind) => rpc('pages.create', parentId, access, kind),
     update: (id, patch) => rpc('pages.update', id, patch),
     move: (id, parentId, index) => rpc('pages.move', id, parentId, index),
     trash: (id) => rpc('pages.trash', id),
@@ -97,6 +98,23 @@ export const webApi: NotionixApi = {
         type: 'application/octet-stream'
       })
       return src
+    },
+    saveFile: async (bytes, name) => {
+      const { src } = await json<{ src: string }>(
+        `/api/assets?file=1&name=${encodeURIComponent(name)}`,
+        { body: new Blob([bytes as Uint8Array<ArrayBuffer>]), type: 'application/octet-stream' }
+      )
+      return src
+    },
+    download: async (src, fileName) => {
+      const name = assetNameFromSrc(src)
+      if (!name) throw new Error('Fichier introuvable.')
+      const a = document.createElement('a')
+      a.href = `${assetWebPath(name)}?download=${encodeURIComponent(fileName)}`
+      a.download = fileName
+      document.body.append(a)
+      a.click()
+      a.remove()
     }
   },
   transfer: {

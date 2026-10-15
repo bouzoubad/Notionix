@@ -6,7 +6,8 @@ import { join } from 'path'
 import { pipeline } from 'stream/promises'
 import { Transform } from 'stream'
 import { Accounts, AuthError, LoginThrottle, ROLES, type Role, type User } from './auth'
-import { MAX_ASSET_BYTES } from '../../src/core/assets'
+import { MAX_ASSET_BYTES, MAX_FILE_BYTES } from '../../src/core/assets'
+import { ASSET_TYPES } from '../../src/shared/assets'
 import { importNotionExport } from '../../src/core/transfer/notionImport'
 import { buildMarkdownArchive } from '../../src/core/transfer/markdownExport'
 import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
@@ -282,9 +283,12 @@ export function createApi({
         // The server names the image: the client needs no hashing (unavailable over plain HTTP).
         requireUser(req, editors)
         const hint = url.searchParams.get('name') ?? 'image'
+        const file = url.searchParams.get('file') === '1'
         let src: string
         try {
-          src = await workspace.assets.save(await readBody(req, MAX_ASSET_BYTES), hint)
+          src = file
+            ? await workspace.assets.saveFile(await readBody(req, MAX_FILE_BYTES), hint)
+            : await workspace.assets.save(await readBody(req, MAX_ASSET_BYTES), hint)
         } catch (e) {
           if (e instanceof HttpError) throw e
           throw new HttpError(400, e instanceof Error ? e.message : 'Image refusée.')
@@ -295,7 +299,7 @@ export function createApi({
         if (method === 'PUT') {
           requireUser(req, editors)
           try {
-            await workspace.assets.put(name, await readBody(req, MAX_ASSET_BYTES))
+            await workspace.assets.put(name, await readBody(req, MAX_FILE_BYTES))
           } catch (e) {
             if (e instanceof HttpError) throw e
             throw new HttpError(400, e instanceof Error ? e.message : 'Image refusée.')
@@ -305,13 +309,18 @@ export function createApi({
           requireUser(req)
           const asset = await workspace.assets.load(name)
           if (!asset) throw new HttpError(404, 'Image introuvable.')
+          // Shown in the page (images, media, PDF) unless asked as a download.
+          const download = url.searchParams.get('download')
+          const inline = !download && ASSET_TYPES[name.split('.')[1]]?.inline
+          const fileName = (download ?? name).replace(/[\r\n"]/g, '').slice(0, 200) || name
           res.writeHead(200, {
             'Content-Type': asset.type,
             'Content-Length': asset.bytes.length,
+            'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(fileName)}`,
             // Content-addressed: the bytes behind a name never change.
             'Cache-Control': 'private, max-age=31536000, immutable',
             'X-Content-Type-Options': 'nosniff',
-            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'"
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"
           })
           res.end(method === 'HEAD' ? undefined : asset.bytes)
         } else {

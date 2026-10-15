@@ -5,6 +5,7 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import { NodeSelection } from '@tiptap/pm/state'
 import { atLeast } from '../../../shared/types'
 import { useStore } from '../store'
+import { backgroundColor, COLOR_LABELS, COLORS, textColor } from '../../../shared/colors'
 
 /** Whether this person may comment on the page being edited. */
 const canCommentOpenPage = (): boolean => {
@@ -45,6 +46,7 @@ const TABLE_MENU_OPTIONS = { placement: 'top-start' } as const
 /** Formatting toolbar shown on a text selection, Notion-style. */
 export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
   const [linking, setLinking] = useState(false)
+  const [coloring, setColoring] = useState(false)
   const [href, setHref] = useState('')
   const state = useEditorState({
     editor,
@@ -54,7 +56,9 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
       underline: e.isActive('underline'),
       strike: e.isActive('strike'),
       code: e.isActive('code'),
-      link: e.isActive('link') ? String(e.getAttributes('link').href ?? '') : null
+      link: e.isActive('link') ? String(e.getAttributes('link').href ?? '') : null,
+      // Locking or sharing the page changes which buttons are shown.
+      editable: e.isEditable
     })
   })
 
@@ -108,7 +112,7 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
         <>
           {canCommentOpenPage() &&
             button('💬 Commenter', 'Commenter la sélection', false, () => startComment(editor))}
-          {editor.isEditable && (
+          {state.editable && (
             <>
               {button('B', 'Gras (⌘B)', state.bold, () =>
                 editor.chain().focus().toggleBold().run()
@@ -127,11 +131,64 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
                 setHref(state.link ?? '')
                 setLinking(true)
               })}
+              {button('A▾', 'Couleur', coloring, () => setColoring(!coloring))}
+              {coloring && <ColorPalette editor={editor} onDone={() => setColoring(false)} />}
             </>
           )}
         </>
       )}
     </BubbleMenu>
+  )
+}
+
+/** Text and background colors of the selection. */
+function ColorPalette({
+  editor,
+  onDone
+}: {
+  editor: Editor
+  onDone: () => void
+}): React.JSX.Element {
+  const swatch = (
+    label: string,
+    style: React.CSSProperties,
+    run: () => void
+  ): React.JSX.Element => (
+    <button
+      key={label}
+      className="swatch"
+      title={label}
+      style={style}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        run()
+        onDone()
+      }}
+    >
+      A
+    </button>
+  )
+  return (
+    <div className="color-palette" onMouseDown={(e) => e.preventDefault()}>
+      <span className="palette-title">Texte</span>
+      <div className="palette-row">
+        {swatch('Par défaut', {}, () => editor.chain().focus().unsetColor().run())}
+        {COLORS.map((c) =>
+          swatch(COLOR_LABELS[c], { color: textColor(c) }, () =>
+            editor.chain().focus().setColor(textColor(c)).run()
+          )
+        )}
+      </div>
+      <span className="palette-title">Fond</span>
+      <div className="palette-row">
+        {swatch('Sans fond', {}, () => editor.chain().focus().unsetBackgroundColor().run())}
+        {COLORS.map((c) =>
+          swatch(`Fond ${COLOR_LABELS[c].toLowerCase()}`, { background: backgroundColor(c) }, () =>
+            editor.chain().focus().setBackgroundColor(backgroundColor(c)).run()
+          )
+        )}
+      </div>
+    </div>
   )
 }
 

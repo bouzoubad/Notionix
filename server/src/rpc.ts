@@ -193,11 +193,15 @@ const METHODS: Record<string, Method> = {
     const page = ctx.ws.pages.get(id(p))
     return page && { ...page, level: ctx.level(page.id) }
   }),
-  'pages.create': write((ctx, [p, a]) => {
+  'pages.create': write((ctx, [p, a, k]) => {
     const parentId = parent(p)
     ctx.needParent(parentId)
     // JSON turns an omitted argument into null.
-    const page = ctx.ws.pages.create(parentId, a === undefined || a === null ? 'inherit' : access(a))
+    const page = ctx.ws.pages.create(
+      parentId,
+      a === undefined || a === null ? 'inherit' : access(a),
+      k === 'synced' ? 'synced' : 'page'
+    )
     ctx.log(page.id, 'created')
     ctx.invalidate()
     return { ...page, level: ctx.level(page.id) }

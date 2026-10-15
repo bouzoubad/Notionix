@@ -36,7 +36,8 @@ export interface Page {
   level: AccessLevel
 }
 
-export type PageKind = 'page' | 'database'
+/** 'synced': hidden page holding the content of a synced block */
+export type PageKind = 'page' | 'database' | 'synced'
 
 /** 'workspace': every member; 'restricted': its creator and the people it is shared with. */
 export type PageAccess = 'inherit' | 'workspace' | 'restricted'
@@ -199,7 +200,7 @@ export interface NotionixApi {
     list(): Promise<PageSummary[]>
     get(id: PageId): Promise<Page | null>
     /** `access` sets who sees a new top-level page ('restricted': private) */
-    create(parentId: PageId | null, access?: PageAccess): Promise<Page>
+    create(parentId: PageId | null, access?: PageAccess, kind?: 'page' | 'synced'): Promise<Page>
     update(id: PageId, patch: PagePatch): Promise<PageSummary>
     move(id: PageId, parentId: PageId | null, index: number): Promise<void>
     trash(id: PageId): Promise<void>
@@ -259,6 +260,10 @@ export interface NotionixApi {
   assets: {
     /** Stores an image locally and returns its src (notionix-asset://…) */
     save(bytes: Uint8Array, name: string): Promise<string>
+    /** Stores an attached file, video or audio and returns its src */
+    saveFile(bytes: Uint8Array, name: string): Promise<string>
+    /** Saves a copy of a stored file on this computer, under `fileName` */
+    download(src: string, fileName: string): Promise<void>
   }
   transfer: {
     /** Asks for a Notion export (.zip or extracted folder) and imports it; null if cancelled */

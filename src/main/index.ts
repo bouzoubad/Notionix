@@ -87,11 +87,12 @@ app.whenReady().then(() => {
   }, 30_000)
   app.on('before-quit', () => clearInterval(reminders))
   registerDatabaseHandlers(ipcMain, dbs)
-  registerAssetHandlers(ipcMain, assets)
-  registerTransferHandlers(ipcMain, repo, dbs, assets, {
+  const dialogs = {
     dialog,
     getWindow: () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
-  })
+  }
+  registerAssetHandlers(ipcMain, assets, dialogs)
+  registerTransferHandlers(ipcMain, repo, dbs, assets, dialogs)
   app.on('before-quit', () => db.close())
 
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))

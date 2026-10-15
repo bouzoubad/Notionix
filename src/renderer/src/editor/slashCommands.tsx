@@ -3,6 +3,7 @@ import { Extension, type Editor, type Range } from '@tiptap/core'
 import Suggestion, { exitSuggestion, type SuggestionProps } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 import { pickImages } from './images'
+import { pickFiles } from './blockViews'
 import { useStore } from '../store'
 
 export interface SlashItem {
@@ -134,6 +135,91 @@ export const SLASH_ITEMS: SlashItem[] = [
     hint: 'Ligne horizontale',
     keywords: ['divider', 'hr', 'separateur'],
     run: (e, r) => chain(e, r).setHorizontalRule().run()
+  },
+  {
+    title: '2 colonnes',
+    hint: 'Blocs côte à côte',
+    keywords: ['columns', 'colonnes', 'layout'],
+    run: (e, r) => chain(e, r).insertColumns(2).run()
+  },
+  {
+    title: '3 colonnes',
+    hint: 'Blocs côte à côte',
+    keywords: ['columns', 'colonnes', 'layout'],
+    run: (e, r) => chain(e, r).insertColumns(3).run()
+  },
+  ...[1, 2, 3].map((level): SlashItem => ({
+    title: `Titre ${level} repliable`,
+    hint: 'Titre qui replie son contenu',
+    keywords: ['toggle', 'heading', 'titre', 'repliable', `h${level}`],
+    run: (e, r) => chain(e, r).setDetails().setToggleHeading(level).run()
+  })),
+  {
+    title: 'Table des matières',
+    hint: 'Titres de la page',
+    keywords: ['toc', 'sommaire', 'table', 'matieres'],
+    run: (e, r) => chain(e, r).insertTableOfContents().run()
+  },
+  {
+    title: 'Lien vers une page',
+    hint: 'Bloc menant à une autre page',
+    keywords: ['link', 'page', 'lien'],
+    run: (e, r) => {
+      chain(e, r).run()
+      useStore
+        .getState()
+        .pickPage('Lien vers une page', (id) => e.chain().focus().insertPageLink(id).run())
+    }
+  },
+  {
+    title: 'Fichier',
+    hint: 'PDF, document, archive…',
+    keywords: ['file', 'fichier', 'pdf', 'piece', 'jointe', 'attachment'],
+    run: (e, r) => {
+      chain(e, r).run()
+      pickFiles(e)
+    }
+  },
+  {
+    title: 'Vidéo',
+    hint: 'Lecteur vidéo',
+    keywords: ['video', 'film', 'mp4'],
+    run: (e, r) => {
+      chain(e, r).run()
+      pickFiles(e, 'video/*')
+    }
+  },
+  {
+    title: 'Audio',
+    hint: 'Lecteur audio',
+    keywords: ['audio', 'son', 'mp3', 'musique'],
+    run: (e, r) => {
+      chain(e, r).run()
+      pickFiles(e, 'audio/*')
+    }
+  },
+  {
+    title: 'Bloc synchronisé',
+    hint: 'Même contenu à plusieurs endroits',
+    keywords: ['synced', 'synchronise', 'sync', 'reutiliser'],
+    run: (e, r) => {
+      chain(e, r).run()
+      const parentId = useStore.getState().currentId
+      void window.api.pages
+        .create(parentId, undefined, 'synced')
+        .then((page) => e.chain().focus().insertSyncedBlock(page.id).run())
+        .catch((err) =>
+          useStore
+            .getState()
+            .showNotice(`Bloc non créé : ${err instanceof Error ? err.message : err}`)
+        )
+    }
+  },
+  {
+    title: 'Bouton',
+    hint: 'Insère des blocs ou ajoute une ligne',
+    keywords: ['button', 'bouton', 'action'],
+    run: (e, r) => chain(e, r).insertButtonBlock().run()
   }
 ]
 
@@ -159,6 +245,8 @@ function SlashMenu({ items, selected, onHover, onPick }: MenuProps): React.JSX.E
           key={`${item.title}-${i}`}
           className={i === selected ? 'slash-item active' : 'slash-item'}
           onMouseEnter={() => onHover(i)}
+          // Keeping the focus in the editor: a blur would close the menu before the click.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onPick(i)}
         >
           <span className="slash-title">

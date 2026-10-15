@@ -23,7 +23,7 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "test": "vitest run",
-    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs && node tests/e2e/blocks.mjs && node tests/e2e/database.mjs && node tests/e2e/views.mjs && node tests/e2e/inline.mjs && node tests/e2e/dbadvanced.mjs"
+    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs && node tests/e2e/blocks.mjs && node tests/e2e/database.mjs && node tests/e2e/views.mjs && node tests/e2e/inline.mjs && node tests/e2e/dbadvanced.mjs && node tests/e2e/editor.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -45,6 +45,7 @@
     "@tiptap/extension-table": "^3.32.0",
     "@tiptap/extension-task-item": "^3.32.0",
     "@tiptap/extension-task-list": "^3.32.0",
+    "@tiptap/extension-text-style": "^3.32.0",
     "@tiptap/pm": "^3.32.0",
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",

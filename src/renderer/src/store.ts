@@ -14,6 +14,10 @@ interface State {
   notice: string | null
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
+  /** Page chooser (link-to-page block…) */
+  pagePicker: { title: string; onPick: (id: PageId) => void } | null
+  pickPage: (title: string, onPick: (id: PageId) => void) => void
+  closePagePicker: () => void
   /** Other people connected to the server workspace, with their open page */
   presence: Presence[]
   /** Real-time connection to the server (always true in the desktop app) */
@@ -85,6 +89,9 @@ export const useStore = create<State>((set, get) => ({
   revision: 0,
   contentReload: 0,
   comments: { open: false, focus: null, draft: null },
+  pagePicker: null,
+  pickPage: (title, onPick) => set({ pagePicker: { title, onPick } }),
+  closePagePicker: () => set({ pagePicker: null }),
   presence: [],
   connected: true,
   inboxUnread: 0,
@@ -217,6 +224,7 @@ const rootsOf = (pages: PageSummary[]): PageSummary[] => {
     .filter(
       (p) =>
         !p.trashedAt &&
+        p.kind !== 'synced' &&
         (p.parentId === null || !ids.has(p.parentId)) &&
         !(p.parentId !== null && p.isTemplate)
     )
@@ -225,7 +233,7 @@ const rootsOf = (pages: PageSummary[]): PageSummary[] => {
 
 const directChildren = (pages: PageSummary[], parentId: PageId | null): PageSummary[] =>
   pages
-    .filter((p) => p.parentId === parentId && !p.trashedAt)
+    .filter((p) => p.parentId === parentId && !p.trashedAt && p.kind !== 'synced')
     .sort((a, b) => a.position - b.position)
 
 export const ancestorsOf = (pages: PageSummary[], id: PageId): PageSummary[] => {

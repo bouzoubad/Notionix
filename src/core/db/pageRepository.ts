@@ -104,7 +104,7 @@ const toSummary = (r: Omit<Row, 'content'>): PageSummary => ({
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   version: r.version,
-  kind: r.kind === 'database' ? 'database' : 'page',
+  kind: r.kind === 'database' || r.kind === 'synced' ? r.kind : 'page',
   isTemplate: r.is_template === 1,
   createdBy: r.created_by,
   updatedBy: r.updated_by,
@@ -181,7 +181,11 @@ export class PageRepository {
   }
 
   /** A new page; `access` sets who sees a top-level page ('restricted': private). */
-  create(parentId: PageId | null, access: PageAccess = 'inherit'): Page {
+  create(
+    parentId: PageId | null,
+    access: PageAccess = 'inherit',
+    kind: 'page' | 'synced' = 'page'
+  ): Page {
     const id = randomUUID()
     const t = this.now()
     const last = this.db
@@ -189,9 +193,9 @@ export class PageRepository {
       .get(parentId) as { p: number | null }
     this.db
       .prepare(
-        'INSERT INTO pages (id, parent_id, position, created_at, updated_at, created_by, updated_by, access) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pages (id, parent_id, position, created_at, updated_at, created_by, updated_by, access, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(id, parentId, (last.p ?? 0) + 1, t, t, this.actor, this.actor, access)
+      .run(id, parentId, (last.p ?? 0) + 1, t, t, this.actor, this.actor, access, kind)
     this.reindex(id)
     return this.get(id)!
   }
@@ -478,7 +482,7 @@ export class PageRepository {
         `SELECT f.id AS id, f.title AS title, p.icon AS icon,
                 snippet(page_fts, 2, '<mark>', '</mark>', '…', 12) AS snippet
          FROM page_fts f JOIN pages p ON p.id = f.id
-         WHERE page_fts MATCH ? AND p.trashed_at IS NULL
+         WHERE page_fts MATCH ? AND p.trashed_at IS NULL AND p.kind != 'synced'
          ORDER BY rank LIMIT ?`
       )
       .all(match, limit) as unknown as SearchHit[]

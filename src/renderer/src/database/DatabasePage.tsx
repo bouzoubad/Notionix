@@ -3,6 +3,7 @@ import type { PageSummary } from '../../../shared/types'
 import { PageDecorations } from '../components/PageDecorations'
 import { useStore } from '../store'
 import { PageTopBar } from '../components/PageTopBar'
+import { pageOptionClasses } from '../pageOptions'
 import { canEditPage } from '../platform'
 import { DatabaseViewer } from './DatabaseViewer'
 import { useDatabase } from './useDatabase'
@@ -14,7 +15,9 @@ export function DatabasePage({ page }: { page: PageSummary }): React.JSX.Element
   const [title, setTitle] = useState(page.title)
 
   return (
-    <div className={`page database-page${canEditPage(page) ? '' : ' read-only'}`}>
+    <div
+      className={`page database-page ${pageOptionClasses(page.options)}${canEditPage(page) ? '' : ' read-only'}`}
+    >
       <PageTopBar page={page} title={title} />
       <PageDecorations page={page} />
       <div className="db-body">

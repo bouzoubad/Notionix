@@ -2,19 +2,18 @@ import { createHash } from 'crypto'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { ASSET_NAME, assetNameFromSrc, assetSrc, detectImageType } from '../shared/assets'
+import {
+  ASSET_NAME,
+  ASSET_TYPES,
+  assetExtension,
+  assetNameFromSrc,
+  assetSrc,
+  detectImageType
+} from '../shared/assets'
 
 export const MAX_ASSET_BYTES = 50 * 1024 * 1024
-
-const MEDIA_TYPES: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  avif: 'image/avif',
-  bmp: 'image/bmp'
-}
+/** Attached files and videos can be larger than images. */
+export const MAX_FILE_BYTES = 200 * 1024 * 1024
 
 /**
  * Content-addressed image store under the user data folder. The same bytes
@@ -41,6 +40,30 @@ export class AssetStore {
   }
 
   /**
+   * Stores any kept file type (PDF, document, video, audio…); images go
+   * through `save`, which checks their content.
+   */
+  async saveFile(bytes: Uint8Array, fileName: string): Promise<string> {
+    const ext = assetExtension(fileName)
+    if (!ext) throw new Error(`Type de fichier non pris en charge : ${fileName}`)
+    if (ASSET_TYPES[ext].kind === 'image') return this.save(bytes, fileName)
+    if (bytes.byteLength > MAX_FILE_BYTES)
+      throw new Error(`Fichier trop volumineux (max ${MAX_FILE_BYTES / 1024 / 1024} Mo).`)
+    const name = `${createHash('sha256').update(bytes).digest('hex')}.${ext}`
+    await this.write(name, bytes)
+    return assetSrc(name)
+  }
+
+  private async write(name: string, bytes: Uint8Array): Promise<void> {
+    const target = join(this.dir, name)
+    if (existsSync(target)) return
+    await mkdir(this.dir, { recursive: true })
+    const temp = `${target}.${process.pid}.tmp`
+    await writeFile(temp, bytes)
+    await rename(temp, target)
+  }
+
+  /**
    * Stores an image sent under its final name (by a client that computed it):
    * the name must match the bytes' hash and type.
    */
@@ -49,15 +72,20 @@ export class AssetStore {
     const [hash, ext] = name.split('.')
     if (createHash('sha256').update(bytes).digest('hex') !== hash)
       throw new Error('Le contenu ne correspond pas au nom.')
-    if (detectImageType(bytes, name) !== ext) throw new Error("Type d'image incorrect.")
-    if ((await this.save(bytes, name)) !== assetSrc(name)) throw new Error('Image refusée.')
+    if (ASSET_TYPES[ext].kind === 'image') {
+      if (detectImageType(bytes, name) !== ext) throw new Error("Type d'image incorrect.")
+      if ((await this.save(bytes, name)) !== assetSrc(name)) throw new Error('Image refusée.')
+    } else await this.write(name, bytes)
   }
 
   /** Bytes and media type of a stored asset, or null for an invalid or unknown name. */
   async load(name: string): Promise<{ bytes: Uint8Array; type: string } | null> {
     const path = this.pathOf(name)
     if (!path) return null
-    return { bytes: new Uint8Array(await readFile(path)), type: MEDIA_TYPES[name.split('.')[1]] }
+    return {
+      bytes: new Uint8Array(await readFile(path)),
+      type: ASSET_TYPES[name.split('.')[1]].mime
+    }
   }
 
   /** Absolute path of a stored asset, or null for an invalid or unknown name. */

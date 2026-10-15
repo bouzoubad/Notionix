@@ -95,6 +95,32 @@ function block(node: JsonNode, r: Resolvers, alternate = false): string {
     }
     case 'table':
       return table(node, r)
+    case 'columns':
+    case 'column':
+      // Markdown has no columns: their blocks follow one another.
+      return blocks(node.content ?? [], r).join('\n\n')
+    case 'fileBlock':
+    case 'video':
+    case 'audio': {
+      const path = r.image(String(node.attrs?.src ?? ''))
+      const label = escapeInline(
+        String(
+          node.attrs?.name ??
+            (node.type === 'video' ? 'Vidéo' : node.type === 'audio' ? 'Audio' : 'Fichier')
+        )
+      )
+      return path ? `[${label}](${path})` : label
+    }
+    case 'pageLink': {
+      const id = String(node.attrs?.pageId ?? '')
+      const path = r.page(id)
+      const title = escapeInline(r.title(id) || 'Sans titre')
+      return path ? `[${title}](${path})` : title
+    }
+    case 'tableOfContents':
+    case 'syncedBlock':
+    case 'buttonBlock':
+      return ''
     case 'blockMath':
       return `$$\n${String(node.attrs?.latex ?? '')}\n$$`
     case 'databaseView': {

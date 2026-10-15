@@ -12,6 +12,21 @@ import type { Node as PmNode } from '@tiptap/pm/model'
 import { Callout } from './callout'
 import { DatabaseView } from './databaseView'
 import { CommentMark, Mention } from './mention'
+import { BackgroundColor, Color, TextStyle } from '@tiptap/extension-text-style'
+import { BlockColors } from './colors'
+import {
+  Audio,
+  BlockCommands,
+  ButtonBlock,
+  Column,
+  Columns,
+  FileBlock,
+  PageLink,
+  SyncedBlock,
+  TableOfContents,
+  ToggleHeadings,
+  Video
+} from './blocks'
 
 type Lowlight = ReturnType<typeof createLowlight>
 
@@ -37,6 +52,8 @@ export interface DocumentExtensionOverrides {
   imageSrc?: { display: (src: string) => string; stored: (url: string) => string }
   /** Mention with an interactive view: live names and titles (renderer only) */
   mention?: AnyExtension
+  /** Interactive views of blocks, replacing the extensions of the same name (renderer only) */
+  views?: AnyExtension[]
   /** Real-time collaboration brings its own undo history (renderer only) */
   collaboration?: Extensions
 }
@@ -49,6 +66,11 @@ export function createDocumentExtensions(
   lowlight: Lowlight,
   overrides: DocumentExtensionOverrides = {}
 ): Extensions {
+  const views = new Map((overrides.views ?? []).map((v) => [v.name, v]))
+  return baseExtensions(lowlight, overrides).map((e) => views.get(e.name) ?? e)
+}
+
+function baseExtensions(lowlight: Lowlight, overrides: DocumentExtensionOverrides): Extensions {
   return [
     StarterKit.configure({
       codeBlock: false,
@@ -77,6 +99,21 @@ export function createDocumentExtensions(
     overrides.databaseView ?? DatabaseView,
     overrides.mention ?? Mention,
     CommentMark,
+    TextStyle,
+    Color,
+    BackgroundColor,
+    BlockColors,
+    Columns,
+    Column,
+    TableOfContents,
+    PageLink,
+    FileBlock,
+    Video,
+    Audio,
+    SyncedBlock,
+    ButtonBlock,
+    ToggleHeadings,
+    BlockCommands,
     ...(overrides.collaboration ?? [])
   ]
 }

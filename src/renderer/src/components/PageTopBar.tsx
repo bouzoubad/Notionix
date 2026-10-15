@@ -4,6 +4,7 @@ import { ancestorsOf, useStore } from '../store'
 import { platform } from '../platform'
 import { ShareMenu } from './ShareMenu'
 import { HistoryDialog } from './HistoryDialog'
+import { PageOptionsMenu } from './PageOptionsMenu'
 
 /** Breadcrumbs of a page, and its actions (sharing…), above its content. */
 export function PageTopBar({
@@ -16,7 +17,7 @@ export function PageTopBar({
 }): React.JSX.Element {
   const pages = useStore((s) => s.pages)
   const open = useStore((s) => s.open)
-  const [menu, setMenu] = useState<'share' | 'history' | null>(null)
+  const [menu, setMenu] = useState<'share' | 'history' | 'options' | null>(null)
   const presence = useStore((s) => s.presence)
   // One avatar per person, even with several tabs open.
   const here = [
@@ -36,6 +37,11 @@ export function PageTopBar({
           {c.icon ?? ''} {c.title || 'Sans titre'}
         </button>
       ))}
+      {page.options.locked && (
+        <span className="lock-badge" title="Page verrouillée">
+          🔒
+        </span>
+      )}
       <span className="crumb-current">
         {page.icon ?? (page.kind === 'database' ? '🗃️' : '')} {title || 'Sans titre'}
       </span>
@@ -67,6 +73,16 @@ export function PageTopBar({
             {menu === 'share' && <ShareMenu page={page} onClose={() => setMenu(null)} />}
           </span>
         )}
+        <span className="topbar-anchor">
+          <button
+            title="Options de la page"
+            className={menu === 'options' ? 'active' : ''}
+            onClick={() => setMenu(menu === 'options' ? null : 'options')}
+          >
+            ⋯
+          </button>
+          {menu === 'options' && <PageOptionsMenu page={page} onClose={() => setMenu(null)} />}
+        </span>
       </div>
     </div>
   )

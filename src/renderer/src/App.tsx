@@ -9,6 +9,7 @@ import { PageEditor } from './editor/PageEditor'
 import { DatabasePage } from './database/DatabasePage'
 import { Logo } from './components/Logo'
 import { InboxDialog } from './components/InboxDialog'
+import { PagePicker } from './components/PagePicker'
 import { platform } from './platform'
 
 export default function App(): React.JSX.Element {
@@ -78,6 +79,7 @@ export default function App(): React.JSX.Element {
       {searchOpen && <SearchDialog />}
       {trashOpen && <TrashDialog />}
       {transferOpen && <TransferDialog />}
+      <PagePicker />
       {inboxOpen && <InboxDialog onClose={() => setInboxOpen(false)} />}
       {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}
       {notice && <div className="notice">{notice}</div>}

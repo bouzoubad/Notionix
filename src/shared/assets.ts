@@ -1,7 +1,73 @@
 /** Scheme serving images stored by Notionix: notionix-asset://file/<sha256>.<ext> */
 export const ASSET_SCHEME = 'notionix-asset'
 
-export const ASSET_NAME = /^[0-9a-f]{64}\.(png|jpg|gif|webp|svg|avif|bmp)$/
+export type AssetKind = 'image' | 'video' | 'audio' | 'file'
+
+/**
+ * Files Notionix keeps, by extension. Pages are never served from here: no
+ * HTML or script types. `inline` files may be shown in the page.
+ */
+export const ASSET_TYPES: Record<string, { mime: string; kind: AssetKind; inline: boolean }> = {
+  png: { mime: 'image/png', kind: 'image', inline: true },
+  jpg: { mime: 'image/jpeg', kind: 'image', inline: true },
+  gif: { mime: 'image/gif', kind: 'image', inline: true },
+  webp: { mime: 'image/webp', kind: 'image', inline: true },
+  svg: { mime: 'image/svg+xml', kind: 'image', inline: true },
+  avif: { mime: 'image/avif', kind: 'image', inline: true },
+  bmp: { mime: 'image/bmp', kind: 'image', inline: true },
+  mp4: { mime: 'video/mp4', kind: 'video', inline: true },
+  webm: { mime: 'video/webm', kind: 'video', inline: true },
+  mov: { mime: 'video/quicktime', kind: 'video', inline: true },
+  m4v: { mime: 'video/mp4', kind: 'video', inline: true },
+  mp3: { mime: 'audio/mpeg', kind: 'audio', inline: true },
+  wav: { mime: 'audio/wav', kind: 'audio', inline: true },
+  ogg: { mime: 'audio/ogg', kind: 'audio', inline: true },
+  m4a: { mime: 'audio/mp4', kind: 'audio', inline: true },
+  flac: { mime: 'audio/flac', kind: 'audio', inline: true },
+  pdf: { mime: 'application/pdf', kind: 'file', inline: true },
+  txt: { mime: 'text/plain; charset=utf-8', kind: 'file', inline: false },
+  md: { mime: 'text/markdown; charset=utf-8', kind: 'file', inline: false },
+  csv: { mime: 'text/csv; charset=utf-8', kind: 'file', inline: false },
+  json: { mime: 'application/json', kind: 'file', inline: false },
+  rtf: { mime: 'application/rtf', kind: 'file', inline: false },
+  doc: { mime: 'application/msword', kind: 'file', inline: false },
+  docx: {
+    mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    kind: 'file',
+    inline: false
+  },
+  xls: { mime: 'application/vnd.ms-excel', kind: 'file', inline: false },
+  xlsx: {
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    kind: 'file',
+    inline: false
+  },
+  ppt: { mime: 'application/vnd.ms-powerpoint', kind: 'file', inline: false },
+  pptx: {
+    mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    kind: 'file',
+    inline: false
+  },
+  odt: { mime: 'application/vnd.oasis.opendocument.text', kind: 'file', inline: false },
+  ods: { mime: 'application/vnd.oasis.opendocument.spreadsheet', kind: 'file', inline: false },
+  odp: { mime: 'application/vnd.oasis.opendocument.presentation', kind: 'file', inline: false },
+  zip: { mime: 'application/zip', kind: 'file', inline: false },
+  '7z': { mime: 'application/x-7z-compressed', kind: 'file', inline: false },
+  gz: { mime: 'application/gzip', kind: 'file', inline: false },
+  tar: { mime: 'application/x-tar', kind: 'file', inline: false }
+}
+
+export const ASSET_NAME = new RegExp(`^[0-9a-f]{64}\\.(${Object.keys(ASSET_TYPES).join('|')})$`)
+
+/** Extension of a file name when Notionix keeps that type, else null. */
+export function assetExtension(fileName: string): string | null {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+  const normalized = ext === 'jpeg' ? 'jpg' : ext
+  return Object.hasOwn(ASSET_TYPES, normalized) ? normalized : null
+}
+
+export const assetKind = (name: string): AssetKind =>
+  ASSET_TYPES[name.split('.').pop() ?? '']?.kind ?? 'file'
 
 export const assetSrc = (name: string): string => `${ASSET_SCHEME}://file/${name}`
 

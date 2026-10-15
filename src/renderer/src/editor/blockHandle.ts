@@ -18,6 +18,13 @@ export const BlockHandle = Extension.create({
   }
 })
 
+/** Asks the page to open the menu of the block at `pos`. */
+export interface BlockMenuRequest {
+  pos: number
+  left: number
+  top: number
+}
+
 /** Width of the margin left of the blocks where the handle lives. */
 const GUTTER = 48
 
@@ -29,7 +36,7 @@ class HandleView {
     this.handle = document.createElement('div')
     this.handle.className = 'block-handle'
     this.handle.draggable = true
-    this.handle.title = 'Glisser pour déplacer, cliquer pour sélectionner'
+    this.handle.title = 'Glisser pour déplacer, cliquer pour le menu du bloc'
     this.handle.textContent = '⋮⋮'
     this.handle.addEventListener('dragstart', this.onDragStart)
     // Selecting on mousedown would cancel the native drag, so it happens on click.
@@ -82,9 +89,17 @@ class HandleView {
     return selection
   }
 
+  /** A click selects the block and opens its menu (transform, color, duplicate…). */
   private onClick = (): void => {
-    this.select()
+    const selection = this.select()
     this.view.focus()
+    if (!selection) return
+    const rect = this.handle.getBoundingClientRect()
+    window.dispatchEvent(
+      new CustomEvent<BlockMenuRequest>('notionix:block-menu', {
+        detail: { pos: selection.from, left: rect.left, top: rect.bottom + 4 }
+      })
+    )
   }
 
   private onDragStart = (event: DragEvent): void => {

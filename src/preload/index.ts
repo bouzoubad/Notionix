@@ -8,7 +8,7 @@ const api: NotionixApi = {
   pages: {
     list: () => call('pages:list'),
     get: (id) => call('pages:get', id),
-    create: (parentId, access) => call('pages:create', parentId, access),
+    create: (parentId, access, kind) => call('pages:create', parentId, access, kind),
     update: (id, patch) => call('pages:update', id, patch),
     move: (id, parentId, index) => call('pages:move', id, parentId, index),
     trash: (id) => call('pages:trash', id),
@@ -60,7 +60,9 @@ const api: NotionixApi = {
       call('databases:changePropertyType', id, propertyId, type)
   },
   assets: {
-    save: (bytes, name) => call('assets:save', bytes, name)
+    save: (bytes, name) => call('assets:save', bytes, name),
+    saveFile: (bytes, name) => call('assets:saveFile', bytes, name),
+    download: (src, fileName) => call('assets:download', src, fileName)
   },
   transfer: {
     importNotion: () => call('transfer:importNotion'),

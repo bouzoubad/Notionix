@@ -183,7 +183,12 @@ function propertyLines(
 }
 
 function imageSources(node: JsonNode, out: Set<string> = new Set()): Set<string> {
-  if (node.type === 'image' && typeof node.attrs?.src === 'string') out.add(node.attrs.src)
+  // Images, attached files, videos and audios are exported next to the page.
+  if (
+    ['image', 'fileBlock', 'video', 'audio'].includes(node.type) &&
+    typeof node.attrs?.src === 'string'
+  )
+    out.add(node.attrs.src)
   for (const child of node.content ?? []) imageSources(child, out)
   return out
 }

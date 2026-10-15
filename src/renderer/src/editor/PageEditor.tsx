@@ -10,16 +10,27 @@ import { InteractiveMention, MentionSuggestion } from './mentions'
 import { FileHandler } from '@tiptap/extension-file-handler'
 import { InteractiveCallout } from './CalloutView'
 import { BlockHandle } from './blockHandle'
+import { BlockMenu } from './BlockMenu'
 import { TableBubbleMenu, TextBubbleMenu } from './BubbleMenus'
 import { IMAGE_TYPES, insertImages } from './images'
+import { BLOCK_VIEWS, insertFiles } from './blockViews'
+import type { Editor } from '@tiptap/core'
 import { PageDecorations } from '../components/PageDecorations'
 import { RowProperties } from '../database/RowProperties'
 import { InteractiveDatabaseView } from '../database/InlineDatabase'
 import { canEditPage, platform, type SharedPage } from '../platform'
 import { PageTopBar } from '../components/PageTopBar'
+import { pageOptionClasses } from '../pageOptions'
 import { CommentsPanel } from '../components/CommentsPanel'
 
 const lowlight = createLowlight(common)
+
+async function dropFiles(editor: Editor, files: File[], pos?: number): Promise<void> {
+  const images = files.filter((f) => IMAGE_TYPES.includes(f.type))
+  const others = files.filter((f) => !IMAGE_TYPES.includes(f.type))
+  if (images.length) await insertImages(editor, images, pos)
+  if (others.length) await insertFiles(editor, others, images.length ? undefined : pos)
+}
 const SAVE_DELAY_MS = 400
 
 export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | null {
@@ -136,12 +147,13 @@ function LoadedEditor({
           editMath(node.type.name === 'inlineMath', node.attrs.latex, pos),
         imageSrc: platform().imageSrc,
         mention: InteractiveMention,
+        views: BLOCK_VIEWS,
         collaboration: shared?.extensions
       }),
+      // Images are checked as images; other files become file, video or audio blocks.
       FileHandler.configure({
-        allowedMimeTypes: IMAGE_TYPES,
-        onPaste: (editor, files) => void insertImages(editor, files),
-        onDrop: (editor, files, pos) => void insertImages(editor, files, pos)
+        onPaste: (editor, files) => void dropFiles(editor, files),
+        onDrop: (editor, files, pos) => void dropFiles(editor, files, pos)
       }),
       BlockHandle,
       Placeholder.configure({
@@ -186,7 +198,7 @@ function LoadedEditor({
   })
 
   return (
-    <div className="page">
+    <div className={`page ${summary ? pageOptionClasses(summary.options) : ''}`}>
       {summary && <PageTopBar page={summary} title={title} />}
       {summary && <PageDecorations page={summary} />}
       <div className="page-body">
@@ -214,6 +226,7 @@ function LoadedEditor({
         {isRow && <RowProperties rowId={page.id} />}
         <EditorContent editor={editor} className="editor" />
         {editor && <TextBubbleMenu editor={editor} />}
+        {editor && <BlockMenu editor={editor} />}
         {commentsOpen && summary && <CommentsPanel page={summary} editor={editor} />}
         {editor && <TableBubbleMenu editor={editor} />}
       </div>

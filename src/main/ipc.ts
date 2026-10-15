@@ -5,14 +5,16 @@ import type { TeamRepository } from '../core/db/teamRepository'
 import type { PageRepository } from '../core/db/pageRepository'
 import type { AssetStore } from '../core/assets'
 import type { DatabaseRepository } from '../core/db/databaseRepository'
-import { buildMarkdownArchive } from '../core/transfer/markdownExport'
+import { buildMarkdownArchive, safeName } from '../core/transfer/markdownExport'
 import { importNotionExport } from '../core/transfer/notionImport'
 
 export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   ipc.handle('pages:list', () => repo.list())
   ipc.handle('pages:get', (_e, id: string) => repo.get(id))
-  ipc.handle('pages:create', (_e, parentId: string | null, access?: PageAccess) =>
-    repo.create(parentId, access ?? 'inherit')
+  ipc.handle(
+    'pages:create',
+    (_e, parentId: string | null, access?: PageAccess, kind?: 'page' | 'synced') =>
+      repo.create(parentId, access ?? 'inherit', kind === 'synced' ? 'synced' : 'page')
   )
   ipc.handle('pages:update', (_e, id: string, patch) => repo.update(id, patch))
   ipc.handle('pages:move', (_e, id: string, parentId: string | null, index: number) =>
@@ -86,8 +88,28 @@ export function registerDatabaseHandlers(ipc: IpcMain, dbs: DatabaseRepository):
   )
 }
 
-export function registerAssetHandlers(ipc: IpcMain, assets: AssetStore): void {
+export function registerAssetHandlers(
+  ipc: IpcMain,
+  assets: AssetStore,
+  deps: Pick<TransferDeps, 'dialog' | 'getWindow'>
+): void {
   ipc.handle('assets:save', (_e, bytes: Uint8Array, name: string) => assets.save(bytes, name))
+  ipc.handle('assets:saveFile', (_e, bytes: Uint8Array, name: string) =>
+    assets.saveFile(bytes, name)
+  )
+  ipc.handle('assets:download', async (_e, src: string, fileName: string) => {
+    const bytes = await assets.read(src)
+    if (!bytes) throw new Error('Fichier introuvable.')
+    const options = {
+      title: 'Enregistrer le fichier',
+      defaultPath: safeName(fileName) || 'fichier'
+    }
+    const win = deps.getWindow()
+    const result = win
+      ? await deps.dialog.showSaveDialog(win, options)
+      : await deps.dialog.showSaveDialog(options)
+    if (!result.canceled && result.filePath) await writeFile(result.filePath, bytes)
+  })
 }
 
 export function registerTransferHandlers(

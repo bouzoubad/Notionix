@@ -87,7 +87,8 @@ interface State {
   showNotice: (message: string) => void
 }
 
-const api = window.api.pages
+/** Read when used: the web client installs `window.api` after this module may be loaded. */
+const api = (): Window['api']['pages'] => window.api.pages
 
 type Theme = 'system' | 'light' | 'dark'
 function storedTheme(): Theme {
@@ -254,7 +255,7 @@ export const useStore = create<State>((set, get) => ({
 
   load: async () => {
     const [pages, people, groups] = await Promise.all([
-      api.list(),
+      api().list(),
       window.api.people.list(),
       window.api.people.groups()
     ])
@@ -313,7 +314,7 @@ export const useStore = create<State>((set, get) => ({
     get().open(row.id)
   },
   createPage: async (parentId, access) => {
-    const page = await api.create(parentId, access)
+    const page = await api().create(parentId, access)
     if (parentId) {
       const expanded = { ...get().expanded, [parentId]: true }
       localStorage.setItem('expanded', JSON.stringify(expanded))
@@ -323,27 +324,27 @@ export const useStore = create<State>((set, get) => ({
     get().open(page.id)
   },
   patch: async (id, patch) => {
-    const updated = await api.update(id, patch)
+    const updated = await api().update(id, patch)
     set({ pages: get().pages.map((p) => (p.id === id ? updated : p)) })
   },
   move: async (id, parentId, index) => {
-    await api.move(id, parentId, index)
+    await api().move(id, parentId, index)
     await get().load()
   },
   trash: async (id) => {
-    await api.trash(id)
+    await api().trash(id)
     await get().load()
   },
   restore: async (id) => {
-    await api.restore(id)
+    await api().restore(id)
     await get().load()
   },
   deleteForever: async (id) => {
-    await api.deleteForever(id)
+    await api().deleteForever(id)
     await get().load()
   },
   duplicate: async (id) => {
-    const copy = await api.duplicate(id)
+    const copy = await api().duplicate(id)
     await get().load()
     get().open(copy.id)
   },

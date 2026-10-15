@@ -422,6 +422,30 @@ export class PageRepository {
       .run(id, userId, level)
   }
 
+  /**
+   * Gives the restricted pages of a departing person (and so what lies
+   * under them) to someone else; returns how many pages changed hands.
+   */
+  transferOwnership(from: string, to: string): number {
+    const result = this.db
+      .prepare("UPDATE pages SET created_by = ? WHERE created_by = ? AND access = 'restricted'")
+      .run(to, from)
+    return Number(result.changes)
+  }
+
+  /** How many pages, databases and trashed pages the workspace holds. */
+  counts(): { pages: number; databases: number; trashed: number } {
+    return this.db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(kind = 'page' AND trashed_at IS NULL), 0) AS pages,
+           COALESCE(SUM(kind = 'database' AND trashed_at IS NULL), 0) AS databases,
+           COALESCE(SUM(trashed_at IS NOT NULL), 0) AS trashed
+         FROM pages`
+      )
+      .get() as { pages: number; databases: number; trashed: number }
+  }
+
   /** Stops every share with a person or group that no longer exists. */
   removeShareTarget(userId: string): void {
     this.db.prepare('DELETE FROM page_shares WHERE user_id = ?').run(userId)

@@ -59,9 +59,14 @@ await win.locator('.db-table').waitFor()
 
 // Sum under the price column
 const priceFooter = win.locator('.calc-row td').nth(2)
-await priceFooter.hover()
-await priceFooter.locator('.calc-cell').click()
-await win.locator('.popover .menu-item', { hasText: 'Somme' }).click()
+// The table may still render again once loaded: the menu is opened until it shows.
+const sum = win.locator('.popover .menu-item', { hasText: 'Somme' })
+for (let i = 0; i < 5 && !(await sum.isVisible()); i++) {
+  await priceFooter.hover()
+  await priceFooter.locator('.calc-cell').click()
+  await sum.waitFor({ timeout: 2000 }).catch(() => {})
+}
+await sum.click()
 await win.locator('.calc-cell.set', { hasText: '280' }).waitFor()
 
 // Wider price column, saved in the view

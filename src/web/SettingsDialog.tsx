@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import type { SessionUser } from '../shared/collab'
 import { json } from './http'
 import { Groups, Workspaces } from './TeamSettings'
+import { KeeperShare, type SignInKey } from './KeeperShare'
+import { AdminDashboard } from './AdminDashboard'
 
 type Role = SessionUser['role']
 
 interface Account extends SessionUser {
   disabled: boolean
   createdAt: number
+  pendingActivation: boolean
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -28,14 +31,22 @@ export function SettingsDialog({
   user: SessionUser
   onClose: () => void
 }): React.JSX.Element {
-  const [tab, setTab] = useState<'me' | 'accounts' | 'groups' | 'workspaces' | 'tokens'>(
-    user.role === 'admin' ? 'accounts' : 'me'
-  )
+  const [tab, setTab] = useState<
+    'me' | 'dashboard' | 'accounts' | 'groups' | 'workspaces' | 'tokens'
+  >(user.role === 'admin' ? 'dashboard' : 'me')
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="dialog settings" onMouseDown={(e) => e.stopPropagation()}>
         <h3>Paramètres</h3>
         <div className="settings-tabs">
+          {user.role === 'admin' && (
+            <button
+              className={tab === 'dashboard' ? 'active' : ''}
+              onClick={() => setTab('dashboard')}
+            >
+              Tableau de bord
+            </button>
+          )}
           {user.role === 'admin' && (
             <button
               className={tab === 'accounts' ? 'active' : ''}
@@ -65,7 +76,9 @@ export function SettingsDialog({
           </button>
         </div>
         <div className="settings-body">
-          {tab === 'accounts' ? (
+          {tab === 'dashboard' ? (
+            <AdminDashboard />
+          ) : tab === 'accounts' ? (
             <Accounts self={user} />
           ) : tab === 'groups' ? (
             <Groups />
@@ -82,7 +95,14 @@ export function SettingsDialog({
   )
 }
 
-function MyAccount({ user }: { user: SessionUser }): React.JSX.Element {
+/** One's own password: from the settings, or first thing after a provisional one. */
+export function MyAccount({
+  user,
+  required = false
+}: {
+  user: SessionUser
+  required?: boolean
+}): React.JSX.Element {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [again, setAgain] = useState('')
@@ -110,6 +130,11 @@ function MyAccount({ user }: { user: SessionUser }): React.JSX.Element {
       <p className="settings-note">
         {user.name} · {user.email} · {ROLE_LABELS[user.role]}
       </p>
+      {required && (
+        <p className="settings-notice">
+          Votre mot de passe est provisoire : choisissez le vôtre pour continuer.
+        </p>
+      )}
       <label>
         Mot de passe actuel
         <input
@@ -153,6 +178,8 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [key, setKey] = useState<SignInKey | null>(null)
+  const [leaving, setLeaving] = useState<Account | null>(null)
 
   const reload = async (): Promise<void> => {
     const { users } = await json<{ users: Account[] }>('/api/users')
@@ -168,17 +195,11 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
     }
   }, [])
 
-  const change = async (
-    account: Account,
-    patch: { role?: Role; disabled?: boolean; password?: string },
-    done?: string
-  ): Promise<void> => {
+  const run = async (fn: () => Promise<unknown>, done?: string): Promise<void> => {
     setError(null)
     setNotice(null)
     try {
-      await json(`/api/users/${encodeURIComponent(account.id)}`, { method: 'PATCH', json: patch })
-      // Changing one's own role or password ends this session.
-      if (account.id === self.id && (patch.role || patch.password)) return location.reload()
+      await fn()
       await reload()
       if (done) setNotice(done)
     } catch (e) {
@@ -186,23 +207,50 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
       await reload()
     }
   }
-
-  const resetPassword = (account: Account): void => {
-    const password = prompt(
-      `Nouveau mot de passe pour ${account.email} (${MIN_PASSWORD} caractères minimum). Communiquez-le à la personne ; ses sessions ouvertes sont fermées.`
-    )
-    if (password) void change(account, { password }, `Mot de passe de ${account.email} changé.`)
-  }
+  const change = (
+    account: Account,
+    patch: { role?: Role; disabled?: boolean },
+    done?: string
+  ): Promise<void> =>
+    run(async () => {
+      await json(`/api/users/${encodeURIComponent(account.id)}`, { method: 'PATCH', json: patch })
+      // Changing one's own role ends this session.
+      if (account.id === self.id && patch.role) location.reload()
+    }, done)
+  /** A new sign-in key for an existing account (forgotten password…). */
+  const newKey = (account: Account, kind: 'activation' | 'password'): Promise<void> =>
+    run(async () => {
+      const result = await json<{ activation?: SignInKey['activation']; password?: string }>(
+        `/api/users/${encodeURIComponent(account.id)}/${kind}`,
+        { method: 'POST' }
+      )
+      setKey({ name: account.name, email: account.email, ...result })
+    })
 
   return (
     <div className="accounts">
-      <NewAccount
-        onCreated={async (email) => {
-          await reload()
-          setError(null)
-          setNotice(`Compte créé : ${email}. Communiquez-lui son mot de passe.`)
-        }}
-      />
+      {key ? (
+        <KeeperShare credentials={key} onClose={() => setKey(null)} />
+      ) : (
+        <NewAccount
+          onCreated={async (created) => {
+            await reload()
+            setError(null)
+            setKey(created)
+          }}
+        />
+      )}
+      {leaving && accounts && (
+        <TransferPages
+          account={leaving}
+          accounts={accounts}
+          onDone={(text) => {
+            setLeaving(null)
+            void run(async () => undefined, text)
+          }}
+          onCancel={() => setLeaving(null)}
+        />
+      )}
       {notice && <p className="settings-notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
       {accounts === null ? (
@@ -223,6 +271,7 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
                 <td>
                   {a.name}
                   {a.id === self.id ? ' (vous)' : ''}
+                  {a.pendingActivation && <span className="account-badge">à activer</span>}
                 </td>
                 <td>{a.email}</td>
                 <td>
@@ -238,14 +287,30 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
                   </select>
                 </td>
                 <td className="account-actions">
-                  <span>
-                    <button onClick={() => resetPassword(a)}>Mot de passe…</button>
+                  <select
+                    aria-label={`Actions pour ${a.email}`}
+                    value=""
+                    onChange={(e) => {
+                      const action = e.target.value
+                      if (action === 'link') void newKey(a, 'activation')
+                      if (action === 'password') void newKey(a, 'password')
+                      if (action === 'transfer') setLeaving(a)
+                      if (action === 'toggle')
+                        void change(
+                          a,
+                          { disabled: !a.disabled },
+                          a.disabled ? `${a.email} réactivé.` : `${a.email} désactivé.`
+                        )
+                    }}
+                  >
+                    <option value="">Actions…</option>
+                    <option value="link">Nouveau lien d’activation (Keeper)</option>
+                    <option value="password">Mot de passe provisoire (Keeper)</option>
+                    {a.id !== self.id && <option value="transfer">Transférer ses pages…</option>}
                     {a.id !== self.id && (
-                      <button onClick={() => void change(a, { disabled: !a.disabled })}>
-                        {a.disabled ? 'Réactiver' : 'Désactiver'}
-                      </button>
+                      <option value="toggle">{a.disabled ? 'Réactiver' : 'Désactiver'}</option>
                     )}
-                  </span>
+                  </select>
                 </td>
               </tr>
             ))}
@@ -253,22 +318,87 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
         </table>
       )}
       <p className="settings-note">
-        Un compte désactivé ne peut plus se connecter ; ses pages restent. Changer un rôle ou un mot
-        de passe ferme les sessions ouvertes de la personne.
+        Un compte désactivé ne peut plus se connecter ; ses pages restent. Un mot de passe
+        provisoire ferme les sessions ouvertes de la personne et doit être changé à sa connexion. Un
+        lien d’activation sert aussi en cas de mot de passe oublié.
       </p>
     </div>
+  )
+}
+
+/** Someone leaves: their private pages go to another person, then the account can be disabled. */
+function TransferPages({
+  account,
+  accounts,
+  onDone,
+  onCancel
+}: {
+  account: Account
+  accounts: Account[]
+  onDone: (notice: string) => void
+  onCancel: () => void
+}): React.JSX.Element {
+  const [to, setTo] = useState('')
+  const [disable, setDisable] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const submit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    try {
+      const { pages } = await json<{ pages: number }>(
+        `/api/users/${encodeURIComponent(account.id)}/transfer`,
+        { json: { to, disable } }
+      )
+      const recipient = accounts.find((a) => a.id === to)?.name ?? ''
+      onDone(
+        `${pages} page(s) privée(s) de ${account.name} confiée(s) à ${recipient}${disable ? ', compte désactivé' : ''}.`
+      )
+    } catch (err) {
+      setError(message(err))
+    }
+  }
+  return (
+    <form className="new-account transfer-pages" onSubmit={(e) => void submit(e)}>
+      <h4>Départ de {account.name}</h4>
+      <p className="settings-note">
+        Ses pages privées (et leurs sous-pages), dans tous les espaces, passent à la personne
+        choisie. Les pages partagées avec tout l’espace ne changent pas.
+      </p>
+      <div className="new-account-fields">
+        <select required value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value="">Confier ses pages à…</option>
+          {accounts
+            .filter((a) => a.id !== account.id && !a.disabled)
+            .map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} ({a.email})
+              </option>
+            ))}
+        </select>
+        <label className="inline-check">
+          <input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} />
+          Désactiver le compte
+        </label>
+        <button className="primary" type="submit" disabled={!to}>
+          Transférer
+        </button>
+        <button type="button" onClick={onCancel}>
+          Annuler
+        </button>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </form>
   )
 }
 
 function NewAccount({
   onCreated
 }: {
-  onCreated: (email: string) => Promise<void>
+  onCreated: (key: SignInKey) => Promise<void>
 }): React.JSX.Element {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState<Role>('editor')
-  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState<'link' | 'password'>('link')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -277,11 +407,19 @@ function NewAccount({
     setBusy(true)
     setError(null)
     try {
-      await json('/api/users', { json: { email, name, role, password } })
-      await onCreated(email)
+      const result = await json<{
+        user: Account
+        password?: string
+        activation?: SignInKey['activation']
+      }>('/api/users', { json: { email, name, role, mode } })
+      await onCreated({
+        name: result.user.name,
+        email: result.user.email,
+        password: result.password,
+        activation: result.activation
+      })
       setEmail('')
       setName('')
-      setPassword('')
     } catch (err) {
       setError(message(err))
     } finally {
@@ -314,18 +452,19 @@ function NewAccount({
             </option>
           ))}
         </select>
-        <input
-          type="text"
-          placeholder={`mot de passe provisoire (${MIN_PASSWORD}+)`}
-          autoComplete="off"
-          required
-          minLength={MIN_PASSWORD}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
         <button className="primary" type="submit" disabled={busy}>
           Créer
         </button>
+      </div>
+      <div className="new-account-mode">
+        <label>
+          <input type="radio" checked={mode === 'link'} onChange={() => setMode('link')} />
+          Lien d’activation : la personne choisit son mot de passe (recommandé)
+        </label>
+        <label>
+          <input type="radio" checked={mode === 'password'} onChange={() => setMode('password')} />
+          Mot de passe provisoire généré, à changer à la première connexion
+        </label>
       </div>
       {error && <p className="error">{error}</p>}
     </form>

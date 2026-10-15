@@ -31,6 +31,43 @@ export interface WorkspaceInfo {
   icon: string | null
   /** Its members; null for the main workspace, open to every account */
   memberIds: string[] | null
+  /** Archived: hidden from its members until an administrator restores it */
+  archived: boolean
+}
+
+/** An entry of the administrators' audit log. */
+export interface AuditEntry {
+  id: number
+  at: number
+  actorId: string | null
+  action: string
+  /** What it was done to: an account, a page, a workspace, a group… */
+  target: string | null
+  detail: string | null
+  workspace: string | null
+}
+
+/** The administrators' dashboard. */
+export interface AdminOverview {
+  users: { total: number; active: number; disabled: number; admins: number; pending: number }
+  /** Accounts connected right now (real-time connection open) */
+  online: string[]
+  sessions: { userId: string; count: number; lastAt: number }[]
+  workspaces: {
+    id: string
+    name: string
+    archived: boolean
+    pages: number
+    databases: number
+    trashed: number
+    members: number | null
+    databaseBytes: number
+    files: number
+    fileBytes: number
+  }[]
+  feedbackOpen: number
+  /** Server data: databases and files */
+  totalBytes: number
 }
 
 /** The workspace every account belongs to, holding the pages from before workspaces. */
@@ -44,6 +81,8 @@ export interface SessionUser {
   email: string
   name: string
   role: 'admin' | 'editor' | 'reader' | 'guest'
+  /** Signed in with a provisional password, to replace first */
+  mustChangePassword?: boolean
 }
 
 export type FeedbackKind = 'bug' | 'idea'

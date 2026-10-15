@@ -2,14 +2,13 @@ import wordmarkLight from '../assets/logo-wordmark-light.png'
 import wordmarkDark from '../assets/logo-wordmark-dark.png'
 import tileLight from '../assets/logo-tile-light.png'
 import tileDark from '../assets/logo-tile-dark.png'
-import { useStore } from '../store'
 
 const SOURCES = {
   wordmark: { light: wordmarkLight, dark: wordmarkDark },
   tile: { light: tileLight, dark: tileDark }
 }
 
-/** Notionix logo that follows the system colour scheme. */
+/** Notionix logo that follows the theme: forced one, or the system's colour scheme. */
 export function Logo({
   variant,
   className
@@ -18,21 +17,16 @@ export function Logo({
   className?: string
 }): React.JSX.Element {
   const { light, dark } = SOURCES[variant]
-  const theme = useStore((s) => s.theme)
-  // A forced theme wins over the system's.
-  if (theme !== 'system')
-    return (
+  // Both are in the page; the style sheet shows the one of the theme (forced or the system's).
+  return (
+    <>
       <img
-        src={theme === 'dark' ? dark : light}
+        src={light}
         alt="Notionix"
-        className={className}
+        className={`logo-light ${className ?? ''}`}
         draggable={false}
       />
-    )
-  return (
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcSet={dark} />
-      <img src={light} alt="Notionix" className={className} draggable={false} />
-    </picture>
+      <img src={dark} alt="Notionix" className={`logo-dark ${className ?? ''}`} draggable={false} />
+    </>
   )
 }

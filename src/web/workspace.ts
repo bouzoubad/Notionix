@@ -20,5 +20,7 @@ export function switchWorkspace(id: string, pageId: string | null = null): void 
   } catch {
     // Without storage the main workspace stays.
   }
-  location.assign(pageId ? `/#/page/${encodeURIComponent(pageId)}` : '/')
+  // The app starts again: a change of the address's #… alone would not reload it.
+  history.replaceState(null, '', pageId ? `/#/page/${encodeURIComponent(pageId)}` : '/')
+  location.reload()
 }

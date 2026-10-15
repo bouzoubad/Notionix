@@ -13,11 +13,13 @@ import { CallContext, type LiveDocuments } from './rpc'
 import { docHasMention, docMentionedPeople } from '../../src/core/db/text'
 import { reminderKey } from '../../src/core/db/teamRepository'
 import type { Config } from './config'
+import { WORKSPACE_DOCUMENT } from '../../src/shared/collab'
 import { openDatabase } from './db'
 import { createStatic } from './static'
 import type { Workspace } from './workspace'
 import { Workspaces } from './workspaces'
 import { Groups } from './groups'
+import { AuditLog } from './audit'
 
 export interface NotionixServer {
   server: Server<CollabContext>
@@ -37,6 +39,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   const workspaces = new Workspaces(db, config.dataDir)
   const workspace = workspaces.main
   const groups = new Groups(db)
+  const audit = new AuditLog(db)
   const accounts = new Accounts(db, config.sessionDays)
   if (accounts.count() === 0 && config.adminEmail && config.adminPassword) {
     await accounts.create({
@@ -82,6 +85,13 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     collab: {
       flush: () => server && documents.projectOpenPages(server.hocuspocus),
       ...live,
+      online: () => {
+        const channel = server?.hocuspocus.documents.get(WORKSPACE_DOCUMENT)
+        return (channel?.getConnections() ?? []).flatMap((c) => {
+          const id = (c.context as CollabContext | undefined)?.user?.id
+          return id ? [id] : []
+        })
+      },
       changed: (user, workspaceId) => {
         if (!server) return
         documents.forgetDeletedPages(server.hocuspocus)
@@ -117,6 +127,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   const purge = setInterval(
     () => {
       accounts.purgeExpired()
+      audit.purge()
       purgeTrash()
     },
     60 * 60 * 1000

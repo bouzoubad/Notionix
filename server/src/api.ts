@@ -5,7 +5,16 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { pipeline } from 'stream/promises'
 import { Transform } from 'stream'
-import { Accounts, AuthError, LoginThrottle, ROLES, type Role, type User } from './auth'
+import {
+  Accounts,
+  AuthError,
+  generatePassword,
+  LoginThrottle,
+  ROLES,
+  type Role,
+  type User
+} from './auth'
+import { AuditLog } from './audit'
 import { MAX_ASSET_BYTES, MAX_FILE_BYTES } from '../../src/core/assets'
 import { ASSET_TYPES } from '../../src/shared/assets'
 import { importNotionExport } from '../../src/core/transfer/notionImport'
@@ -18,7 +27,12 @@ import { GroupError, type Groups } from './groups'
 import { PublicPages } from './publicPages'
 import { PublicForms } from './publicForms'
 import { FeedbackError, FeedbackRepository } from './feedback'
-import { FEEDBACK_STATUS_LABELS, MAIN_WORKSPACE, WORKSPACE_HEADER } from '../../src/shared/collab'
+import {
+  type AdminOverview,
+  FEEDBACK_STATUS_LABELS,
+  MAIN_WORKSPACE,
+  WORKSPACE_HEADER
+} from '../../src/shared/collab'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -133,7 +147,21 @@ export interface CollabHooks {
   replaceContent: (pageId: string, content: string, user: User) => Promise<void>
   /** Tells these people their inbox changed */
   notifyUsers: (userIds: string[]) => void
+  /** Accounts with a real-time connection open */
+  online?: () => string[]
 }
+
+/** Operations recorded in the audit log, with the page they concern. */
+const AUDITED_CALLS = new Set([
+  'pages.setShare',
+  'pages.setAccess',
+  'pages.publish',
+  'pages.trash',
+  'pages.restore',
+  'pages.deleteForever',
+  'pages.restoreVersion',
+  'databases.importCsv'
+])
 
 export interface ApiOptions {
   accounts: Accounts
@@ -170,6 +198,7 @@ export function createApi({
   }
   const editors: Role[] = ['admin', 'editor']
   const feedback = new FeedbackRepository(accounts.db)
+  const audit = new AuditLog(accounts.db)
   // Public links are found in whichever workspace issued them.
   const publicPages = new Map<string, PublicPages>()
   const publicForms = new Map<string, PublicForms>()
@@ -260,7 +289,8 @@ export function createApi({
               role: 'guest',
               disabled: false,
               createdAt: 0,
-              groups: []
+              groups: [],
+              mustChangePassword: false
             },
             found.id
           )
@@ -302,12 +332,36 @@ export function createApi({
         try {
           const session = await accounts.login(email, str(body.password) ?? '')
           throttle.succeed(key)
+          audit.record(session.user.id, 'login')
           send(res, 200, session, {
             'Set-Cookie': sessionCookie(req, session.token, sessionDays * 86400)
           })
         } catch (e) {
-          if (e instanceof AuthError && e.status === 401) throttle.fail(key)
+          if (e instanceof AuthError && e.status === 401) {
+            throttle.fail(key)
+            audit.record(null, 'login.failed', email.toLowerCase().slice(0, 200))
+          }
           throw e
+        }
+      } else if (path.startsWith('/api/activate/') && (method === 'GET' || method === 'POST')) {
+        // Activation link: the person chooses their password, no session needed.
+        const token = decodeURIComponent(path.slice('/api/activate/'.length))
+        const key = `activate|${req.socket.remoteAddress ?? ''}`
+        throttle.check(key)
+        const user = accounts.activationUser(token)
+        if (!user) {
+          throttle.fail(key)
+          throw new HttpError(404, 'Lien d’activation invalide ou expiré.')
+        }
+        if (method === 'GET') {
+          send(res, 200, { email: user.email, name: user.name })
+        } else {
+          const body = await readJson(req)
+          const session = await accounts.activate(token, str(body.password) ?? '')
+          audit.record(user.id, 'user.activated', user.id)
+          send(res, 200, session, {
+            'Set-Cookie': sessionCookie(req, session.token, sessionDays * 86400)
+          })
         }
       } else if (path === '/api/logout' && method === 'POST') {
         const token = bearer(req.headers.authorization) ?? cookieToken(req.headers.cookie)
@@ -378,45 +432,161 @@ export function createApi({
       } else if (path === '/api/tokens' && method === 'POST') {
         const user = requireUser(req)
         const body = await readJson(req)
-        send(res, 201, accounts.createToken(user.id, str(body.name) ?? ''))
+        const created = accounts.createToken(user.id, str(body.name) ?? '')
+        audit.record(user.id, 'token.create', user.id, created.info.name)
+        send(res, 201, created)
       } else if (path.startsWith('/api/tokens/') && method === 'DELETE') {
         const user = requireUser(req)
         accounts.revokeToken(user.id, decodeURIComponent(path.slice('/api/tokens/'.length)))
+        audit.record(user.id, 'token.revoke', user.id)
         send(res, 200, { ok: true })
       } else if (path === '/api/users' && method === 'GET') {
         requireUser(req, ['admin'])
-        send(res, 200, { users: accounts.list() })
+        send(res, 200, {
+          users: accounts
+            .list()
+            .map((u) => ({ ...u, pendingActivation: accounts.pendingActivation(u.id) }))
+        })
       } else if (path === '/api/users' && method === 'POST') {
-        requireUser(req, ['admin'])
+        // A new account signs in with an activation link (it chooses its own
+        // password) or a provisional password, both to share through a
+        // password manager such as Keeper; returned once, never stored in clear.
+        const admin = requireUser(req, ['admin'])
         const body = await readJson(req)
+        const mode = body.mode === 'password' ? 'password' : body.password ? 'given' : 'link'
+        const password =
+          mode === 'password' ? generatePassword() : mode === 'given' ? str(body.password)! : null
         const user = await accounts.create({
           email: str(body.email) ?? '',
           name: str(body.name) ?? '',
           role: (str(body.role) ?? 'editor') as Role,
-          password: str(body.password) ?? ''
+          password,
+          provisional: password !== null
         })
-        send(res, 201, { user })
+        audit.record(admin.id, 'user.create', user.id, `${user.email} (${user.role})`)
+        send(res, 201, {
+          user,
+          ...(mode === 'password' ? { password } : {}),
+          ...(mode === 'link' ? { activation: accounts.issueActivation(user.id) } : {})
+        })
+      } else if (
+        /^\/api\/users\/[^/]+\/(activation|password|transfer)$/.test(path) &&
+        method === 'POST'
+      ) {
+        const admin = requireUser(req, ['admin'])
+        const [, , , rawId, action] = path.split('/')
+        const id = decodeURIComponent(rawId)
+        const target = accounts.byId(id)
+        if (!target) throw new HttpError(404, 'Compte introuvable.')
+        if (action === 'activation') {
+          // A new link (also to reset a forgotten password); the current password stays until used.
+          const activation = accounts.issueActivation(id)
+          audit.record(admin.id, 'user.activation', id, target.email)
+          send(res, 200, { activation })
+        } else if (action === 'password') {
+          const password = generatePassword()
+          await accounts.update(id, { password, provisional: true })
+          audit.record(admin.id, 'user.password', id, target.email)
+          send(res, 200, { password })
+        } else {
+          // Someone leaves: their private pages go to another person, in every workspace.
+          const body = await readJson(req)
+          const to = accounts.byId(str(body.to) ?? '')
+          if (!to || to.id === id)
+            throw new HttpError(400, 'Choisissez la personne qui reprend les pages.')
+          let pages = 0
+          for (const { id: ws, workspace } of workspaces.all()) {
+            const moved = workspace.pages.transferOwnership(id, to.id)
+            pages += moved
+            if (moved) collab.changed(admin, ws)
+          }
+          if (body.disable === true && !target.disabled)
+            await accounts.update(id, { disabled: true })
+          audit.record(admin.id, 'user.transfer', id, `${pages} page(s) à ${to.email}`)
+          send(res, 200, { pages })
+        }
       } else if (path.startsWith('/api/users/') && method === 'PATCH') {
-        requireUser(req, ['admin'])
+        const admin = requireUser(req, ['admin'])
         const body = await readJson(req)
-        const user = await accounts.update(decodeURIComponent(path.slice('/api/users/'.length)), {
+        const id = decodeURIComponent(path.slice('/api/users/'.length))
+        const patch = {
           name: str(body.name),
           role: str(body.role) as Role | undefined,
           password: str(body.password),
           disabled: typeof body.disabled === 'boolean' ? body.disabled : undefined
+        }
+        // A password set by an administrator is provisional.
+        const user = await accounts.update(id, {
+          ...patch,
+          provisional: patch.password !== undefined
         })
+        const changed = Object.entries(patch)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => (k === 'password' ? 'mot de passe' : `${k} = ${String(v)}`))
+        audit.record(admin.id, 'user.update', id, `${user.email} : ${changed.join(', ')}`)
         send(res, 200, { user })
+      } else if (path === '/api/admin/overview' && method === 'GET') {
+        requireUser(req, ['admin'])
+        collab.flush()
+        const users = accounts.list()
+        const overview: AdminOverview = {
+          users: {
+            total: users.length,
+            active: users.filter((u) => !u.disabled).length,
+            disabled: users.filter((u) => u.disabled).length,
+            admins: users.filter((u) => u.role === 'admin' && !u.disabled).length,
+            pending: users.filter((u) => accounts.pendingActivation(u.id)).length
+          },
+          online: [...new Set(collab.online?.() ?? [])],
+          sessions: accounts.sessionsByUser(),
+          workspaces: workspaces.list().map((w) => ({
+            id: w.id,
+            name: w.name,
+            archived: w.archived,
+            ...workspaces.get(w.id)!.pages.counts(),
+            members: w.memberIds?.length ?? null,
+            ...workspaces.usage(w.id)
+          })),
+          feedbackOpen: feedback
+            .list(null)
+            .filter((f) => f.status !== 'done' && f.status !== 'declined').length,
+          totalBytes: 0
+        }
+        overview.totalBytes =
+          overview.workspaces.reduce((n, w) => n + w.databaseBytes + w.fileBytes, 0) +
+          workspaces.serverDatabaseBytes()
+        send(res, 200, { overview })
+      } else if (path === '/api/admin/audit' && method === 'GET') {
+        requireUser(req, ['admin'])
+        const before = Number(url.searchParams.get('before'))
+        send(res, 200, {
+          entries: audit.list({
+            action: url.searchParams.get('action') || undefined,
+            actorId: url.searchParams.get('actor') || undefined,
+            before: Number.isInteger(before) && before > 0 ? before : undefined,
+            limit: 100
+          })
+        })
+      } else if (path.startsWith('/api/admin/sessions/') && method === 'DELETE') {
+        const admin = requireUser(req, ['admin'])
+        const id = decodeURIComponent(path.slice('/api/admin/sessions/'.length))
+        accounts.endSessions(id)
+        audit.record(admin.id, 'sessions.end', id)
+        send(res, 200, { ok: true })
       } else if (path === '/api/groups' && method === 'GET') {
         requireUser(req)
         send(res, 200, { groups: groups.list() })
       } else if (path === '/api/groups' && method === 'POST') {
-        requireUser(req, ['admin'])
+        const admin = requireUser(req, ['admin'])
         const body = await readJson(req)
-        send(res, 201, { group: groups.create(str(body.name) ?? '', strings(body.memberIds)) })
+        const group = groups.create(str(body.name) ?? '', strings(body.memberIds))
+        audit.record(admin.id, 'group.create', group.id, group.name)
+        send(res, 201, { group })
       } else if (path.startsWith('/api/groups/') && (method === 'PATCH' || method === 'DELETE')) {
         const admin = requireUser(req, ['admin'])
         const id = decodeURIComponent(path.slice('/api/groups/'.length))
         if (method === 'DELETE') {
+          audit.record(admin.id, 'group.delete', id, groups.get(id)?.name ?? null)
           groups.remove(id)
           // Its shares go with it, in every workspace.
           for (const { id: ws, workspace } of workspaces.all()) {
@@ -431,6 +601,7 @@ export function createApi({
             memberIds: strings(body.memberIds)
           })
           for (const { id: ws } of workspaces.all()) collab.changed(admin, ws)
+          audit.record(admin.id, 'group.update', id, group.name)
           send(res, 200, { group })
         }
       } else if (path.startsWith('/api/locate/') && method === 'GET') {
@@ -448,26 +619,55 @@ export function createApi({
         const user = requireUser(req)
         send(res, 200, { workspaces: workspaces.forUser(user) })
       } else if (path === '/api/workspaces' && method === 'POST') {
-        requireUser(req, ['admin'])
+        const admin = requireUser(req, ['admin'])
         const body = await readJson(req)
         const created = workspaces.create(
           str(body.name) ?? '',
           str(body.icon) ?? null,
           strings(body.memberIds) ?? []
         )
+        audit.record(admin.id, 'workspace.create', created.id, created.name, created.id)
         send(res, 201, { workspace: created })
       } else if (path.startsWith('/api/workspaces/') && method === 'PATCH') {
-        requireUser(req, ['admin'])
+        const admin = requireUser(req, ['admin'])
         const body = await readJson(req)
-        const updated = workspaces.update(
-          decodeURIComponent(path.slice('/api/workspaces/'.length)),
-          {
-            name: str(body.name),
-            icon: body.icon === null ? null : str(body.icon),
-            memberIds: strings(body.memberIds)
-          }
-        )
+        const id = decodeURIComponent(path.slice('/api/workspaces/'.length))
+        let updated = workspaces.update(id, {
+          name: str(body.name),
+          icon: body.icon === null ? null : str(body.icon),
+          memberIds: strings(body.memberIds)
+        })
+        if (typeof body.archived === 'boolean') {
+          updated = workspaces.setArchived(id, body.archived)
+          audit.record(
+            admin.id,
+            body.archived ? 'workspace.archive' : 'workspace.restore',
+            id,
+            updated.name,
+            id
+          )
+          collab.changed(admin, id)
+        } else audit.record(admin.id, 'workspace.update', id, updated.name, id)
         send(res, 200, { workspace: updated })
+      } else if (path.startsWith('/api/workspaces/') && method === 'DELETE') {
+        const admin = requireUser(req, ['admin'])
+        const id = decodeURIComponent(path.slice('/api/workspaces/'.length))
+        const body = await readJson(req)
+        const info = workspaces.list().find((w) => w.id === id)
+        if (!info) throw new HttpError(404, 'Espace introuvable.')
+        // Typing the name guards against deleting the wrong one.
+        if (str(body.confirm) !== info.name)
+          throw new HttpError(400, 'Recopiez le nom de l’espace pour confirmer.')
+        const kept = workspaces.remove(id)
+        collab.changed(admin, id)
+        audit.record(
+          admin.id,
+          'workspace.delete',
+          id,
+          `${info.name} (fichiers gardés dans ${kept})`,
+          id
+        )
+        send(res, 200, { ok: true })
       } else if (path === '/api/rpc' && method === 'POST') {
         const user = requireUser(req)
         const { id: wsId, workspace, members } = workspaceOf(req, url, user)
@@ -484,6 +684,20 @@ export function createApi({
           throw new HttpError(400, e instanceof Error ? e.message : String(e))
         }
         if (call.method.write) collab.changed(user, wsId)
+        const name = str(body.method) ?? ''
+        if (AUDITED_CALLS.has(name)) {
+          const args = Array.isArray(body.args) ? body.args : []
+          audit.record(
+            user.id,
+            name,
+            typeof args[0] === 'string' ? args[0] : null,
+            args
+              .slice(1)
+              .map((a) => JSON.stringify(a))
+              .join(', ') || null,
+            wsId
+          )
+        }
         send(res, 200, { result: result ?? null })
       } else if (path === '/api/transfer/import' && method === 'POST') {
         const user = requireUser(req, editors)
@@ -498,15 +712,17 @@ export function createApi({
             () => (workspace.pages.actor = null)
           )
           collab.changed(user, wsId)
+          audit.record(user.id, 'transfer.import', null, `${summary.created} page(s)`, wsId)
           send(res, 200, { result: summary })
         } finally {
           await rm(dir, { recursive: true, force: true })
         }
       } else if (path === '/api/transfer/export' && method === 'GET') {
         const user = requireUser(req)
-        const { workspace, members } = workspaceOf(req, url, user)
+        const { id: wsId, workspace, members } = workspaceOf(req, url, user)
         collab.flush()
         const page = url.searchParams.get('page')
+        audit.record(user.id, 'transfer.export', page, url.searchParams.get('format'), wsId)
         // Only the pages the person can read are exported.
         const ctx = new CallContext(workspace, user, members)
         if (page) ctx.need(page, 'read')

@@ -18,6 +18,17 @@ const root = createRoot(document.getElementById('root')!)
 
 /** Loads the app once signed in; the app's modules read `window.api` when loaded. */
 async function startApp(user: SessionUser): Promise<void> {
+  if (user.mustChangePassword) {
+    const { MyAccount } = await import('./SettingsDialog')
+    root.render(
+      <div className="login">
+        <div className="login-card wide">
+          <MyAccount user={user} required />
+        </div>
+      </div>
+    )
+    return
+  }
   // A workspace one no longer belongs to (or deleted): back to the main one.
   const { workspaces } = await json<{ workspaces: WorkspaceInfo[] }>('/api/workspaces')
   if (!workspaces.some((w) => w.id === currentWorkspace())) {
@@ -52,7 +63,13 @@ async function startApp(user: SessionUser): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // Public forms and published pages need no account.
+  // Activation links, public forms and published pages need no account.
+  const activation = /^\/activate\/([A-Za-z0-9_-]+)\/?$/.exec(location.pathname)
+  if (activation) {
+    const { Activate } = await import('./Activate')
+    root.render(<Activate token={activation[1]} />)
+    return
+  }
   const form = /^\/f\/([a-z0-9]+)\/?$/.exec(location.pathname)
   if (form) {
     const { PublicForm } = await import('./PublicForm')

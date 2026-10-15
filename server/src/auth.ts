@@ -21,6 +21,8 @@ export interface User {
   createdAt: number
   /** Groups the person belongs to */
   groups: string[]
+  /** Signed in with a provisional password: a new one is asked first */
+  mustChangePassword: boolean
 }
 
 interface UserRow {
@@ -31,6 +33,25 @@ interface UserRow {
   password_hash: string
   disabled: number
   created_at: number
+  must_change_password: number
+}
+
+/** Stored instead of a password hash until the account is activated: no password matches. */
+const NO_PASSWORD = '!'
+/** How long an activation link stays valid. */
+export const ACTIVATION_DAYS = 7
+
+/** A provisional password: 20 letters and digits, without look-alikes (0/O, 1/l). */
+export function generatePassword(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  const bytes = randomBytes(40)
+  let out = ''
+  // Rejection sampling keeps every character equally likely.
+  for (const b of bytes) {
+    if (b < 256 - (256 % alphabet.length)) out += alphabet[b % alphabet.length]
+    if (out.length === 20) break
+  }
+  return out.length === 20 ? out : generatePassword()
 }
 
 const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
@@ -58,7 +79,8 @@ const toUser = (r: UserRow, groups: string[]): User => ({
   role: r.role,
   disabled: r.disabled === 1,
   createdAt: r.created_at,
-  groups
+  groups,
+  mustChangePassword: r.must_change_password === 1
 })
 
 const tokenHash = (token: string): string => createHash('sha256').update(token).digest('hex')
@@ -122,38 +144,51 @@ export class Accounts {
     )
   }
 
+  /**
+   * Creates an account. Without a password, it is activated through a link
+   * (`issueActivation`); a provisional password must be changed at first login.
+   */
   async create(input: {
     email: string
     name: string
     role: Role
-    password: string
+    password: string | null
+    provisional?: boolean
   }): Promise<User> {
     const email = input.email.trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+$/.test(email)) throw new AuthError('Adresse e-mail invalide.', 400)
     if (!ROLES.includes(input.role)) throw new AuthError('Rôle invalide.', 400)
-    checkPassword(input.password)
+    if (input.password !== null) checkPassword(input.password)
     if (this.db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
       throw new AuthError('Un compte existe déjà avec cette adresse.', 409)
     }
     const id = randomUUID()
     this.db
       .prepare(
-        'INSERT INTO users (id, email, name, role, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO users (id, email, name, role, password_hash, created_at, must_change_password) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
       .run(
         id,
         email,
         input.name.trim() || email,
         input.role,
-        await hashPassword(input.password),
-        this.now()
+        input.password === null ? NO_PASSWORD : await hashPassword(input.password),
+        this.now(),
+        input.provisional ? 1 : 0
       )
     return this.byId(id)!
   }
 
   async update(
     id: string,
-    patch: { name?: string; role?: Role; password?: string; disabled?: boolean }
+    patch: {
+      name?: string
+      role?: Role
+      password?: string
+      disabled?: boolean
+      /** The password set is provisional: to be changed at the next login */
+      provisional?: boolean
+    }
   ): Promise<User> {
     const user = this.byId(id)
     if (!user) throw new AuthError('Compte introuvable.', 404)
@@ -174,8 +209,10 @@ export class Accounts {
     if (patch.password !== undefined) {
       checkPassword(patch.password)
       this.db
-        .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-        .run(await hashPassword(patch.password), id)
+        .prepare('UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?')
+        .run(await hashPassword(patch.password), patch.provisional ? 1 : 0, id)
+      // A password chosen replaces any pending activation link.
+      this.db.prepare('DELETE FROM activations WHERE user_id = ?').run(id)
     }
     // A new password, a disabled account or a lower role ends the open sessions.
     if (patch.password !== undefined || patch.disabled === true || patch.role !== undefined)
@@ -234,6 +271,63 @@ export class Accounts {
       .prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?')
       .run(this.now(), api.token_id)
     return this.user(api)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Activation links: the person chooses their own password. Sent through a
+  // password manager (Keeper…); single use, only their hash is stored.
+
+  /** A new activation link for the account (replacing earlier ones). */
+  issueActivation(userId: string): { token: string; expiresAt: number } {
+    if (!this.byId(userId)) throw new AuthError('Compte introuvable.', 404)
+    const token = randomBytes(32).toString('base64url')
+    const t = this.now()
+    const expiresAt = t + ACTIVATION_DAYS * 864e5
+    this.db.prepare('DELETE FROM activations WHERE user_id = ?').run(userId)
+    this.db
+      .prepare(
+        'INSERT INTO activations (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
+      )
+      .run(tokenHash(token), userId, t, expiresAt)
+    return { token, expiresAt }
+  }
+
+  /** The active account an activation link opens, or null. */
+  activationUser(token: string): User | null {
+    const row = this.db
+      .prepare(
+        `SELECT u.* FROM activations a JOIN users u ON u.id = a.user_id
+         WHERE a.token_hash = ? AND a.expires_at > ? AND u.disabled = 0`
+      )
+      .get(tokenHash(token), this.now()) as UserRow | undefined
+    return row ? this.user(row) : null
+  }
+
+  /** Sets the password chosen through the link, which is then used up, and signs in. */
+  async activate(token: string, password: string): Promise<{ token: string; user: User }> {
+    const user = this.activationUser(token)
+    if (!user) throw new AuthError('Lien d’activation invalide ou expiré.', 404)
+    await this.update(user.id, { password })
+    return this.login(user.email, password)
+  }
+
+  /** Whether the account has a pending activation link. */
+  pendingActivation(userId: string): boolean {
+    return !!this.db
+      .prepare('SELECT 1 FROM activations WHERE user_id = ? AND expires_at > ?')
+      .get(userId, this.now())
+  }
+
+  /** Open sessions per account: how many, and the latest. */
+  sessionsByUser(): { userId: string; count: number; lastAt: number }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last FROM sessions
+           WHERE expires_at > ? GROUP BY user_id`
+        )
+        .all(this.now()) as { user_id: string; n: number; last: number }[]
+    ).map((r) => ({ userId: r.user_id, count: r.n, lastAt: r.last }))
   }
 
   // ---------------------------------------------------------------------------

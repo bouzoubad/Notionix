@@ -146,7 +146,7 @@ export function Sidebar(): React.JSX.Element {
             </span>
             <span className="account-buttons">
               <button onClick={() => setSettingsOpen(true)}>
-                {session.user.role === 'admin' ? 'Comptes' : 'Mon compte'}
+                {session.user.role === 'admin' ? 'Administration' : 'Mon compte'}
               </button>
               <button onClick={() => void session.logout()}>Se déconnecter</button>
             </span>

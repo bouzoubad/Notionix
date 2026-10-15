@@ -98,7 +98,10 @@ function LoadedEditor({
   const remoteTitle = summary?.title
   useEffect(() => {
     if (remoteTitle === undefined || pending.current.title !== undefined) return
-    if (document.activeElement !== titleInput.current) setTitle(remoteTitle)
+    // An empty title (focused on its own when the page opens) takes the other's at once.
+    setTitle((current) =>
+      current === '' || document.activeElement !== titleInput.current ? remoteTitle : current
+    )
   }, [remoteTitle])
 
   const flush = (): void => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { createHash } from 'crypto'
@@ -483,6 +483,160 @@ describe('groups and workspaces', () => {
     )
     expect((await wsRpc(alice, 'pages.createWith', null, { id: chosen })).status).toBe(400)
     expect((await wsRpc(alice, 'pages.createWith', null, { id: page.id })).status).toBe(400)
+  })
+})
+
+describe('account keys, departures and administration', () => {
+  it('activates an account through a single-use link, or a provisional password', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const created = await api('/api/users', {
+      token: admin,
+      json: { email: 'dana@example.com', name: 'Dana', role: 'editor', mode: 'link' }
+    })
+    expect(created.status).toBe(201)
+    const { token } = created.body.activation as { token: string }
+    expect(created.body.password).toBeUndefined()
+    // No password works before activation.
+    expect(
+      (await api('/api/login', { json: { email: 'dana@example.com', password: '' } })).status
+    ).toBe(401)
+    expect((await api(`/api/activate/${token}`)).body).toEqual({
+      email: 'dana@example.com',
+      name: 'Dana'
+    })
+    expect((await api(`/api/activate/${token}`, { json: { password: 'court' } })).status).toBe(400)
+    const activated = await api(`/api/activate/${token}`, {
+      json: { password: 'mon-mot-de-passe' }
+    })
+    expect(activated.status).toBe(200)
+    expect((activated.body.user as { mustChangePassword: boolean }).mustChangePassword).toBe(false)
+    // Used up.
+    expect((await api(`/api/activate/${token}`)).status).toBe(404)
+    await login('dana@example.com', 'mon-mot-de-passe')
+
+    const provisional = await api('/api/users', {
+      token: admin,
+      json: { email: 'eli@example.com', name: 'Eli', role: 'reader', mode: 'password' }
+    })
+    const password = provisional.body.password as string
+    expect(password).toMatch(/^[A-Za-z0-9]{20}$/)
+    const eli = await api('/api/login', { json: { email: 'eli@example.com', password } })
+    expect((eli.body.user as { mustChangePassword: boolean }).mustChangePassword).toBe(true)
+    await api('/api/me/password', {
+      token: eli.body.token as string,
+      json: { current: password, next: 'choisi-par-eli' }
+    })
+    const again = await api('/api/login', {
+      json: { email: 'eli@example.com', password: 'choisi-par-eli' }
+    })
+    expect((again.body.user as { mustChangePassword: boolean }).mustChangePassword).toBe(false)
+
+    // A reset link for a forgotten password; only administrators issue it.
+    const people = (await rpc<{ id: string; email: string }[]>(admin, 'people.list')).result
+    const eliId = people.find((p) => p.email === 'eli@example.com')!.id
+    expect(
+      (await api(`/api/users/${eliId}/activation`, { token: again.body.token as string, json: {} }))
+        .status
+    ).toBe(403)
+    const reset = await api(`/api/users/${eliId}/activation`, { token: admin, json: {} })
+    expect((reset.body.activation as { token: string }).token).toBeTruthy()
+  })
+
+  it('hands over the private pages of someone leaving, archives and deletes workspaces, and keeps an audit log', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    await createUser(admin, 'bob@example.com', 'editor')
+    const people = (await rpc<{ id: string; email: string }[]>(admin, 'people.list')).result
+    const idOf = (email: string): string => people.find((p) => p.email === email)!.id
+    const secret = (await rpc<Page>(alice, 'pages.create', null, 'restricted')).result
+
+    const moved = await api(`/api/users/${idOf('alice@example.com')}/transfer`, {
+      token: admin,
+      json: { to: idOf('bob@example.com'), disable: true }
+    })
+    expect(moved.body.pages).toBe(1)
+    const bob = await login('bob@example.com', 'editor-password-1')
+    expect((await rpc<Page>(bob, 'pages.get', secret.id)).result.level).toBe('full')
+    expect(
+      (
+        await api('/api/login', {
+          json: { email: 'alice@example.com', password: 'editor-password-1' }
+        })
+      ).status
+    ).toBe(403)
+
+    const ws = (
+      (
+        await api('/api/workspaces', {
+          token: admin,
+          json: { name: 'Temporaire', memberIds: [idOf('bob@example.com')] }
+        })
+      ).body.workspace as { id: string }
+    ).id
+    await api('/api/rpc', {
+      token: bob,
+      headers: { 'X-Notionix-Workspace': ws },
+      json: { method: 'pages.create', args: [null] }
+    })
+    await api(`/api/workspaces/${ws}`, { token: admin, method: 'PATCH', json: { archived: true } })
+    const visible = async (token: string): Promise<string[]> =>
+      ((await api('/api/workspaces', { token })).body.workspaces as { id: string }[]).map(
+        (w) => w.id
+      )
+    expect(await visible(bob)).toEqual(['main'])
+    expect(await visible(admin)).toEqual(['main', ws])
+    expect(
+      (
+        await api(`/api/workspaces/${ws}`, {
+          token: admin,
+          method: 'DELETE',
+          json: { confirm: 'non' }
+        })
+      ).status
+    ).toBe(400)
+    expect(
+      (
+        await api(`/api/workspaces/${ws}`, {
+          token: admin,
+          method: 'DELETE',
+          json: { confirm: 'Temporaire' }
+        })
+      ).status
+    ).toBe(200)
+    expect(await visible(admin)).toEqual(['main'])
+    expect(existsSync(join(dataDir, 'deleted-workspaces'))).toBe(true)
+    expect(
+      (
+        await api('/api/workspaces/main', {
+          token: admin,
+          method: 'DELETE',
+          json: { confirm: 'Espace principal' }
+        })
+      ).status
+    ).toBe(400)
+
+    const overview = (await api('/api/admin/overview', { token: admin })).body.overview as {
+      users: { active: number; disabled: number }
+      workspaces: { id: string; pages: number }[]
+    }
+    expect(overview.users).toMatchObject({ active: 2, disabled: 1 })
+    expect(overview.workspaces[0]).toMatchObject({ id: 'main', pages: 1 })
+    expect((await api('/api/admin/overview', { token: bob })).status).toBe(403)
+
+    const actions = (
+      (await api('/api/admin/audit', { token: admin })).body.entries as { action: string }[]
+    ).map((e) => e.action)
+    for (const a of [
+      'user.create',
+      'user.transfer',
+      'workspace.archive',
+      'workspace.delete',
+      'login'
+    ])
+      expect(actions).toContain(a)
+    const logins = (await api('/api/admin/audit?action=login', { token: admin })).body
+      .entries as unknown[]
+    expect(logins.length).toBeGreaterThan(0)
   })
 })
 

@@ -60,7 +60,7 @@ docker compose -f server/docker-compose.yml up -d --build
 
 - Même application que sur le bureau (pages, bases de données, images, import Notion par envoi du `.zip`, export Markdown téléchargé), sur un espace partagé.
 - Édition simultanée : le contenu de chaque page est un document Yjs partagé (Hocuspocus) ; titres, arborescence et bases se mettent à jour chez tout le monde.
-- Comptes gérés dans l'app (bouton « Comptes » pour l'administrateur, « Mon compte » pour son mot de passe et ses jetons d'API) : `admin`, `editor`, `reader` (lecture et commentaires), `guest` (seulement les pages partagées avec lui). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
+- Comptes gérés dans l'app (bouton « Administration » pour l'administrateur, « Mon compte » pour son mot de passe et ses jetons d'API). À la création, une **clé de connexion à partager via Keeper** (lien d'activation à usage unique, valable 7 jours, où la personne choisit son mot de passe ; ou mot de passe provisoire à changer à la première connexion), présentée comme les champs d'un enregistrement Keeper ; la même chose sert en cas d'oubli. Départ d'une personne : ses pages privées sont confiées à quelqu'un d'autre, puis le compte désactivé. **Tableau de bord** : comptes, personnes connectées, sessions (déconnexion à distance), taille des données par espace, retours à traiter, **journal d'audit** (connexions, comptes, partages, publications, suppressions, imports et exports, conservé un an). Espaces archivables et supprimables (fichiers mis de côté dans `deleted-workspaces/`). Rôles : `admin`, `editor`, `reader` (lecture et commentaires), `guest` (seulement les pages partagées avec lui). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
 - Droits vérifiés par le serveur sur chaque opération, recherche, export et connexion temps réel : page de l'espace, privée (son créateur) ou restreinte aux personnes invitées, droits hérités par les sous-pages.
 - Plusieurs espaces de travail (onglet « Espaces de travail » des paramètres administrateur, sélecteur en haut de la barre latérale) : l'espace principal est ouvert à tous les comptes, les autres à leurs membres et aux administrateurs ; la boîte de réception réunit les notifications de tous ses espaces, et un lien vers une page d'un autre espace y bascule directement ; groupes de personnes (onglet « Groupes ») choisis dans le menu Partager.
 - Données dans un volume : `workspace.db` et `assets/` (espace principal, même format que la base de l'app de bureau), `workspaces/<id>/` (autres espaces), `notionix-server.db` (comptes, groupes, liste des espaces, documents partagés).
@@ -88,7 +88,7 @@ nvm use          # Node 24.18.0 (Electron 39 embarque Node 22)
 npm install
 npm run dev      # développement
 npm test         # tests unitaires (repository SQLite)
-npm run test:e2e # build + smoke test Electron
+npm run test:e2e # build + tests e2e Electron, puis la version web contre un vrai serveur (test:e2e:web)
 npm run typecheck && npm run lint
 npm run server   # serveur + client web sur http://localhost:8080
 ```

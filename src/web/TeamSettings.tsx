@@ -200,7 +200,7 @@ export function Workspaces(): React.JSX.Element {
       <p className="settings-note">
         Chaque espace a ses propres pages, bases et fichiers. L’espace principal est ouvert à tous
         les comptes ; les autres à leurs membres et aux administrateurs. On change d’espace en haut
-        de la barre latérale.
+        de la barre latérale. Un espace archivé disparaît pour ses membres jusqu’à sa restauration.
       </p>
       <form
         className="new-account"
@@ -258,6 +258,31 @@ export function Workspaces(): React.JSX.Element {
                     void patch(w, { name: e.target.value })
                 }}
               />
+              {w.archived && <span className="account-badge">archivé</span>}
+              {w.memberIds !== null && (
+                <>
+                  <button onClick={() => void patch(w, { archived: !w.archived })}>
+                    {w.archived ? 'Restaurer' : 'Archiver'}
+                  </button>
+                  <button
+                    className="danger"
+                    onClick={() => {
+                      const confirm = prompt(
+                        `Supprimer l’espace « ${w.name} » et toutes ses pages ? Ses fichiers sont mis de côté sur le serveur (dossier deleted-workspaces), pas effacés. Recopiez son nom pour confirmer :`
+                      )
+                      if (confirm !== null)
+                        void run(() =>
+                          json(`/api/workspaces/${encodeURIComponent(w.id)}`, {
+                            method: 'DELETE',
+                            json: { confirm }
+                          })
+                        )
+                    }}
+                  >
+                    Supprimer
+                  </button>
+                </>
+              )}
             </header>
             {w.memberIds === null ? (
               <p className="settings-note">Tous les comptes.</p>

@@ -84,7 +84,28 @@ const MIGRATIONS = [
      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
      PRIMARY KEY (workspace_id, user_id)
    );
-   INSERT INTO workspaces (id, name, icon, created_at) VALUES ('main', 'Espace principal', NULL, 0);`
+   INSERT INTO workspaces (id, name, icon, created_at) VALUES ('main', 'Espace principal', NULL, 0);`,
+  // Activation links (shared through a password manager), provisional passwords,
+  // archived workspaces and the administrators' audit log.
+  `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE activations (
+     token_hash TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL
+   );
+   CREATE INDEX activations_user ON activations(user_id);
+   ALTER TABLE workspaces ADD COLUMN archived_at INTEGER;
+   CREATE TABLE audit (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     at INTEGER NOT NULL,
+     actor_id TEXT,
+     action TEXT NOT NULL,
+     target TEXT,
+     detail TEXT,
+     workspace TEXT
+   );
+   CREATE INDEX audit_at ON audit(at);`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

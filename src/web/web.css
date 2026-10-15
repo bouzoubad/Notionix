@@ -424,3 +424,104 @@
 .member-picker input {
   margin: 0;
 }
+
+/* Sign-in key to share through Keeper */
+.keeper-share {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.keeper-share h4 {
+  margin: 0 0 4px;
+}
+.keeper-share dl {
+  margin: 8px 0;
+}
+.keeper-field {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+}
+.keeper-field dt {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.keeper-field dd {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.keeper-field code {
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  background: rgba(127, 127, 127, 0.1);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.keeper-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.new-account-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.account-badge {
+  margin-left: 6px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(217, 115, 13, 0.15);
+  color: #d9730d;
+}
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+.login-card.wide {
+  width: min(520px, 100%);
+}
+
+/* Administrators' dashboard */
+.admin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.admin-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-card strong {
+  font-size: 22px;
+}
+.admin-card small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.audit-table td {
+  font-size: 12px;
+  vertical-align: top;
+}
+.audit-target,
+.audit-detail {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+}

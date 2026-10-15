@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'fs'
 import { join } from 'path'
 import { randomBytes } from 'crypto'
 import { MAIN_WORKSPACE, type WorkspaceInfo } from '../../src/shared/collab'
@@ -14,6 +14,7 @@ interface WorkspaceRow {
   id: string
   name: string
   icon: string | null
+  archived_at: number | null
 }
 
 /**
@@ -64,7 +65,8 @@ export class Workspaces {
       id: r.id,
       name: r.name,
       icon: r.icon,
-      memberIds: r.id === MAIN_WORKSPACE ? null : (members.get(r.id) ?? [])
+      memberIds: r.id === MAIN_WORKSPACE ? null : (members.get(r.id) ?? []),
+      archived: r.archived_at !== null
     }))
   }
 
@@ -115,24 +117,83 @@ export class Workspaces {
     return this.list().find((w) => w.id === id)!
   }
 
+  /** Archived: its members no longer see it; administrators can restore it. */
+  setArchived(id: string, archived: boolean): WorkspaceInfo {
+    if (id === MAIN_WORKSPACE) throw new WorkspaceError('L’espace principal ne s’archive pas.')
+    if (!this.row(id)) throw new WorkspaceError('Espace introuvable.')
+    this.db
+      .prepare('UPDATE workspaces SET archived_at = ? WHERE id = ?')
+      .run(archived ? this.now() : null, id)
+    return this.list().find((w) => w.id === id)!
+  }
+
+  /**
+   * Deletes a workspace. Its files are not erased: they move to
+   * deleted-workspaces/ in the data directory, where an administrator of the
+   * machine can still recover them.
+   */
+  remove(id: string): string {
+    if (id === MAIN_WORKSPACE) throw new WorkspaceError('L’espace principal ne se supprime pas.')
+    if (!this.row(id)) throw new WorkspaceError('Espace introuvable.')
+    this.opened.get(id)?.db.close()
+    this.opened.delete(id)
+    const dir = join(this.dataDir, 'workspaces', id)
+    const kept = join(this.dataDir, 'deleted-workspaces', `${id}-${this.now()}`)
+    if (existsSync(dir)) {
+      mkdirSync(join(this.dataDir, 'deleted-workspaces'), { recursive: true })
+      renameSync(dir, kept)
+    }
+    this.db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
+    return kept
+  }
+
+  /** Bytes of the workspace's database, and its stored files. */
+  usage(id: string): { databaseBytes: number; files: number; fileBytes: number } {
+    const dir = id === MAIN_WORKSPACE ? this.dataDir : join(this.dataDir, 'workspaces', id)
+    const size = (file: string): number => (existsSync(file) ? statSync(file).size : 0)
+    const databaseBytes = ['', '-wal', '-shm'].reduce(
+      (n, suffix) => n + size(join(dir, `workspace.db${suffix}`)),
+      0
+    )
+    let files = 0
+    let fileBytes = 0
+    const assets = join(dir, 'assets')
+    if (existsSync(assets))
+      for (const name of readdirSync(assets)) {
+        files += 1
+        fileBytes += size(join(assets, name))
+      }
+    return { databaseBytes, files, fileBytes }
+  }
+
+  /** Bytes of the server's own database (accounts, shared documents, audit). */
+  serverDatabaseBytes(): number {
+    return ['', '-wal', '-shm'].reduce((n, suffix) => {
+      const file = join(this.dataDir, `notionix-server.db${suffix}`)
+      return n + (existsSync(file) ? statSync(file).size : 0)
+    }, 0)
+  }
+
   close(): void {
     for (const workspace of this.opened.values()) workspace.db.close()
     this.opened.clear()
   }
 
   private allows(user: User, info: WorkspaceInfo): boolean {
-    return user.role === 'admin' || info.memberIds === null || info.memberIds.includes(user.id)
+    if (user.role === 'admin') return true
+    return !info.archived && (info.memberIds === null || info.memberIds.includes(user.id))
   }
 
   private row(id: string): WorkspaceRow | undefined {
-    return this.db.prepare('SELECT id, name, icon FROM workspaces WHERE id = ?').get(id) as
-      WorkspaceRow | undefined
+    return this.db
+      .prepare('SELECT id, name, icon, archived_at FROM workspaces WHERE id = ?')
+      .get(id) as WorkspaceRow | undefined
   }
 
   private rows(): WorkspaceRow[] {
     // The main workspace first, then by name.
     return this.db
-      .prepare(`SELECT id, name, icon FROM workspaces ORDER BY id != 'main', name`)
+      .prepare(`SELECT id, name, icon, archived_at FROM workspaces ORDER BY id != 'main', name`)
       .all() as unknown as WorkspaceRow[]
   }
 

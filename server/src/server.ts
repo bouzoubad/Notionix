@@ -40,6 +40,9 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     sessionDays: config.sessionDays,
     collab: {
       flush: () => server && documents.projectOpenPages(server.hocuspocus),
+      replaceContent: async (pageId, content, user) => {
+        if (server) await documents.replace(server.hocuspocus, pageId, content, user)
+      },
       changed: (user) => {
         if (!server) return
         documents.forgetDeletedPages(server.hocuspocus)

@@ -30,6 +30,11 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
     throw new Error('Le partage se fait sur un serveur Notionix.')
   })
   ipc.handle('pages:backlinks', (_e, id: string) => repo.backlinks(id))
+  ipc.handle('pages:versions', (_e, id: string) => repo.versions(id))
+  ipc.handle('pages:version', (_e, versionId: number) => repo.version(versionId))
+  ipc.handle('pages:restoreVersion', (_e, id: string, versionId: number) =>
+    repo.restoreVersion(id, versionId)
+  )
   ipc.handle('people:list', (): Person[] => [LOCAL_PERSON])
 }
 

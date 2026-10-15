@@ -20,7 +20,10 @@ const api: NotionixApi = {
     setSpace: (id, flag) => call('pages:setSpace', id, flag),
     shares: (id) => call('pages:shares', id),
     setShare: (id, userId, level) => call('pages:setShare', id, userId, level),
-    backlinks: (id) => call('pages:backlinks', id)
+    backlinks: (id) => call('pages:backlinks', id),
+    versions: (id) => call('pages:versions', id),
+    version: (versionId) => call('pages:version', versionId),
+    restoreVersion: (id, versionId) => call('pages:restoreVersion', id, versionId)
   },
   people: {
     list: () => call('people:list')

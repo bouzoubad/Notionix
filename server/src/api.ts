@@ -120,6 +120,8 @@ export interface CollabHooks {
   flush: () => void
   /** Announces a change of pages or databases to every client */
   changed: (by: User) => void
+  /** Replaces the content of a page's shared document (restoring a saved state) */
+  replaceContent: (pageId: string, content: string, user: User) => Promise<void>
 }
 
 export interface ApiOptions {
@@ -226,7 +228,7 @@ export function createApi({
         if (call.readsContent) collab.flush()
         let result: unknown
         try {
-          result = runCall(call, new CallContext(workspace, user, people))
+          result = await runCall(call, new CallContext(workspace, user, people, collab))
         } catch (e) {
           if (e instanceof RpcError) throw e
           if (e instanceof ForbiddenError) throw new HttpError(403, e.message)

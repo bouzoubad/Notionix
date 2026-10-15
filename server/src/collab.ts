@@ -1,9 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { Extension, Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
-import { prosemirrorJSONToYDoc, yXmlFragmentToProseMirrorRootNode } from '@tiptap/y-tiptap'
+import {
+  prosemirrorJSONToYDoc,
+  prosemirrorJSONToYXmlFragment,
+  yXmlFragmentToProseMirrorRootNode
+} from '@tiptap/y-tiptap'
 import { documentSchema } from '../../src/core/transfer/canonicalDoc'
-import { PAGE_FIELD, WORKSPACE_DOCUMENT, pageIdOf } from '../../src/shared/collab'
+import { PAGE_FIELD, WORKSPACE_DOCUMENT, pageDocumentName, pageIdOf } from '../../src/shared/collab'
 import type { Accounts, User } from './auth'
 import { resolveLevels } from '../../src/core/access'
 import { atLeast } from '../../src/shared/types'
@@ -74,6 +78,23 @@ export class PageDocuments {
     )
     const content = JSON.stringify(root.toJSON())
     if (content !== page.content) this.workspace.pages.update(id, { content })
+  }
+
+  /**
+   * Replaces a page's shared document with `content` (restoring a saved
+   * state): every open editor receives the change.
+   */
+  async replace(instance: Hocuspocus, pageId: string, content: string, user: User): Promise<void> {
+    const connection = await instance.openDirectConnection(pageDocumentName(pageId), { user })
+    try {
+      await connection.transact((document) => {
+        const fragment = document.getXmlFragment(PAGE_FIELD)
+        fragment.delete(0, fragment.length)
+        prosemirrorJSONToYXmlFragment(documentSchema(), JSON.parse(content), fragment)
+      })
+    } finally {
+      await connection.disconnect()
+    }
   }
 
   /** Brings the workspace up to date with the pages being edited right now. */

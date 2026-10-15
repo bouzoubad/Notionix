@@ -95,3 +95,35 @@ describe('PageRepository', () => {
     expect(repo.list().filter((p) => p.parentId === copy.id)).toHaveLength(1)
   })
 })
+
+describe('page history', () => {
+  it('keeps the original content, groups close changes and restores a version', () => {
+    let t = 1_000_000
+    const db = new DatabaseSync(':memory:')
+    migrate(db)
+    const repo = new PageRepository(db, () => t)
+    repo.actor = 'alice'
+    const page = repo.create(null)
+    const doc = (text: string): string =>
+      JSON.stringify({
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+      })
+    repo.update(page.id, { content: doc('un') })
+    t += 60_000
+    repo.as('bob', () => repo.update(page.id, { content: doc('deux') }))
+    let versions = repo.versions(page.id)
+    expect(versions).toHaveLength(1)
+    expect(versions[0].authors).toEqual(['alice', 'bob'])
+    t += 11 * 60_000
+    repo.update(page.id, { content: doc('trois') })
+    versions = repo.versions(page.id)
+    expect(
+      versions.map((v) => JSON.parse(repo.version(v.id)!.content).content[0].content[0].text)
+    ).toEqual(['trois', 'deux'])
+    repo.restoreVersion(page.id, versions[1].id)
+    expect(repo.get(page.id)!.content).toBe(doc('deux'))
+    expect(repo.versions(page.id)).toHaveLength(3)
+    expect(() => repo.restoreVersion(page.id, 9999)).toThrow()
+  })
+})

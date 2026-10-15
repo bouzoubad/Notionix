@@ -3,6 +3,7 @@ import type { PageSummary } from '../../../shared/types'
 import { ancestorsOf, useStore } from '../store'
 import { platform } from '../platform'
 import { ShareMenu } from './ShareMenu'
+import { HistoryDialog } from './HistoryDialog'
 
 /** Breadcrumbs of a page, and its actions (sharing…), above its content. */
 export function PageTopBar({
@@ -15,7 +16,7 @@ export function PageTopBar({
 }): React.JSX.Element {
   const pages = useStore((s) => s.pages)
   const open = useStore((s) => s.open)
-  const [menu, setMenu] = useState<'share' | null>(null)
+  const [menu, setMenu] = useState<'share' | 'history' | null>(null)
   const crumbs = ancestorsOf(pages, page.id)
   const web = platform().session !== null
   const shared = page.access === 'restricted' || page.publicToken !== null
@@ -31,6 +32,12 @@ export function PageTopBar({
         {page.icon ?? (page.kind === 'database' ? '🗃️' : '')} {title || 'Sans titre'}
       </span>
       <div className="topbar-actions">
+        {page.kind === 'page' && (
+          <button title="Historique des versions" onClick={() => setMenu('history')}>
+            Historique
+          </button>
+        )}
+        {menu === 'history' && <HistoryDialog page={page} onClose={() => setMenu(null)} />}
         {web && (
           <span className="topbar-anchor">
             <button

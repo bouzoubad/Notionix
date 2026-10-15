@@ -47,7 +47,10 @@ export const webApi: NotionixApi = {
     setSpace: (id, flag) => rpc('pages.setSpace', id, flag),
     shares: (id) => rpc('pages.shares', id),
     setShare: (id, userId, level) => rpc('pages.setShare', id, userId, level),
-    backlinks: (id) => rpc('pages.backlinks', id)
+    backlinks: (id) => rpc('pages.backlinks', id),
+    versions: (id) => rpc('pages.versions', id),
+    version: (versionId) => rpc('pages.version', versionId),
+    restoreVersion: (id, versionId) => rpc('pages.restoreVersion', id, versionId)
   },
   people: {
     list: () => rpc('people.list')

@@ -55,6 +55,12 @@ const shareLevel = (v: unknown): PageShare['level'] | null => {
   return v
 }
 
+/** What calls need from the real-time side. */
+export interface LiveDocuments {
+  /** Replaces the content of a page's shared document */
+  replaceContent: (pageId: string, content: string, user: User) => Promise<void>
+}
+
 /** What a call knows about its caller. */
 export class CallContext {
   private levels: Map<string, AccessLevel> | null = null
@@ -62,7 +68,8 @@ export class CallContext {
   constructor(
     readonly ws: Workspace,
     readonly user: User,
-    readonly people: () => Person[]
+    readonly people: () => Person[],
+    readonly live: LiveDocuments = { replaceContent: async () => undefined }
   ) {}
 
   /** The caller's level on every page, computed once per call (and after changes). */
@@ -203,6 +210,23 @@ const METHODS: Record<string, Method> = {
       throw new RpcError('Personne inconnue.')
     return ctx.ws.pages.setShare(id(p), userId, shareLevel(level))
   }),
+  'pages.versions': read((ctx, [p]) => {
+    ctx.need(id(p), 'read')
+    return ctx.ws.pages.versions(id(p))
+  }),
+  'pages.version': read((ctx, [v]) => {
+    if (typeof v !== 'number' || !Number.isInteger(v)) throw new RpcError('Version invalide.')
+    const version = ctx.ws.pages.version(v)
+    if (!version) return null
+    ctx.need(version.pageId, 'read')
+    return version
+  }),
+  'pages.restoreVersion': write(async (ctx, [p, v]) => {
+    ctx.need(id(p), 'edit')
+    if (typeof v !== 'number' || !Number.isInteger(v)) throw new RpcError('Version invalide.')
+    ctx.ws.pages.restoreVersion(id(p), v)
+    await ctx.live.replaceContent(id(p), ctx.ws.pages.get(id(p))!.content, ctx.user)
+  }),
   'pages.backlinks': read((ctx, [p]) => {
     ctx.need(id(p), 'read')
     return ctx.filter(ctx.ws.pages.backlinks(id(p)))
@@ -250,6 +274,8 @@ const METHODS: Record<string, Method> = {
 /** Operations reading page content, which must include the edits in progress. */
 const READS_CONTENT = new Set([
   'pages.get',
+  'pages.versions',
+  'pages.restoreVersion',
   'pages.duplicate',
   'pages.search',
   'pages.backlinks',

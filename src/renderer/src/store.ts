@@ -13,6 +13,9 @@ interface State {
   notice: string | null
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
+  /** Increased when the open page's content was replaced (restored version): editors reload */
+  contentReload: number
+  reloadContent: () => void
   /** Reloads what another person may have changed */
   remoteChange: () => Promise<void>
   /** Equation being edited, and how to write the result back (null removes it) */
@@ -58,6 +61,8 @@ export const useStore = create<State>((set, get) => ({
   transferOpen: false,
   notice: null,
   revision: 0,
+  contentReload: 0,
+  reloadContent: () => set({ contentReload: get().contentReload + 1 }),
   mathEdit: null,
   setMathEdit: (mathEdit) => set({ mathEdit }),
 

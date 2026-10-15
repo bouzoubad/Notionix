@@ -386,6 +386,35 @@ describe('shared pages', () => {
     again.provider.destroy()
   })
 
+  it('keeps the history of a shared page and restores a version to every editor', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const page = (await rpc<Page>(admin, 'pages.create', null)).result
+    const a = connect(`page:${page.id}`, admin)
+    await a.synced
+    a.doc.getXmlFragment(PAGE_FIELD).insert(1, [paragraph('Première version')])
+    // Search reads (and saves) the content being edited.
+    await until(() => texts(a.doc).includes('Première version'))
+    await rpc(admin, 'pages.search', 'Première')
+    const versions = (
+      await rpc<{ id: number; authors: string[] }[]>(admin, 'pages.versions', page.id)
+    ).result
+    expect(versions).toHaveLength(1)
+    // An hour later: the next changes start a new version.
+    running.workspace.db.prepare('UPDATE page_versions SET created_at = created_at - 3600000').run()
+    a.doc.getXmlFragment(PAGE_FIELD).delete(0, 2)
+    a.doc.getXmlFragment(PAGE_FIELD).insert(0, [paragraph('Tout réécrit')])
+    // Changes still on their way when restoring would be kept, like any concurrent edit.
+    await new Promise((r) => setTimeout(r, 300))
+    expect((await rpc(admin, 'pages.restoreVersion', page.id, versions[0].id)).status).toBe(200)
+    expect(
+      (await rpc<unknown[]>(admin, 'pages.versions', page.id)).result.length
+    ).toBeGreaterThanOrEqual(3)
+    await until(
+      () => texts(a.doc).includes('Première version') && !texts(a.doc).includes('Tout réécrit')
+    )
+    a.provider.destroy()
+  })
+
   it('refuses bad tokens, unknown documents and deleted pages', async () => {
     const admin = await login(ADMIN.email, ADMIN.password)
     const page = (await rpc<Page>(admin, 'pages.create', null)).result

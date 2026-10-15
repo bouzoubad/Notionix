@@ -64,6 +64,20 @@ export interface Person {
   disabled?: boolean
 }
 
+/** A saved state of a page's content, kept to look back or restore. */
+export interface PageVersion {
+  id: number
+  pageId: PageId
+  title: string
+  createdAt: number
+  /** Accounts whose changes the version includes */
+  authors: string[]
+}
+
+export interface PageVersionContent extends PageVersion {
+  content: string
+}
+
 export interface PageShare {
   userId: string
   level: Exclude<AccessLevel, 'none'>
@@ -150,6 +164,11 @@ export interface NotionixApi {
     setShare(id: PageId, userId: string, level: PageShare['level'] | null): Promise<void>
     /** Pages linking to this one */
     backlinks(id: PageId): Promise<PageSummary[]>
+    /** Saved states of the page, newest first */
+    versions(id: PageId): Promise<PageVersion[]>
+    version(versionId: number): Promise<PageVersionContent | null>
+    /** Puts back the content of a saved state (itself saved as a new state) */
+    restoreVersion(id: PageId, versionId: number): Promise<void>
   }
   people: {
     list(): Promise<Person[]>

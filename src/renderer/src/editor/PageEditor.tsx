@@ -22,6 +22,7 @@ const SAVE_DELAY_MS = 400
 
 export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | null {
   const [loaded, setLoaded] = useState<{ id: string; page: Page | null } | null>(null)
+  const contentReload = useStore((s) => s.contentReload)
   useEffect(() => {
     let cancelled = false
     window.api.pages.get(pageId).then((page) => {
@@ -30,7 +31,7 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
     return () => {
       cancelled = true
     }
-  }, [pageId])
+  }, [pageId, contentReload])
   // On a server, the page's content is a document edited together.
   const session = platform().session
   const [shared, setShared] = useState<{ id: string; page: SharedPage } | null>(null)
@@ -49,7 +50,14 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
   const page = loaded?.id === pageId ? loaded.page : null
   const sharedPage = shared?.id === pageId ? shared.page : null
   if (!page || (session && !sharedPage)) return null
-  return <LoadedEditor key={page.id} page={page} shared={sharedPage} />
+  // A shared page follows its document; a local one is loaded again after a restore.
+  return (
+    <LoadedEditor
+      key={sharedPage ? page.id : `${page.id}:${page.version}`}
+      page={page}
+      shared={sharedPage}
+    />
+  )
 }
 
 function LoadedEditor({

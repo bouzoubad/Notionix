@@ -8,6 +8,8 @@ import type {
   PagePatch,
   PageShare,
   PageSummary,
+  PageVersion,
+  PageVersionContent,
   SearchHit
 } from '../../shared/types'
 import type { ShareRow } from '../access'
@@ -39,6 +41,11 @@ interface Row {
 
 const SUMMARY_COLUMNS =
   'id, parent_id, title, icon, cover, position, favorite, trashed_at, created_at, updated_at, version, kind, is_template, created_by, updated_by, access, is_space, options, public_token'
+
+/** Changes within this delay extend the latest saved state instead of adding one. */
+export const VERSION_WINDOW_MS = 10 * 60 * 1000
+/** Saved states kept per page; older ones are dropped. */
+export const MAX_VERSIONS = 100
 
 const ACCESSES: PageAccess[] = ['inherit', 'workspace', 'restricted']
 const SHARE_LEVELS: PageShare['level'][] = ['read', 'comment', 'edit', 'full']
@@ -110,6 +117,31 @@ const toSummary = (r: Omit<Row, 'content'>): PageSummary => ({
 
 const toPage = (r: Row): Page => ({ ...toSummary(r), content: r.content })
 
+interface VersionRow {
+  id: number
+  page_id: string
+  title: string
+  authors: string | null
+  created_at: number
+}
+
+function parseAuthors(raw: string | null): string[] {
+  try {
+    const v = JSON.parse(raw ?? '[]')
+    return Array.isArray(v) ? v.filter((a): a is string => typeof a === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+const toVersion = (r: VersionRow): PageVersion => ({
+  id: r.id,
+  pageId: r.page_id,
+  title: r.title,
+  createdAt: r.created_at,
+  authors: parseAuthors(r.authors)
+})
+
 export class PageRepository {
   private txDepth = 0
   /**
@@ -117,6 +149,8 @@ export class PageRepository {
    * Set around each server call (calls run synchronously, one at a time).
    */
   actor: string | null = null
+  /** Set while restoring: the restored content starts a saved state of its own. */
+  private newVersion = false
 
   constructor(
     readonly db: DatabaseSync,
@@ -176,12 +210,96 @@ export class PageRepository {
     if (patch.favorite !== undefined) set('favorite', patch.favorite ? 1 : 0)
     if (patch.options !== undefined) set('options', JSON.stringify(parseOptions(patch.options)))
     if (sets.length === 0) return this.summary(id)
+    const before = patch.content !== undefined ? this.get(id) : null
     sets.push('updated_at = ?', 'updated_by = ?', 'version = version + 1')
     values.push(this.now(), this.actor, id)
     const res = this.db.prepare(`UPDATE pages SET ${sets.join(', ')} WHERE id = ?`).run(...values)
     if (res.changes === 0) throw new Error(`Page not found: ${id}`)
     if (patch.title !== undefined || patch.content !== undefined) this.reindex(id)
+    if (patch.content !== undefined && before && before.content !== patch.content)
+      this.recordVersion(id, before)
     return this.summary(id)
+  }
+
+  /** Puts back a saved state; the result is saved as a state of its own. */
+  restoreVersion(id: PageId, versionId: number): void {
+    const version = this.version(versionId)
+    if (!version || version.pageId !== id) throw new Error('Version introuvable.')
+    this.inTransaction(() => {
+      this.newVersion = true
+      try {
+        this.update(id, { content: version.content })
+      } finally {
+        this.newVersion = false
+      }
+    })
+  }
+
+  // -------------------------------------------------------------------------
+  // History
+
+  /**
+   * Saves the page's current content. Changes made within VERSION_WINDOW_MS
+   * of the latest state extend it (with their author); later ones start a
+   * new state.
+   */
+  private recordVersion(id: PageId, before: Page): void {
+    const page = this.get(id)
+    if (!page) return
+    const t = this.now()
+    const last = this.db
+      .prepare(
+        'SELECT id, created_at, authors FROM page_versions WHERE page_id = ? ORDER BY id DESC LIMIT 1'
+      )
+      .get(id) as { id: number; created_at: number; authors: string | null } | undefined
+    if (!last && before.content !== EMPTY_DOC) {
+      // The content from before the first change (new or imported page) is kept too.
+      this.db
+        .prepare(
+          'INSERT INTO page_versions (page_id, title, content, authors, created_at) VALUES (?, ?, ?, ?, ?)'
+        )
+        .run(
+          id,
+          before.title,
+          before.content,
+          JSON.stringify(before.createdBy ? [before.createdBy] : []),
+          before.updatedAt
+        )
+    }
+    const authors = new Set<string>(last ? parseAuthors(last.authors) : [])
+    if (this.actor) authors.add(this.actor)
+    if (last && !this.newVersion && t - last.created_at < VERSION_WINDOW_MS) {
+      this.db
+        .prepare('UPDATE page_versions SET title = ?, content = ?, authors = ? WHERE id = ?')
+        .run(page.title, page.content, JSON.stringify([...authors]), last.id)
+      return
+    }
+    this.db
+      .prepare(
+        'INSERT INTO page_versions (page_id, title, content, authors, created_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(id, page.title, page.content, JSON.stringify(this.actor ? [this.actor] : []), t)
+    this.db
+      .prepare(
+        `DELETE FROM page_versions WHERE page_id = ? AND id NOT IN
+           (SELECT id FROM page_versions WHERE page_id = ? ORDER BY id DESC LIMIT ?)`
+      )
+      .run(id, id, MAX_VERSIONS)
+  }
+
+  versions(id: PageId): PageVersion[] {
+    const rows = this.db
+      .prepare(
+        'SELECT id, page_id, title, authors, created_at FROM page_versions WHERE page_id = ? ORDER BY id DESC'
+      )
+      .all(id) as unknown as VersionRow[]
+    return rows.map(toVersion)
+  }
+
+  version(versionId: number): PageVersionContent | null {
+    const row = this.db.prepare('SELECT * FROM page_versions WHERE id = ?').get(versionId) as
+      (VersionRow & { content: string }) | undefined
+    return row ? { ...toVersion(row), content: row.content } : null
   }
 
   /** Place `id` under `parentId` at `index` among its non-trashed siblings. */

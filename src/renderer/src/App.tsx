@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useStore } from './store'
+import { installDialogFocus } from './a11y'
+import { TabBar } from './components/TabBar'
+import { Tour } from './onboarding/Tour'
+import { Welcome } from './onboarding/Welcome'
 import { Sidebar } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
 import { TrashDialog } from './components/TrashDialog'
@@ -26,6 +30,7 @@ export default function App(): React.JSX.Element {
   const createPage = useStore((s) => s.createPage)
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [tourOpen, setTourOpen] = useState(false)
   const sidebarHidden = useStore((s) => s.sidebarHidden)
   const inboxOpen = useStore((s) => s.inboxOpen)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
@@ -33,12 +38,23 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void refreshInbox()
     const stopInbox = window.api.inbox.onChange(() => void refreshInbox())
+    // Tabs from the desktop app's menu (Cmd+T, Cmd+W, Ctrl+Tab).
+    const stopCommands = window.api.commands.onCommand((command) => {
+      const state = useStore.getState()
+      if (command === 'tab:new') state.newTab()
+      else if (command === 'tab:close') state.closeTab(state.tab)
+      else {
+        const step = command === 'tab:next' ? 1 : -1
+        state.selectTab((state.tab + step + state.tabs.length) % state.tabs.length)
+      }
+    })
     const stopDatabases = window.api.databases.onChange(
       () => void useStore.getState().remoteChange()
     )
     return () => {
       stopInbox()
       stopDatabases()
+      stopCommands()
     }
   }, [refreshInbox])
 
@@ -59,6 +75,8 @@ export default function App(): React.JSX.Element {
     // Counted for the page's view statistics; a failure changes nothing.
     if (currentId) window.api.pages.view(currentId).catch(() => {})
   }, [currentId])
+
+  useEffect(() => installDialogFocus(), [])
 
   useEffect(() => {
     void load()
@@ -94,8 +112,19 @@ export default function App(): React.JSX.Element {
 
   return (
     <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
+      <a
+        className="skip-link"
+        href="#content"
+        onClick={(e) => {
+          e.preventDefault()
+          document.querySelector<HTMLElement>('#content .page-title, #content')?.focus()
+        }}
+      >
+        Aller au contenu
+      </a>
       <Sidebar />
-      <main>
+      <main id="content" tabIndex={-1}>
+        <TabBar />
         {current?.kind === 'database' ? (
           <DatabasePage key={current.id} page={current} />
         ) : currentId ? (
@@ -105,6 +134,7 @@ export default function App(): React.JSX.Element {
             <Logo variant="wordmark" className="logo-hero" />
             <p>Vos idées. Un seul espace.</p>
             <button onClick={() => void createPage(null)}>Créer une page</button>
+            <Welcome onTour={() => setTourOpen(true)} onShortcuts={() => setShortcutsOpen(true)} />
           </div>
         )}
       </main>
@@ -112,11 +142,24 @@ export default function App(): React.JSX.Element {
       {trashOpen && <TrashDialog />}
       {transferOpen && <TransferDialog />}
       <PagePicker />
-      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {shortcutsOpen && (
+        <ShortcutsDialog
+          onClose={() => setShortcutsOpen(false)}
+          onTour={() => (setShortcutsOpen(false), setTourOpen(true))}
+        />
+      )}
+      {tourOpen && <Tour onClose={() => setTourOpen(false)} />}
       <FeedbackWindow />
       {inboxOpen && <InboxDialog onClose={() => setInboxOpen(false)} />}
       {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}
-      {notice && <div className="notice">{notice}</div>}
+      <div className="sr-status" role="status" aria-live="polite">
+        {notice}
+      </div>
+      {notice && (
+        <div className="notice" aria-hidden>
+          {notice}
+        </div>
+      )}
       {!connected && (
         <div className="offline-banner">
           Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.

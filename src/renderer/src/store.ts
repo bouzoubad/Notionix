@@ -16,6 +16,12 @@ interface State {
   /** Groups pages can be shared with */
   groups: PersonGroup[]
   currentId: PageId | null
+  /** Pages open in tabs (null: an empty tab); `tab` is the one shown */
+  tabs: (PageId | null)[]
+  tab: number
+  newTab: (pageId?: PageId | null) => void
+  closeTab: (index: number) => void
+  selectTab: (index: number) => void
   expanded: Record<PageId, boolean>
   searchOpen: boolean
   trashOpen: boolean
@@ -169,6 +175,36 @@ async function openElsewhere(id: PageId): Promise<boolean> {
   return true
 }
 
+const TABS_KEY = 'tabs'
+/** The tabs of the last session, with the page of the address in the one shown. */
+function initialTabs(current: PageId | null): { tabs: (PageId | null)[]; tab: number } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TABS_KEY) ?? 'null') as {
+      tabs?: unknown
+      tab?: unknown
+    } | null
+    const tabs = Array.isArray(saved?.tabs)
+      ? saved.tabs.filter((t): t is string | null => t === null || typeof t === 'string')
+      : []
+    if (tabs.length) {
+      const i = tabs.indexOf(current)
+      const tab = i >= 0 ? i : Math.min(Number(saved?.tab) || 0, tabs.length - 1)
+      tabs[tab] = current
+      return { tabs, tab }
+    }
+  } catch {
+    // a new session starts with one tab
+  }
+  return { tabs: [current], tab: 0 }
+}
+function saveTabs(tabs: (PageId | null)[], tab: number): void {
+  try {
+    localStorage.setItem(TABS_KEY, JSON.stringify({ tabs, tab }))
+  } catch {
+    // tabs are a convenience
+  }
+}
+
 /** Pages opened lately on this device, newest first. */
 const RECENT_KEY = 'recentPages'
 const MAX_RECENT = 12
@@ -202,6 +238,29 @@ export const useStore = create<State>((set, get) => ({
   groups: [],
   // The address names the page (#/page/<id>): links, back and forward, new tabs.
   currentId: pageIdFromHash(location.hash) ?? localStorage.getItem('currentId'),
+  ...initialTabs(pageIdFromHash(location.hash) ?? localStorage.getItem('currentId')),
+  newTab: (pageId = null) => {
+    const tabs = [...get().tabs, pageId]
+    saveTabs(tabs, tabs.length - 1)
+    set({ tabs, tab: tabs.length - 1 })
+    get().open(pageId)
+  },
+  closeTab: (index) => {
+    const tabs = get().tabs.filter((_, i) => i !== index)
+    if (!tabs.length) tabs.push(null)
+    const current = get().tab
+    const tab = Math.min(index < current ? current - 1 : current, tabs.length - 1)
+    saveTabs(tabs, tab)
+    set({ tabs, tab })
+    get().open(tabs[tab])
+  },
+  selectTab: (index) => {
+    const tabs = get().tabs
+    if (index < 0 || index >= tabs.length) return
+    saveTabs(tabs, index)
+    set({ tab: index })
+    get().open(tabs[index])
+  },
   expanded: JSON.parse(localStorage.getItem('expanded') ?? '{}'),
   searchOpen: false,
   trashOpen: false,
@@ -261,7 +320,20 @@ export const useStore = create<State>((set, get) => ({
     ])
     const { currentId } = get()
     const valid = currentId && pages.some((p) => p.id === currentId && !p.trashedAt)
-    set({ pages, people, groups, currentId: valid ? currentId : null })
+    // Tabs of pages deleted (or of another workspace) close.
+    const known = new Set(pages.filter((p) => !p.trashedAt).map((p) => p.id))
+    const { tabs, tab } = get()
+    const kept = tabs
+      .map((id, i) => ({ id, i }))
+      .filter(({ id, i }) => i === tab || id === null || known.has(id))
+    set({
+      pages,
+      people,
+      groups,
+      currentId: valid ? currentId : null,
+      tabs: kept.map(({ id, i }) => (i === tab && !valid ? null : id)),
+      tab: kept.findIndex(({ i }) => i === tab)
+    })
     // The address names a page this workspace does not have: maybe another one does.
     const linked = pageIdFromHash(location.hash)
     if (linked && !pages.some((p) => p.id === linked)) void openElsewhere(linked)
@@ -285,7 +357,11 @@ export const useStore = create<State>((set, get) => ({
     }
     // A discussion being written belongs to the page being left.
     const comments = get().comments
-    set({ currentId: id, comments: { ...comments, draft: null, focus: null } })
+    // The tab shown now shows this page.
+    const tabs = [...get().tabs]
+    tabs[get().tab] = id
+    saveTabs(tabs, get().tab)
+    set({ currentId: id, tabs, comments: { ...comments, draft: null, focus: null } })
   },
   toggle: (id) => {
     const expanded = { ...get().expanded, [id]: !get().expanded[id] }

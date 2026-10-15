@@ -29,7 +29,11 @@ export function Popover({
       if (ref.current && !ref.current.contains(e.target as Node)) close.current()
     }
     const onKey = (e: KeyboardEvent): void => {
-      if (e.timeStamp >= opened && e.key === 'Escape') close.current()
+      if (e.timeStamp >= opened && e.key === 'Escape') {
+        // Handled: a dialog around the menu stays open.
+        e.preventDefault()
+        close.current()
+      }
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)

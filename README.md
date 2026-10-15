@@ -23,6 +23,7 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 - **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K` ou `P`) avec filtres (titres seulement, auteur, sous-arbre, date de modification, type), pages récentes, rétroliens, favoris, corbeille vidée après 30 jours, **statistiques de vues** par page.
 - **Feedback** : chacun signale un bug ou propose une idée depuis l'app (capture d'écran et contexte joints) ; les administrateurs les suivent, changent leur statut et répondent, l'auteur est prévenu.
 - **API** pour vos scripts, avec des jetons personnels ([docs/api.md](docs/api.md)).
+- **Onglets** de pages (Cmd/Ctrl-clic, clic du milieu ; dans l'app : Cmd/Ctrl+T, Cmd/Ctrl+W, Ctrl+Tab), **prise en main** (visite guidée, page « Bien démarrer »), **accessibilité** (arbre de pages au clavier, dialogues accessibles et Échap partout, focus visible, annonces pour lecteur d'écran, lien d'évitement, mouvements réduits).
 - **Thème clair et sombre** selon le système.
 
 ## Migrer depuis Notion

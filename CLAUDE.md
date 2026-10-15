@@ -48,6 +48,9 @@ Logos générés par `scripts/build-logos.py` depuis `branding/notionix-brand-sh
 - Formules 2.0 : `x.f(a)` est analysé en `f(x, a)` ; `FormulaPage` (relation, propriétés lues à la demande par le moteur de `computed.ts`) et `FormulaPerson` (`DatabaseRepository.personOf`, fourni par le serveur à l'ouverture d'un espace). Les échappements inconnus d'une chaîne restent écrits (`"\d+"`).
 - Base verrouillée : `schema.locked` ; `allowedWhileLocked` (dans `shared/database.ts`) est vérifié par `DatabaseRepository.updateSchema` (seuls le déverrouillage et de nouvelles options passent).
 - Modèles récurrents : `src/shared/recurrence.ts` (règle, `nextOccurrence` en heure locale de la personne via `utcOffset`), table `recurrences` de l'espace, `DatabaseRepository.runDueRecurrences` (appelé toutes les 30 s par le main et par le serveur), éditeur `database/RecurrenceEditor.tsx`.
+- Onglets : `tabs`/`tab` du store (`open` remplit l'onglet affiché, `newTab`, `closeTab`, `selectTab`, sauvegardés dans localStorage) ; commandes du menu de l'app de bureau (`app:command`, `window.api.commands`) ; `components/TabBar.tsx`.
+- Accessibilité : `src/renderer/src/a11y.ts` (`installDialogFocus` : tout `.overlay > .dialog` devient un dialogue modal, focus piégé et rendu, Échap le ferme sauf si un menu l'a déjà traité via `preventDefault`) ; arbre de la barre latérale au modèle WAI-ARIA (`treeKey` dans `Sidebar.tsx`). Un nouveau dialogue doit garder la structure `.overlay > .dialog` avec fermeture au `mousedown` de l'overlay.
+- Prise en main : `src/renderer/src/onboarding/` (`Tour`, `Welcome` sur l'écran d'accueil, page `gettingStarted` validée par un test).
 - Toujours lire `properties`/`db_schema` via `parseRowProperties`/`parseSchema`.
 - Pages importées : colonne `source` unique (`notion:<id>`, `notion-folder:<chemin>`) ; ne jamais écraser une page déjà importée.
 - Commits de ce repo : auteur `bouzoubad` (config git locale), sans ligne Co-Authored-By.

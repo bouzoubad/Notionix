@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { NotionixApi } from '../shared/types'
+import type { AppCommand, NotionixApi } from '../shared/types'
 
 const call = <T>(channel: string, ...args: unknown[]): Promise<T> =>
   ipcRenderer.invoke(channel, ...args)
@@ -78,6 +78,13 @@ const api: NotionixApi = {
     save: (bytes, name) => call('assets:save', bytes, name),
     saveFile: (bytes, name) => call('assets:saveFile', bytes, name),
     download: (src, fileName) => call('assets:download', src, fileName)
+  },
+  commands: {
+    onCommand: (listener) => {
+      const handler = (_e: unknown, command: AppCommand): void => listener(command)
+      ipcRenderer.on('app:command', handler)
+      return () => ipcRenderer.removeListener('app:command', handler)
+    }
   },
   transfer: {
     importNotion: () => call('transfer:importNotion'),

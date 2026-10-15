@@ -129,6 +129,8 @@ export const webApi: NotionixApi = {
       a.remove()
     }
   },
+  // The browser's own tabs and shortcuts serve on the web.
+  commands: { onCommand: () => () => undefined },
   transfer: {
     importNotion: async (): Promise<ImportSummary | null> => {
       const file = await pickFile('.zip,application/zip')

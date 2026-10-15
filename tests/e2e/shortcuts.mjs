@@ -72,8 +72,9 @@ const after = await win.evaluate(() => getComputedStyle(document.body).backgroun
 assert.notEqual(before, after, 'theme did not change')
 await win.keyboard.press(`${mod}+Slash`)
 await win.locator('.dialog.shortcuts').waitFor()
+// Escape closes it, wherever the focus is in it.
 await win.keyboard.press('Escape')
-await win.locator('.overlay').click({ position: { x: 5, y: 5 } })
+await win.locator('.dialog.shortcuts').waitFor({ state: 'detached' })
 
 // Copy link from the page menu
 await win.getByTitle('Options de la page').click()

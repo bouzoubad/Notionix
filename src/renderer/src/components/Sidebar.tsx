@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { childrenOf, pageHash, useStore } from '../store'
 import { Logo } from './Logo'
 import { platform } from '../platform'
@@ -8,6 +8,60 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { PageIcon } from './PageIcon'
 import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
+
+/**
+ * Keyboard of a tree row (WAI-ARIA tree): Enter opens, ↑/↓ move between
+ * visible rows, → opens a branch then enters it, ← closes it then goes to
+ * the parent, Home/End go to the first and last rows. Returns whether the
+ * key was handled.
+ */
+function treeKey(
+  key: string,
+  row: HTMLElement,
+  act: { open: () => void; expand: () => boolean; collapse: () => boolean; menu: () => void }
+): boolean {
+  const rows = Array.from(
+    row.closest('.sidebar')?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []
+  )
+  const i = rows.indexOf(row)
+  const level = Number(row.getAttribute('aria-level'))
+  const focus = (target: HTMLElement | undefined): boolean => (target?.focus(), true)
+  switch (key) {
+    case 'Enter':
+    case ' ':
+      act.open()
+      return true
+    case 'ArrowDown':
+      return focus(rows[i + 1])
+    case 'ArrowUp':
+      return focus(rows[i - 1])
+    case 'Home':
+      return focus(rows[0])
+    case 'End':
+      return focus(rows[rows.length - 1])
+    case 'ArrowRight':
+      if (act.expand()) return true
+      return Number(rows[i + 1]?.getAttribute('aria-level')) > level ? focus(rows[i + 1]) : true
+    case 'ArrowLeft': {
+      if (act.collapse()) return true
+      const parent = rows
+        .slice(0, i)
+        .reverse()
+        .find((r) => Number(r.getAttribute('aria-level')) < level)
+      return focus(parent)
+    }
+    case 'ContextMenu':
+      act.menu()
+      return true
+    default:
+      return false
+  }
+}
+
+const openInNewTab = (id: string): void => {
+  if (platform().kind === 'web') window.open(pageHash(id), '_blank')
+  else useStore.getState().newTab(id)
+}
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
 
@@ -58,7 +112,7 @@ export function Sidebar(): React.JSX.Element {
   const rowProps = { drag, setDrag, drop, setDrop, dropOn }
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Barre latérale">
       <div className="sidebar-drag" />
       <div className="sidebar-brand">
         <Logo variant="wordmark" className="logo-sidebar" />
@@ -79,7 +133,7 @@ export function Sidebar(): React.JSX.Element {
       </div>
       <div className="sidebar-sections">
         {favorites.length > 0 && (
-          <section>
+          <section role="tree" aria-label="Favoris">
             <h4>Favoris</h4>
             {favorites.map((p) => (
               <Row
@@ -174,7 +228,7 @@ function TreeSection({
   empty?: string
 }): React.JSX.Element {
   return (
-    <section className="tree">
+    <section className="tree" role="tree" aria-label={title}>
       <h4 className="tree-title">
         {onTitle ? (
           <button className="tree-title-label" onClick={onTitle}>
@@ -184,7 +238,12 @@ function TreeSection({
           <span className="tree-title-label">{title}</span>
         )}
         {onAdd && (
-          <button className="tree-add" title="Nouvelle page" onClick={onAdd}>
+          <button
+            className="tree-add"
+            title="Nouvelle page"
+            aria-label="Nouvelle page"
+            onClick={onAdd}
+          >
             +
           </button>
         )}
@@ -222,6 +281,11 @@ function Row(props: RowProps): React.JSX.Element {
   const createRow = useStore((s) => s.createRow)
   const exportPage = useStore((s) => s.exportPage)
   const [menu, setMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  // The menu, once open, takes the keyboard focus (first action).
+  useEffect(() => {
+    if (menu) menuRef.current?.querySelector<HTMLElement>('button')?.focus()
+  }, [menu])
   const presence = useStore((s) => s.presence)
   const here = [
     ...new Map(presence.filter((p) => p.pageId === page.id).map((p) => [p.userId, p])).values()
@@ -241,10 +305,30 @@ function Row(props: RowProps): React.JSX.Element {
     .filter(Boolean)
     .join(' ')
 
+  const label = page.title || 'Sans titre'
   return (
-    <div>
+    <div role="none">
       <div
         className={cls}
+        role="treeitem"
+        tabIndex={0}
+        aria-level={depth + 1}
+        aria-selected={currentId === page.id}
+        aria-expanded={!flat && kids.length ? expanded : undefined}
+        aria-label={label}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return
+          const handled = treeKey(e.key, e.currentTarget, {
+            open: () => open(page.id),
+            expand: () => !flat && kids.length > 0 && !expanded && (toggle(page.id), true),
+            collapse: () => !flat && expanded && (toggle(page.id), true),
+            menu: () => setMenu(true)
+          })
+          if (handled || (e.shiftKey && e.key === 'F10')) {
+            e.preventDefault()
+            if (e.shiftKey && e.key === 'F10') setMenu(true)
+          }
+        }}
         style={{ paddingLeft: 8 + depth * 14 }}
         draggable={!flat}
         onDragStart={() => setDrag(page.id)}
@@ -261,18 +345,19 @@ function Row(props: RowProps): React.JSX.Element {
           setDrop(null)
         }}
         onClick={(e) => {
-          // Cmd/Ctrl-click opens the page in a new tab (web client).
-          if ((e.metaKey || e.ctrlKey) && platform().kind === 'web')
-            window.open(pageHash(page.id), '_blank')
+          // Cmd/Ctrl-click opens the page in a new tab: the browser's, or the app's.
+          if (e.metaKey || e.ctrlKey) openInNewTab(page.id)
           else open(page.id)
         }}
         onAuxClick={(e) => {
-          if (e.button === 1 && platform().kind === 'web') window.open(pageHash(page.id), '_blank')
+          if (e.button === 1) openInNewTab(page.id)
         }}
       >
         {!flat && (
           <button
             className="chevron"
+            tabIndex={-1}
+            aria-hidden
             onClick={(e) => (e.stopPropagation(), toggle(page.id))}
             style={{ visibility: kids.length ? 'visible' : 'hidden' }}
           >
@@ -282,14 +367,21 @@ function Row(props: RowProps): React.JSX.Element {
         <span className="icon">
           <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
         </span>
-        <span className="label">{page.title || 'Sans titre'}</span>
+        <span className="label">{label}</span>
         <Avatars people={here} small />
         {!flat && (
           <span className="row-actions" onClick={(e) => e.stopPropagation()}>
-            <button title="Plus" onClick={() => setMenu(!menu)}>
+            <button
+              title="Plus"
+              tabIndex={-1}
+              aria-label={`Plus d’actions pour ${label}`}
+              onClick={() => setMenu(!menu)}
+            >
               ⋯
             </button>
             <button
+              tabIndex={-1}
+              aria-label={`${page.kind === 'database' ? 'Nouvelle ligne dans' : 'Nouvelle sous-page dans'} ${label}`}
               title={page.kind === 'database' ? 'Nouvelle ligne' : 'Sous-page'}
               onClick={() =>
                 void (page.kind === 'database' ? createRow(page.id) : createPage(page.id))
@@ -302,8 +394,18 @@ function Row(props: RowProps): React.JSX.Element {
         {menu && (
           <div
             className="menu"
+            role="menu"
+            aria-label={`Actions pour ${label}`}
             onMouseLeave={() => setMenu(false)}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                setMenu(false)
+                ;(e.currentTarget.parentElement as HTMLElement | null)?.focus()
+              }
+            }}
+            ref={menuRef}
           >
             <button
               onClick={() => (setMenu(false), void patch(page.id, { favorite: !page.favorite }))}
@@ -320,9 +422,13 @@ function Row(props: RowProps): React.JSX.Element {
           </div>
         )}
       </div>
-      {!flat &&
-        expanded &&
-        kids.map((k) => <Row key={k.id} {...props} page={k} depth={depth + 1} />)}
+      {!flat && expanded && kids.length > 0 && (
+        <div role="group">
+          {kids.map((k) => (
+            <Row key={k.id} {...props} page={k} depth={depth + 1} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

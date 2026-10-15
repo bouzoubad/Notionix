@@ -95,7 +95,7 @@ export function CommentsPanel({
     <aside className="comments-panel">
       <header>
         <h3>Commentaires</h3>
-        <button title="Fermer" onClick={close}>
+        <button title="Fermer" aria-label="Fermer" onClick={close}>
           ✕
         </button>
       </header>

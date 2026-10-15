@@ -171,6 +171,11 @@ function LoadedEditor({
       NotionShortcuts
     ],
     editorProps: {
+      attributes: {
+        role: 'textbox',
+        'aria-multiline': 'true',
+        'aria-label': 'Contenu de la page'
+      },
       handleClick: (_view, _pos, event) => {
         // Clicking discussed text shows its discussion.
         const discussed = (event.target as HTMLElement).closest('[data-thread]')
@@ -214,6 +219,7 @@ function LoadedEditor({
         <input
           ref={titleInput}
           className="page-title"
+          aria-label="Titre de la page"
           value={title}
           readOnly={!editable}
           placeholder="Sans titre"

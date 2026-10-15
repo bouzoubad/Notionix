@@ -13,7 +13,10 @@ const GROUPS: [string, [string, string][]][] = [
       ['Page parente', `${MOD} ${SHIFT} U`],
       ['Afficher ou masquer la barre latérale', `${MOD} \\`],
       ['Thème clair / sombre', `${MOD} ${SHIFT} L`],
-      ['Ces raccourcis', `${MOD} /`]
+      ['Ces raccourcis', `${MOD} /`],
+      ['Ouvrir dans un nouvel onglet', `${MOD} clic  ou  clic du milieu`],
+      ['Nouvel onglet / fermer l’onglet (app)', `${MOD} T  /  ${MOD} W`],
+      ['Onglet suivant / précédent (app)', `Ctrl Tab  /  Ctrl ${SHIFT} Tab`]
     ]
   ],
   [
@@ -57,7 +60,13 @@ const GROUPS: [string, [string, string][]][] = [
 ]
 
 /** Every keyboard shortcut (Cmd+/). */
-export function ShortcutsDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function ShortcutsDialog({
+  onClose,
+  onTour
+}: {
+  onClose: () => void
+  onTour?: () => void
+}): React.JSX.Element {
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="dialog shortcuts" onMouseDown={(e) => e.stopPropagation()}>
@@ -73,6 +82,11 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }): React.JSX
             ])}
           </div>
         </div>
+        {onTour && (
+          <div className="shortcuts-footer">
+            <button onClick={onTour}>🧭 Revoir la visite guidée</button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -62,6 +62,9 @@ export interface PageOptions {
 }
 
 /** What a page created from a template starts with. */
+/** A menu command of the desktop app sent to the page. */
+export type AppCommand = 'tab:new' | 'tab:close' | 'tab:next' | 'tab:previous'
+
 export interface PageInit {
   /**
    * Id chosen in advance (a UUID), so that pages created together can link to
@@ -360,6 +363,10 @@ export interface NotionixApi {
     saveFile(bytes: Uint8Array, name: string): Promise<string>
     /** Saves a copy of a stored file on this computer, under `fileName` */
     download(src: string, fileName: string): Promise<void>
+  }
+  /** Commands of the desktop app's menu (tabs); none on the web, where the browser has them */
+  commands: {
+    onCommand(listener: (command: AppCommand) => void): () => void
   }
   transfer: {
     /** Asks for a Notion export (.zip or extracted folder) and imports it; null if cancelled */

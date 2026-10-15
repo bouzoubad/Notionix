@@ -1,4 +1,15 @@
-import { app, shell, BrowserWindow, dialog, ipcMain, net, Notification, protocol } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  net,
+  Notification,
+  protocol,
+  type MenuItemConstructorOptions
+} from 'electron'
 import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -25,6 +36,32 @@ protocol.registerSchemesAsPrivileged([
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
   }
 ])
+
+/** The app's menu: the usual ones, and tabs (Cmd+T, Cmd+W) sent to the page. */
+function buildMenu(): void {
+  const send = (command: string) => (): void =>
+    BrowserWindow.getFocusedWindow()?.webContents.send('app:command', command)
+  const mac = process.platform === 'darwin'
+  const template: MenuItemConstructorOptions[] = [
+    ...(mac ? [{ role: 'appMenu' as const }] : []),
+    {
+      label: 'Fichier',
+      submenu: [
+        { label: 'Nouvel onglet', accelerator: 'CmdOrCtrl+T', click: send('tab:new') },
+        { label: 'Fermer l’onglet', accelerator: 'CmdOrCtrl+W', click: send('tab:close') },
+        { label: 'Onglet suivant', accelerator: 'Ctrl+Tab', click: send('tab:next') },
+        { label: 'Onglet précédent', accelerator: 'Ctrl+Shift+Tab', click: send('tab:previous') },
+        { type: 'separator' },
+        { label: 'Fermer la fenêtre', accelerator: 'CmdOrCtrl+Shift+W', role: 'close' },
+        ...(mac ? [] : [{ role: 'quit' as const }])
+      ]
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -59,6 +96,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.notionix')
+  buildMenu()
   if (process.platform === 'darwin') app.dock?.setIcon(icon)
 
   const db = openDatabase(join(app.getPath('userData'), 'notionix.db'))

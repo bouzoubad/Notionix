@@ -89,7 +89,7 @@ try {
   await projet.locator('.member-picker label', { hasText: 'Bob Martin' }).click()
   await projet.locator('.member-picker label.active').waitFor()
   await admin.keyboard.press('Escape')
-  await admin.locator('.overlay').click({ position: { x: 5, y: 5 } })
+  await admin.locator('.overlay').waitFor({ state: 'detached' })
 
   // A private page, shared with the group
   await admin.getByRole('button', { name: '+ Nouvelle page' }).click()

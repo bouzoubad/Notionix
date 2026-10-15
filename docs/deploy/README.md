@@ -2,14 +2,16 @@
 
 Le serveur Notionix permet de travailler à plusieurs depuis un navigateur : comptes et rôles, édition simultanée en temps réel (Yjs / Hocuspocus), images partagées, import Notion et export Markdown. Un seul conteneur sert l'application web, l'API et la synchronisation, sur un seul port.
 
-Deux façons de l'exposer :
+Trois façons de l'exposer :
 
-- **Phase de test** : le conteneur est joignable directement sur le réseau local, en HTTP (`http://<serveur>:8080`). Simple, mais rien n'est chiffré : à réserver à un réseau de confiance et à des données de test.
-- **Production** : IIS (ou un autre proxy) reçoit le HTTPS avec le certificat de l'entreprise et relaie vers le conteneur, qui n'écoute plus que sur la machine elle-même.
+- **HTTP simple** (premier essai) : le conteneur est joignable directement sur le réseau local (`http://<serveur>:8080`). Rien n'est chiffré : mots de passe et contenus circulent en clair.
+- **HTTPS intégré** (recommandé, serveur Linux) : un second conteneur (Caddy) reçoit le HTTPS sur le port 443 et relaie vers Notionix. Certificat de son autorité interne, à installer une fois sur chaque poste, ou certificat de l'entreprise.
+- **HTTPS par IIS** (serveur Windows) : IIS reçoit le HTTPS avec le certificat de l'entreprise.
 
 ```
-Phase de test :  Navigateurs ──HTTP / WS──▶ <serveur>:8080 conteneur Notionix ──▶ volume /data
-Production :     Navigateurs ──HTTPS / WSS──▶ IIS (certificat) ──HTTP──▶ 127.0.0.1:8080 conteneur ──▶ volume /data
+HTTP simple :   Navigateurs ──HTTP / WS──▶ <serveur>:8080 Notionix ──▶ volume /data
+HTTPS intégré : Navigateurs ──HTTPS / WSS──▶ <serveur>:443 Caddy ──▶ Notionix ──▶ volume /data
+HTTPS par IIS : Navigateurs ──HTTPS / WSS──▶ IIS ──HTTP──▶ 127.0.0.1:8080 Notionix ──▶ volume /data
 ```
 
 ## 1. Prérequis
@@ -81,7 +83,64 @@ Rôles : `admin` (gère les comptes), `editor` (modifie), `reader` (lecture seul
 
 Sécurité : mots de passe hachés (scrypt), session par jeton aléatoire dont seule l'empreinte est stockée, cookie `HttpOnly` et `SameSite=Strict` (marqué `Secure` derrière HTTPS), toute modification exige un en-tête propre au client web (une page d'un autre site ne peut pas agir à votre place), essais de mot de passe limités, sessions fermées à chaque changement de mot de passe, de rôle ou désactivation. Politique de sécurité stricte sur la page web (aucun script ou contenu d'un autre site).
 
-## 4. Passer en HTTPS derrière IIS (production)
+## 4. Passer en HTTPS (serveur Linux, recommandé)
+
+### 4.1 Activer
+
+Les ports 80 et 443 doivent être libres sur le serveur (`ss -ltn | grep -E ':(80|443) '` ne doit rien afficher ; sinon voir « Autres ports » plus bas). Dans `server/.env`, ajouter :
+
+```
+COMPOSE_PROFILES=https
+NOTIONIX_ADDRESS=192.168.111.200
+NOTIONIX_PUBLISH=127.0.0.1:8080
+```
+
+- `NOTIONIX_ADDRESS` : l'adresse que les collègues tapent (l'IP du serveur, ou son nom DNS interne s'il en a un).
+- `NOTIONIX_NAMES` (facultatif) : d'autres noms acceptés, séparés par des virgules, par exemple `NOTIONIX_NAMES=lambda-vector, notionix.entreprise.local`.
+- `NOTIONIX_PUBLISH=127.0.0.1:8080` : Notionix n'est plus joignable en HTTP depuis le réseau, seulement par le HTTPS.
+
+Puis :
+
+```
+cd ~/notionix && git pull
+docker compose -f server/docker-compose.yml up -d
+sudo ufw allow 443/tcp; sudo ufw allow 80/tcp    # si le pare-feu ufw est actif
+```
+
+Notionix est alors sur `https://192.168.111.200`. Le port 80 sert seulement à rediriger vers HTTPS et à distribuer le certificat de l'autorité (ci-dessous).
+
+### 4.2 Faire reconnaître le certificat par les postes (une fois par poste)
+
+Caddy signe le certificat du serveur avec sa propre autorité, créée au premier lancement et conservée dans un volume. Tant qu'un poste ne la connaît pas, le navigateur affiche « connexion non privée ». Pour l'éviter, installer le certificat de cette autorité sur chaque poste :
+
+1. Télécharger `http://192.168.111.200/notionix-ca.crt` (sur le réseau de l'entreprise).
+2. L'installer :
+   - **Windows** : double-clic sur le fichier > _Installer le certificat_ > _Ordinateur local_ (ou _Utilisateur actuel_) > _Placer tous les certificats dans le magasin suivant_ > **Autorités de certification racines de confiance**. Chrome et Edge l'utilisent aussitôt ; Firefox : _Paramètres > Vie privée et sécurité > Certificats > Afficher les certificats > Autorités > Importer_.
+   - **macOS** : double-clic > trousseau **Système** > ouvrir le certificat « Caddy Local Authority » > _Se fier_ > **Toujours approuver**.
+   - **Linux** : `sudo cp notionix-ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates` (Firefox : import comme sous Windows).
+   - **iPhone/iPad** : ouvrir le lien dans Safari > _Réglages > Profil téléchargé > Installer_, puis _Réglages > Général > Informations > Réglages des certificats_ > activer la confiance.
+   - **Android** : _Paramètres > Sécurité > Chiffrement et identifiants > Installer un certificat > Certificat CA_.
+3. Ouvrir `https://192.168.111.200` : plus d'alerte.
+
+Le service informatique peut aussi déployer ce certificat sur tous les postes du domaine (stratégie de groupe), ou fournir un certificat de l'entreprise à la place.
+
+Vérifier que le fichier téléchargé est bien celui du serveur : sur le serveur, `docker compose -f server/docker-compose.yml exec https cat /data/caddy/pki/authorities/local/root.crt` affiche le même contenu. Le certificat de l'autorité est valable 10 ans ; celui du serveur est renouvelé automatiquement.
+
+### 4.3 Avec un certificat de l'entreprise
+
+Copier le certificat et sa clé dans `server/certs/` (jamais versionné) sous les noms `cert.pem` (certificat + chaîne) et `key.pem`, puis dans `server/.env` :
+
+```
+NOTIONIX_TLS=/certs/cert.pem /certs/key.pem
+```
+
+et relancer `docker compose -f server/docker-compose.yml up -d`. Aucun certificat à installer sur les postes du domaine.
+
+### 4.4 Autres ports
+
+Si 80 ou 443 sont déjà pris : `NOTIONIX_HTTPS_PORT=8443` et `NOTIONIX_HTTP_PORT=8081` dans `server/.env` ; l'adresse devient `https://192.168.111.200:8443` et le certificat se télécharge sur `http://192.168.111.200:8081/notionix-ca.crt`.
+
+## 5. Passer en HTTPS derrière IIS (serveur Windows)
 
 Prérequis IIS : **URL Rewrite**, **Application Request Routing (ARR)** et la fonctionnalité Windows **WebSocket Protocol** ; dans le Gestionnaire IIS, au niveau du serveur, _Application Request Routing Cache > Server Proxy Settings_ > cocher **Enable proxy**. Un certificat de l'entreprise pour le nom DNS choisi (ex. `notionix.entreprise.local`), reconnu par les postes du domaine.
 
@@ -92,7 +151,7 @@ Prérequis IIS : **URL Rewrite**, **Application Request Routing (ARR)** et la fo
 
 Le fichier `web.config` relaie tout vers le conteneur, y compris les connexions WebSocket de l'édition en temps réel, autorise des envois jusqu'à 50 Mo et active HSTS. Pour importer de gros exports Notion par IIS, augmenter `maxAllowedContentLength` dans ce fichier.
 
-## 5. Sauvegardes
+## 6. Sauvegardes
 
 Toutes les données sont dans le volume `/data` : `workspace.db` (pages et bases), `notionix-server.db` (comptes, documents partagés) et le dossier `assets/` (images).
 
@@ -102,6 +161,6 @@ docker compose -f server/docker-compose.yml exec notionix node main.mjs backup /
 
 écrit une copie cohérente des deux bases sans arrêter le service ; copiez ensuite ce dossier et `assets/` vers votre stockage de sauvegarde (tâche planifiée).
 
-## 6. Sans conteneur (dépannage)
+## 7. Sans conteneur (dépannage)
 
 Le serveur est un fichier JavaScript accompagné du client web : `npm ci && npm run build:server && npm run build:web` à la racine du dépôt produit `out/server/` (`main.mjs` et `web/`). Lancer `node out/server/main.mjs` avec Node.js 22.13 ou plus récent ; variables : `NOTIONIX_PORT` (8080), `NOTIONIX_HOST` (`127.0.0.1` par défaut, `0.0.0.0` pour le réseau), `NOTIONIX_DATA_DIR`, `NOTIONIX_WEB_DIR`, `NOTIONIX_SESSION_DAYS`. Il peut tourner comme service Windows (par exemple avec NSSM).

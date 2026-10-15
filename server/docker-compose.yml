@@ -1,9 +1,11 @@
 # Notionix server: web client, accounts, real-time collaboration.
 #   docker compose -f server/docker-compose.yml up -d --build   (from the repository root)
-# Then open http://<server address>:8080 from any computer on the network.
 # Settings come from server/.env (not versioned), so `git pull` never conflicts:
 #   NOTIONIX_ADMIN_EMAIL / NOTIONIX_ADMIN_PASSWORD  first administrator (only when no account exists)
-#   NOTIONIX_PUBLISH  where the port is published: 8080 (network, default) or 127.0.0.1:8080 (behind IIS)
+#   NOTIONIX_PUBLISH  where Notionix itself is published: 8080 (network, default),
+#                     127.0.0.1:8080 (only through HTTPS or IIS on this machine)
+# HTTPS (recommended): COMPOSE_PROFILES=https and NOTIONIX_ADDRESS=<IP of the server> in
+#   server/.env (optional NOTIONIX_NAMES="name1, name2"); see docs/deploy/README.md.
 services:
   notionix:
     build:
@@ -18,5 +20,26 @@ services:
     environment:
       NOTIONIX_ADMIN_EMAIL: ${NOTIONIX_ADMIN_EMAIL:-}
       NOTIONIX_ADMIN_PASSWORD: ${NOTIONIX_ADMIN_PASSWORD:-}
+
+  https:
+    image: caddy:2.8.4-alpine
+    profiles: ['https']
+    restart: unless-stopped
+    depends_on:
+      - notionix
+    ports:
+      - '${NOTIONIX_HTTPS_PORT:-443}:443'
+      - '${NOTIONIX_HTTP_PORT:-80}:80'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+      - caddy-data:/data
+    environment:
+      NOTIONIX_ADDRESS: ${NOTIONIX_ADDRESS:-localhost}
+      NOTIONIX_SITE: ${NOTIONIX_ADDRESS:-localhost}${NOTIONIX_NAMES:+, ${NOTIONIX_NAMES}}
+      NOTIONIX_TLS: ${NOTIONIX_TLS:-internal}
+      NOTIONIX_HTTPS_PORT: ${NOTIONIX_HTTPS_PORT:-443}
+
 volumes:
   notionix-data:
+  caddy-data:

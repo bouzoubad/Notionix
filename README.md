@@ -62,7 +62,7 @@ docker compose -f server/docker-compose.yml up -d --build
 - Droits vérifiés par le serveur sur chaque opération, recherche, export et connexion temps réel : page de l'espace, privée (son créateur) ou restreinte aux personnes invitées, droits hérités par les sous-pages.
 - Données dans un volume : `workspace.db` (même format que la base de l'app de bureau), `notionix-server.db` (comptes, documents partagés), `assets/`.
 
-Mise à jour du serveur après des modifications poussées sur GitHub : `sh server/update.sh` (données et comptes conservés). Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
+HTTPS intégré : profil `https` du docker-compose (relais Caddy, autorité interne ou certificat de l'entreprise). Mise à jour du serveur après des modifications poussées sur GitHub : `sh server/update.sh` (données et comptes conservés). Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
 
 ## Aperçu
 
@@ -121,7 +121,7 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 - Valider sur un vrai export les cas encore non rencontrés : relations entre bases, colonnes nombre et case à cocher, toggles.
 - Embeds (YouTube…) : reportés, ils supposent du réseau ; à reprendre avec la phase en ligne.
-- Serveur : HTTPS (IIS ou proxy) avant toute sortie de la phase de test ; invitations et mot de passe oublié par e-mail (nécessite un serveur SMTP) ; adaptation mobile et installation sur téléphone (PWA, nécessite HTTPS).
+- Serveur : invitations et mot de passe oublié par e-mail (nécessite un serveur SMTP, mis de côté) ; adaptation mobile et installation sur téléphone (PWA, possible maintenant que le HTTPS est en place).
 - Hors périmètre décidé : intégrations externes (YouTube…), automatisations, IA.
 - App de bureau : se connecter à un serveur Notionix (aujourd'hui seulement locale) et y envoyer ses pages locales.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
@@ -129,6 +129,6 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 ## Limites connues
 
 - Le contenu d'une page est un seul document JSON (côté serveur : un document Yjs par page) : pas de bloc adressable individuellement.
-- Serveur : une même cellule modifiée au même moment par deux personnes garde la dernière valeur (comme dans Notion) ; les modifications de structure (propriétés, vues) sont fusionnées. En HTTP simple, mots de passe et contenus circulent en clair sur le réseau.
+- Serveur : une même cellule modifiée au même moment par deux personnes garde la dernière valeur (comme dans Notion) ; les modifications de structure (propriétés, vues) sont fusionnées. Sans le HTTPS (profil `https` du docker-compose, ou IIS), mots de passe et contenus circulent en clair sur le réseau.
 - Export Markdown : les blocs synchronisés sont écrits avec leur contenu, la table des matières en liste des titres, un bouton par son libellé ; les vues liées exportent la base d'origine ; couleurs et colonnes ne survivent pas au Markdown (comme dans l'export de Notion).
 - `node:sqlite` est expérimental dans Node 22 (avertissement au lancement).

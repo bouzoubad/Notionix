@@ -1,0 +1,34 @@
+# HTTPS in front of Notionix (docker compose profile "https").
+# NOTIONIX_ADDRESS: the server's IP address (or name) people type, e.g. 192.168.111.200
+# NOTIONIX_SITE: built from it, plus NOTIONIX_NAMES (other names, e.g. lambda-vector)
+# NOTIONIX_TLS:  "internal" (Caddy's own certificate authority, the default) or
+#                "/certs/cert.pem /certs/key.pem" (a certificate from the company)
+{
+	admin off
+	# The plain HTTP site below makes the redirects (and serves the authority's certificate).
+	auto_https disable_redirects
+	# Browsers send no name when they reach an IP address: its certificate is the default.
+	default_sni {$NOTIONIX_ADDRESS:localhost}
+}
+
+{$NOTIONIX_SITE:localhost} {
+	tls {$NOTIONIX_TLS:internal}
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000"
+	# Notionix reads X-Forwarded-Proto to mark its session cookie Secure.
+	reverse_proxy notionix:8080
+}
+
+# Plain HTTP: the authority's certificate to install on the computers, and
+# a redirect to HTTPS for everything else.
+http:// {
+	handle /notionix-ca.crt {
+		root * /data/caddy/pki/authorities/local
+		rewrite * /root.crt
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		redir https://{host}:{$NOTIONIX_HTTPS_PORT:443}{uri} permanent
+	}
+}

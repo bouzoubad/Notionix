@@ -2,6 +2,11 @@ import { useState } from 'react'
 import type { ImportSummary } from '../../../shared/types'
 import { useStore } from '../store'
 import { platform } from '../platform'
+import {
+  DOCUMENT_ACCEPT,
+  importDocuments,
+  type DocumentImportSummary
+} from '../importers/documents'
 
 export function TransferDialog(): React.JSX.Element {
   const setOpen = useStore((s) => s.setTransferOpen)
@@ -12,6 +17,31 @@ export function TransferDialog(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const web = platform().kind === 'web'
+  const canImport = !['reader', 'guest'].includes(platform().session?.user.role ?? '')
+  const [docs, setDocs] = useState<DocumentImportSummary | null>(null)
+
+  const chooseDocuments = (): void => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = DOCUMENT_ACCEPT
+    input.onchange = async () => {
+      const files = Array.from(input.files ?? [])
+      if (!files.length) return
+      setBusy(true)
+      setError(null)
+      setDocs(null)
+      try {
+        setDocs(await importDocuments(files, null))
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        await load()
+        setBusy(false)
+      }
+    }
+    input.click()
+  }
 
   const runImport = async (): Promise<void> => {
     setBusy(true)
@@ -58,6 +88,33 @@ export function TransferDialog(): React.JSX.Element {
                 summary={summary}
                 onOpen={() => (open(summary.containerId), setOpen(false))}
               />
+            )}
+          </section>
+          <section className="transfer-section">
+            <h4>Importer d’autres outils</h4>
+            <p>
+              Word (.docx ; Google Docs : <em>Fichier &gt; Télécharger &gt; Microsoft Word</em>),
+              pages web (.html), Markdown (.md), texte (.txt), Evernote (export .enex), Confluence
+              (export HTML de l’espace, .zip) ou Google Docs en « Page Web (.zip) ». Chaque document
+              devient une page, images comprises.
+            </p>
+            <button disabled={busy || !canImport} onClick={chooseDocuments}>
+              {busy ? 'Import en cours…' : 'Choisir des fichiers…'}
+            </button>
+            {docs && (
+              <div className="import-report">
+                <p>
+                  {docs.pages} page(s) créée(s)
+                  {docs.images ? `, ${docs.images} image(s)` : ''}.
+                  {docs.missing
+                    ? ` ${docs.missing} image(s) ou pièce(s) jointe(s) non reprise(s).`
+                    : ''}
+                  {docs.skipped.length ? ` Format non reconnu : ${docs.skipped.join(', ')}.` : ''}
+                </p>
+                {docs.firstId && (
+                  <button onClick={() => (open(docs.firstId), setOpen(false))}>Ouvrir</button>
+                )}
+              </div>
             )}
           </section>
           <section className="transfer-section">

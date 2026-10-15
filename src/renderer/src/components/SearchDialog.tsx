@@ -90,14 +90,13 @@ export function SearchDialog(): React.JSX.Element {
           }}
         />
         <div className="search-filters">
-          <label className={titleOnly ? 'active' : ''}>
-            <input
-              type="checkbox"
-              checked={titleOnly}
-              onChange={(e) => setTitleOnly(e.target.checked)}
-            />
+          <button
+            className={titleOnly ? 'active' : ''}
+            aria-pressed={titleOnly}
+            onClick={() => setTitleOnly(!titleOnly)}
+          >
             Titres seulement
-          </label>
+          </button>
           {people.length > 0 && (
             <select
               aria-label="Créée par"

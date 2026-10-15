@@ -695,8 +695,10 @@ main {
 }
 .search-filters button {
   font-size: 12px;
-  padding: 2px 6px;
+  padding: 2px 8px;
   color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
 .search-filters .active {
   border-color: var(--accent);

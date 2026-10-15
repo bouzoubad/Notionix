@@ -13,13 +13,14 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 
 - **Importez votre Notion** : un export « Markdown & CSV » (`.zip` ou dossier) devient des pages Notionix, hiérarchie et liens entre pages compris. Réimport sans doublon, sans jamais écraser vos modifications.
 - **Bases de données** : propriétés typées (texte, nombre, sélection, multi-sélection, **statut**, date, case à cocher, URL, e-mail, téléphone, **personne**, **fichiers**, relation **à double sens**, **formule**, **rollup**, identifiant unique, créé/modifié par et quand), vues tableau, board, liste, galerie, calendrier, **chronologie**, **graphique** et **formulaire**, **vues liées** dans les pages, filtres, tris, groupes, **sous-éléments** et **dépendances**, ordre manuel des lignes, modèles de lignes.
-- **Travail d'équipe** : pages privées, partage page par page (lecture, commentaire, modification, accès complet), espaces d'équipe, invités, **commentaires** et **mentions @**, **boîte de réception** (mentions, réponses, partages, rappels), fil d'activité, **historique des versions**, présence des autres sur la page, **publication sur le web**.
+- **Travail d'équipe** : **plusieurs espaces de travail** par serveur, pages privées, partage page par page (lecture, commentaire, modification, accès complet) avec des personnes ou des **groupes**, espaces d'équipe, invités, **commentaires** et **mentions @**, **boîte de réception** (mentions, réponses, partages, rappels), fil d'activité, **historique des versions**, présence des autres sur la page, **publication sur le web**.
+- **Importez d'autres outils** : Word (.docx, Google Docs téléchargé en Word), HTML, Markdown, texte, Evernote (.enex, cases à cocher et images comprises), Confluence (export HTML de l'espace, arborescence reconstruite) et Google Docs en page web zippée.
 - **Exportez quand vous voulez** : tout (ou une page et ses sous-pages) en Markdown dans l'organisation d'un export Notion, en HTML, ou une page en PDF.
 - **Local d'abord** : l'app de bureau n'a besoin d'aucun compte ni d'aucune connexion ; tout est dans une base SQLite sur votre machine.
 - **À plusieurs, chez vous** : le serveur Notionix (un conteneur Docker) sert l'application dans le navigateur, avec comptes, rôles et édition simultanée d'une même page (curseurs des autres visibles).
 - **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, tableaux, **colonnes**, images, **fichiers, vidéos et audios**, callouts, toggles et **titres repliables**, équations LaTeX, **table des matières**, **liens vers une page**, **blocs synchronisés**, **boutons**, **couleurs** de texte, de fond et de bloc, mentions de personnes, de pages et de dates avec **rappels** ; menu `/`, menu de mise en forme, menu de bloc (transformer en, couleur, dupliquer), icônes, couvertures, options de page (pleine largeur, petit texte, police, verrouillage).
 - **Modèles** prêts à l'emploi (réunion, projet, wiki, journal, suivi de bugs, liste de lecture) et pages enregistrées comme modèles.
-- **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K`) avec pages récentes, rétroliens, favoris, corbeille.
+- **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K` ou `P`) avec filtres (titres seulement, auteur, sous-arbre, date de modification, type), pages récentes, rétroliens, favoris, corbeille vidée après 30 jours, **statistiques de vues** par page.
 - **Feedback** : chacun signale un bug ou propose une idée depuis l'app (capture d'écran et contexte joints) ; les administrateurs les suivent, changent leur statut et répondent, l'auteur est prévenu.
 - **API** pour vos scripts, avec des jetons personnels ([docs/api.md](docs/api.md)).
 - **Thème clair et sombre** selon le système.
@@ -61,7 +62,8 @@ docker compose -f server/docker-compose.yml up -d --build
 - Édition simultanée : le contenu de chaque page est un document Yjs partagé (Hocuspocus) ; titres, arborescence et bases se mettent à jour chez tout le monde.
 - Comptes gérés dans l'app (bouton « Comptes » pour l'administrateur, « Mon compte » pour son mot de passe et ses jetons d'API) : `admin`, `editor`, `reader` (lecture et commentaires), `guest` (seulement les pages partagées avec lui). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
 - Droits vérifiés par le serveur sur chaque opération, recherche, export et connexion temps réel : page de l'espace, privée (son créateur) ou restreinte aux personnes invitées, droits hérités par les sous-pages.
-- Données dans un volume : `workspace.db` (même format que la base de l'app de bureau), `notionix-server.db` (comptes, documents partagés), `assets/`.
+- Plusieurs espaces de travail (onglet « Espaces de travail » des paramètres administrateur, sélecteur en haut de la barre latérale) : l'espace principal est ouvert à tous les comptes, les autres à leurs membres et aux administrateurs ; groupes de personnes (onglet « Groupes ») choisis dans le menu Partager.
+- Données dans un volume : `workspace.db` et `assets/` (espace principal, même format que la base de l'app de bureau), `workspaces/<id>/` (autres espaces), `notionix-server.db` (comptes, groupes, liste des espaces, documents partagés).
 
 HTTPS intégré : profil `https` du docker-compose (relais Caddy, autorité interne ou certificat de l'entreprise). Mise à jour du serveur après des modifications poussées sur GitHub : `sh server/update.sh` (données et comptes conservés). Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
 
@@ -108,6 +110,7 @@ npm run server   # serveur + client web sur http://localhost:8080
 - Éditeur : colonnes, couleurs, menu de bloc, fichiers/vidéos/audios, table des matières, liens vers une page, blocs synchronisés (contenu dans une page cachée), boutons, titres repliables, options de page.
 - Bases : personne, fichiers, statut, créé/modifié par, identifiant unique, relations à double sens, sous-éléments, dépendances, vues chronologie, graphique et formulaire, vues liées, fusion des modifications de structure simultanées.
 - Espace : rétroliens, récents, modèles, exports HTML et PDF, API à jetons.
+- Espace de travail (partie 3) : icônes de page en image, couverture repositionnable, recherche filtrée, statistiques de vues (28 jours, personnes), groupes de personnes pour le partage, plusieurs espaces par serveur, import Word/HTML/Markdown/texte/Evernote/Confluence/Google Docs (converti dans le client, puis créé comme toute page).
 
 ## Identité visuelle
 
@@ -132,4 +135,6 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 - Le contenu d'une page est un seul document JSON (côté serveur : un document Yjs par page) : pas de bloc adressable individuellement.
 - Serveur : une même cellule modifiée au même moment par deux personnes garde la dernière valeur (comme dans Notion) ; les modifications de structure (propriétés, vues) sont fusionnées. Sans le HTTPS (profil `https` du docker-compose, ou IIS), mots de passe et contenus circulent en clair sur le réseau.
 - Export Markdown : les blocs synchronisés sont écrits avec leur contenu, la table des matières en liste des titres, un bouton par son libellé ; les vues liées exportent la base d'origine ; couleurs et colonnes ne survivent pas au Markdown (comme dans l'export de Notion).
+- Imports d'autres outils : les pièces jointes autres que les images (PDF d'Evernote…) ne sont pas reprises ; dans un export Confluence, les liens vers une page créée plus loin dans l'arborescence restent du texte ; les mises en forme propres à Word (couleurs, tableaux complexes) suivent ce que l'éditeur sait représenter.
+- Plusieurs espaces : la boîte de réception est propre à chaque espace (les retours Feedback arrivent dans l'espace principal) ; un lien `#/page/<id>` d'un autre espace ne s'ouvre qu'après avoir changé d'espace.
 - `node:sqlite` est expérimental dans Node 22 (avertissement au lancement).

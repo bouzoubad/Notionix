@@ -21,19 +21,19 @@ export function Popover({
     close.current = onClose
   })
   useEffect(() => {
+    // Listening from the start: an Escape right after opening must close it.
+    // The event that opened the popover (dispatched before) is ignored.
+    const opened = performance.now()
     const onDown = (e: MouseEvent): void => {
+      if (e.timeStamp < opened) return
       if (ref.current && !ref.current.contains(e.target as Node)) close.current()
     }
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') close.current()
+      if (e.timeStamp >= opened && e.key === 'Escape') close.current()
     }
-    // Registered after the click that opened the popover has finished.
-    const timer = window.setTimeout(() => {
-      document.addEventListener('mousedown', onDown)
-      document.addEventListener('keydown', onKey)
-    })
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
     return () => {
-      window.clearTimeout(timer)
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
     }

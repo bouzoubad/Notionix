@@ -1,3 +1,4 @@
+import type { Recurrence, RecurrenceRule } from './recurrence'
 import type { DatabaseRow, DatabaseSchema, PropertyType, PropertyValue } from './database'
 
 export type PageId = string
@@ -341,6 +342,16 @@ export interface NotionixApi {
       propertyId: string,
       type: PropertyType
     ): Promise<DatabaseSchema>
+    /** Schedules of the database's recurring templates */
+    recurrences(id: PageId): Promise<Recurrence[]>
+    /** Repeats a template on a schedule, or stops it (null) */
+    setRecurrence(
+      id: PageId,
+      templateId: PageId,
+      rule: RecurrenceRule | null
+    ): Promise<Recurrence | null>
+    /** Rows created by schedules (desktop app); the server's changes come through its session */
+    onChange(listener: () => void): () => void
   }
   assets: {
     /** Stores an image locally and returns its src (notionix-asset://…) */

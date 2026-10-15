@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PageIcon } from '../components/PageIcon'
+import { RecurrenceEditor } from './RecurrenceEditor'
 import {
   TITLE_PROPERTY_ID,
   newId,
@@ -21,16 +22,21 @@ export function Toolbar({
   view,
   templates,
   onSchema,
-  onNewRow
+  onNewRow,
+  locked = false,
+  databaseId
 }: {
+  databaseId: string
   schema: DatabaseSchema
   view: ViewDef
+  locked?: boolean
   templates: DatabaseRow[]
   onSchema: (schema: DatabaseSchema) => void
   onNewRow: (templateId?: string) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState<'filter' | 'sort' | 'props' | 'new' | null>(null)
-  const close = (): void => setOpen(null)
+  const [repeating, setRepeating] = useState<DatabaseRow | null>(null)
+  const close = (): void => (setOpen(null), setRepeating(null))
   const patchView = (next: Partial<ViewDef>): void =>
     onSchema({
       ...schema,
@@ -45,6 +51,8 @@ export function Toolbar({
       <span className="toolbar-anchor">
         <button
           className={view.filters.length + groups.length ? 'active' : ''}
+          disabled={locked}
+          title={locked ? 'Base verrouillée' : undefined}
           onClick={() => setOpen('filter')}
         >
           Filtrer
@@ -141,7 +149,12 @@ export function Toolbar({
         )}
       </span>
       <span className="toolbar-anchor">
-        <button className={view.sorts.length ? 'active' : ''} onClick={() => setOpen('sort')}>
+        <button
+          className={view.sorts.length ? 'active' : ''}
+          disabled={locked}
+          title={locked ? 'Base verrouillée' : undefined}
+          onClick={() => setOpen('sort')}
+        >
           Trier{view.sorts.length ? ` (${view.sorts.length})` : ''}
         </button>
         {open === 'sort' && (
@@ -201,7 +214,13 @@ export function Toolbar({
         )}
       </span>
       <span className="toolbar-anchor">
-        <button onClick={() => setOpen('props')}>Propriétés</button>
+        <button
+          disabled={locked}
+          title={locked ? 'Base verrouillée' : undefined}
+          onClick={() => setOpen('props')}
+        >
+          Propriétés
+        </button>
         {open === 'props' && (
           <Popover onClose={close} align="right">
             {schema.properties
@@ -240,11 +259,30 @@ export function Toolbar({
         {open === 'new' && (
           <Popover onClose={close} align="right">
             <div className="menu-label">Modèles</div>
-            {templates.map((t) => (
-              <button key={t.id} className="menu-item" onClick={() => (close(), onNewRow(t.id))}>
-                <PageIcon icon={t.icon} fallback="📄" /> {t.title || 'Sans titre'}
-              </button>
-            ))}
+            {repeating ? (
+              <RecurrenceEditor
+                databaseId={databaseId}
+                schema={schema}
+                template={repeating}
+                onClose={() => (setRepeating(null), close())}
+              />
+            ) : (
+              templates.map((t) => (
+                <div key={t.id} className="template-item">
+                  <button className="menu-item" onClick={() => (close(), onNewRow(t.id))}>
+                    <PageIcon icon={t.icon} fallback="📄" /> {t.title || 'Sans titre'}
+                  </button>
+                  <button
+                    className="template-repeat"
+                    title="Répéter ce modèle"
+                    aria-label={`Répéter ${t.title || 'Sans titre'}`}
+                    onClick={() => setRepeating(t)}
+                  >
+                    ↻
+                  </button>
+                </div>
+              ))
+            )}
             {templates.length === 0 && (
               <p className="hint">
                 Aucun modèle. Ouvrez une ligne et cochez « Modèle » pour en créer un.

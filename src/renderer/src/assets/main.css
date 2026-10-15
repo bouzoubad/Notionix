@@ -3716,3 +3716,89 @@ button:focus:not(:focus-visible) {
 :root[data-theme='dark'] .logo-dark {
   display: inline;
 }
+
+/* More chart types */
+.chart-area {
+  fill: var(--accent);
+  opacity: 0.18;
+}
+.chart-number {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 0;
+}
+.chart-number strong {
+  font-size: 56px;
+  line-height: 1.1;
+}
+.chart-number span {
+  color: var(--text-muted);
+}
+.chart-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+/* Locked database: its settings are not offered */
+.db-locked-badge {
+  align-self: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 8px;
+}
+.db-locked .col-head:disabled,
+.db-locked .calc-cell:disabled {
+  cursor: default;
+  color: inherit;
+  opacity: 1;
+}
+
+/* Recurring templates */
+.template-item {
+  display: flex;
+  align-items: center;
+}
+.template-item .menu-item {
+  flex: 1;
+}
+.template-repeat {
+  color: var(--text-muted);
+  padding: 2px 8px;
+}
+.recurrence-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  padding: 4px;
+}
+.recurrence-interval {
+  width: 52px;
+}
+.recurrence-days {
+  display: flex;
+  gap: 4px;
+}
+.recurrence-days button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+.recurrence-days button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.recurrence-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}

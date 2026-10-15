@@ -21,6 +21,18 @@ import { Workspaces } from './workspaces'
 import { Groups } from './groups'
 import { AuditLog } from './audit'
 
+/** Author of the changes the server makes by itself (recurring templates). */
+const SYSTEM_USER = {
+  id: 'system',
+  email: '',
+  name: 'Notionix',
+  role: 'guest' as const,
+  disabled: false,
+  createdAt: 0,
+  groups: [],
+  mustChangePassword: false
+}
+
 export interface NotionixServer {
   server: Server<CollabContext>
   accounts: Accounts
@@ -36,11 +48,14 @@ export interface NotionixServer {
 /** Starts the web client, the HTTP API and the real-time sync on one port. */
 export async function startServer(config: Config): Promise<NotionixServer> {
   const db = openDatabase(config.dataDir)
-  const workspaces = new Workspaces(db, config.dataDir)
+  const accounts = new Accounts(db, config.sessionDays)
+  // Formulas name people (.name(), .email()) from the accounts.
+  const workspaces = new Workspaces(db, config.dataDir, Date.now, (ws) => {
+    ws.databases.personOf = (id) => accounts.byId(id) ?? undefined
+  })
   const workspace = workspaces.main
   const groups = new Groups(db)
   const audit = new AuditLog(db)
-  const accounts = new Accounts(db, config.sessionDays)
   if (accounts.count() === 0 && config.adminEmail && config.adminPassword) {
     await accounts.create({
       email: config.adminEmail,
@@ -136,7 +151,10 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   purge.unref()
   // Reminders become notifications when their time comes.
   const reminders = setInterval(() => {
-    for (const { workspace } of workspaces.all()) {
+    for (const { id, workspace } of workspaces.all()) {
+      // Recurring templates due: their rows, announced like any change.
+      const changed = workspace.databases.runDueRecurrences()
+      if (changed.length && server) announceChange(server.hocuspocus, SYSTEM_USER, id)
       const due = workspace.team
         .takeDueReminders()
         .filter((r) => docHasMention(workspace.pages.get(r.pageId)?.content ?? '', reminderKey(r)))

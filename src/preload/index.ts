@@ -61,6 +61,13 @@ const api: NotionixApi = {
     linkRelation: (id, propertyId) => call('databases:linkRelation', id, propertyId),
     enableNesting: (id, kind) => call('databases:enableNesting', id, kind),
     importCsv: (id, csv) => call('databases:importCsv', id, csv),
+    recurrences: (id) => call('databases:recurrences', id),
+    setRecurrence: (id, templateId, rule) => call('databases:setRecurrence', id, templateId, rule),
+    onChange: (listener) => {
+      const handler = (): void => listener()
+      ipcRenderer.on('databases:changed', handler)
+      return () => ipcRenderer.removeListener('databases:changed', handler)
+    },
     createRow: (id, init) => call('databases:createRow', id, init),
     updateRow: (rowId, values) => call('databases:updateRow', rowId, values),
     setTemplate: (rowId, flag) => call('databases:setTemplate', rowId, flag),

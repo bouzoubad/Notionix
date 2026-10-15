@@ -10,7 +10,15 @@ import {
   type PropertyDef,
   type PropertyValue
 } from './database'
-import { FormulaError, evaluate, parseFormula, toText, type FormulaValue } from './formula'
+import {
+  FormulaError,
+  FormulaPage,
+  FormulaPerson,
+  evaluate,
+  parseFormula,
+  toText,
+  type FormulaValue
+} from './formula'
 
 export interface DatabaseSource {
   schema: DatabaseSchema
@@ -30,11 +38,12 @@ export function computeDatabase(
   source: DatabaseSource,
   lookup: DatabaseLookup,
   titleOf: (pageId: string) => string | undefined,
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  personOf: (id: string) => { name: string; email: string } | undefined = () => undefined
 ): DatabaseRow[] {
   const computed = source.schema.properties.filter((p) => isComputed(p.type))
   if (computed.length === 0) return source.rows
-  const engine = new Engine(lookup, titleOf, now)
+  const engine = new Engine(lookup, titleOf, now, personOf)
   return source.rows.map((row) => {
     const properties = { ...row.properties }
     for (const prop of computed) {
@@ -57,7 +66,8 @@ class Engine {
   constructor(
     private readonly lookup: DatabaseLookup,
     private readonly titleOf: (pageId: string) => string | undefined,
-    private readonly now: () => Date
+    private readonly now: () => Date,
+    private readonly personOf: (id: string) => { name: string; email: string } | undefined
   ) {}
 
   private source(id: string): DatabaseSource | null {
@@ -101,19 +111,36 @@ class Engine {
       this.parsed.set(expression, tree)
     }
     if (tree instanceof FormulaError) throw tree
-    const byName = (name: string): PropertyDef | undefined => {
-      const wanted = name.trim().toLowerCase()
-      return src.schema.properties.find((p) => p.name.trim().toLowerCase() === wanted)
-    }
     const result = evaluate(tree, {
       now: this.now,
-      prop: (name) => {
-        const p = byName(name)
-        if (!p) throw new FormulaError(`Propriété inconnue : « ${name} ».`)
-        return this.input(dbId, src, row, p)
-      }
+      id: row.id,
+      prop: (name) => this.input(dbId, src, row, this.byName(src, name))
     })
     return fromFormula(result)
+  }
+
+  private byName(src: DatabaseSource, name: string): PropertyDef {
+    const wanted = name.trim().toLowerCase()
+    const p = src.schema.properties.find((x) => x.name.trim().toLowerCase() === wanted)
+    if (!p) throw new FormulaError(`Propriété inconnue : « ${name} ».`)
+    return p
+  }
+
+  /** A related row as a formula page: its properties are read when asked. */
+  private page(targetId: string | undefined, rowId: string): FormulaPage {
+    const title = this.titleOf(rowId) ?? ''
+    return new FormulaPage(rowId, title, (name) => {
+      const target = targetId ? this.source(targetId) : null
+      const row = target?.rows.find((r) => r.id === rowId)
+      if (!target || !row || !targetId)
+        throw new FormulaError(`« ${title} » n’est pas dans une base : pas de propriétés.`)
+      return this.input(targetId, target, row, this.byName(target, name))
+    })
+  }
+
+  private person(id: string): FormulaPerson {
+    const who = this.personOf(id)
+    return new FormulaPerson(id, who?.name ?? '', who?.email ?? '')
   }
 
   /** A property value as seen by formulas. */
@@ -132,7 +159,15 @@ class Engine {
           ? v.map((id) => p.options?.find((o) => o.id === id)?.name ?? '').filter(Boolean)
           : []
       case 'relation':
-        return Array.isArray(v) ? v.map((id) => this.titleOf(id) ?? '').filter(Boolean) : []
+        return Array.isArray(v)
+          ? v
+              .filter((id) => this.titleOf(id) !== undefined)
+              .map((id) => this.page(p.relationDatabaseId ?? undefined, id))
+          : []
+      case 'person':
+      case 'created_by':
+      case 'last_edited_by':
+        return Array.isArray(v) ? v.map((id) => this.person(id)) : []
       case 'date':
       case 'created_time':
       case 'last_edited_time':
@@ -235,7 +270,9 @@ function fromFormula(v: FormulaValue): PropertyValue {
       v.getHours() || v.getMinutes() ? `T${pad(v.getHours())}:${pad(v.getMinutes())}` : ''
     return { start: day + time }
   }
-  return v.map(toText)
+  if (Array.isArray(v)) return v.map(toText)
+  // A page or a person: its title or name.
+  return toText(v)
 }
 
 function toFormula(v: PropertyValue): FormulaValue {

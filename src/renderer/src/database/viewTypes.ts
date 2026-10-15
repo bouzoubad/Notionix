@@ -55,6 +55,8 @@ export interface ViewProps {
     beforeRowId: string | null,
     values?: Record<string, PropertyValue>
   ) => void
+  /** Views and properties locked: their settings cannot be changed */
+  locked?: boolean
 }
 
 /** Rows keep the manual order only when the view has no sort. */

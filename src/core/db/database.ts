@@ -104,7 +104,19 @@ const MIGRATIONS: string[] = [
      user_id TEXT NOT NULL,
      at INTEGER NOT NULL
    );
-   CREATE INDEX page_views_page ON page_views(page_id, at);`
+   CREATE INDEX page_views_page ON page_views(page_id, at);`,
+  // Templates repeated on a schedule (one schedule per template).
+  `CREATE TABLE recurrences (
+     id TEXT PRIMARY KEY,
+     database_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+     template_id TEXT NOT NULL UNIQUE REFERENCES pages(id) ON DELETE CASCADE,
+     rule TEXT NOT NULL,
+     anchor_at INTEGER NOT NULL,
+     next_at INTEGER NOT NULL,
+     created_by TEXT,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX recurrences_due ON recurrences(next_at);`
 ]
 
 /** Opens (and migrates) a workspace database: the app's local file or the server's shared one. */

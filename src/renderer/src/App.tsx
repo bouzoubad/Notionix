@@ -32,7 +32,14 @@ export default function App(): React.JSX.Element {
   const refreshInbox = useStore((s) => s.refreshInbox)
   useEffect(() => {
     void refreshInbox()
-    return window.api.inbox.onChange(() => void refreshInbox())
+    const stopInbox = window.api.inbox.onChange(() => void refreshInbox())
+    const stopDatabases = window.api.databases.onChange(
+      () => void useStore.getState().remoteChange()
+    )
+    return () => {
+      stopInbox()
+      stopDatabases()
+    }
   }, [refreshInbox])
 
   // Server workspace: presence of the others, connection state, and this person's open page.

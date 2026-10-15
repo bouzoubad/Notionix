@@ -150,6 +150,7 @@ export function DatabaseViewer({
     await db.reload()
   }
 
+  const locked = !!schema.locked
   const viewProps: ViewProps = {
     databaseId,
     schema,
@@ -161,12 +162,13 @@ export function DatabaseViewer({
     onAddRow: (values) => void addRow(values),
     onOpenRow: (rowId) => open(rowId),
     onCreateOption: createOption,
-    onMoveRow: (rowId, beforeRowId, values) => void moveRow(rowId, beforeRowId, values)
+    onMoveRow: (rowId, beforeRowId, values) => void moveRow(rowId, beforeRowId, values),
+    locked
   }
   const ViewComponent = VIEW_COMPONENTS[view.type] ?? TableView
 
   return (
-    <div className="db-viewer">
+    <div className={locked ? 'db-viewer db-locked' : 'db-viewer'}>
       <div className="db-header">
         <div className="view-tabs" role="tablist">
           {schema.views.map((v) => (
@@ -175,7 +177,7 @@ export function DatabaseViewer({
                 role="tab"
                 aria-selected={v.id === view.id}
                 className={v.id === view.id ? 'view-tab active' : 'view-tab'}
-                onClick={() => (v.id === view.id ? setViewMenu(v.id) : setViewId(v.id))}
+                onClick={() => (v.id === view.id ? !locked && setViewMenu(v.id) : setViewId(v.id))}
               >
                 {v.name}
               </button>
@@ -214,25 +216,32 @@ export function DatabaseViewer({
               )}
             </span>
           ))}
-          <span className="toolbar-anchor">
-            <button
-              className="view-tab"
-              aria-label="Ajouter une vue"
-              onClick={() => setAddingView(true)}
-            >
-              +
-            </button>
-            {addingView && (
-              <Popover onClose={() => setAddingView(false)}>
-                <div className="menu-label">Nouvelle vue</div>
-                {AVAILABLE_VIEWS.map((t) => (
-                  <button key={t} className="menu-item" onClick={() => addView(t)}>
-                    {VIEW_TYPE_LABELS[t]}
-                  </button>
-                ))}
-              </Popover>
-            )}
-          </span>
+          {locked && (
+            <span className="db-locked-badge" title="Vues et propriétés verrouillées">
+              🔒 Verrouillée
+            </span>
+          )}
+          {!locked && (
+            <span className="toolbar-anchor">
+              <button
+                className="view-tab"
+                aria-label="Ajouter une vue"
+                onClick={() => setAddingView(true)}
+              >
+                +
+              </button>
+              {addingView && (
+                <Popover onClose={() => setAddingView(false)}>
+                  <div className="menu-label">Nouvelle vue</div>
+                  {AVAILABLE_VIEWS.map((t) => (
+                    <button key={t} className="menu-item" onClick={() => addView(t)}>
+                      {VIEW_TYPE_LABELS[t]}
+                    </button>
+                  ))}
+                </Popover>
+              )}
+            </span>
+          )}
         </div>
         <span className="toolbar-anchor">
           <button
@@ -245,6 +254,18 @@ export function DatabaseViewer({
           {settings && (
             <Popover onClose={() => setSettings(false)} align="right">
               <div className="menu-label">Réglages de la base</div>
+              <label className="menu-row">
+                <input
+                  type="checkbox"
+                  checked={locked}
+                  onChange={(e) => void db.saveSchema({ ...schema, locked: e.target.checked })}
+                />
+                Verrouiller les vues et les propriétés
+              </label>
+              <p className="hint">
+                Les lignes restent modifiables ; filtres, tris, colonnes et vues ne changent plus.
+              </p>
+              <div className="menu-sep" />
               <label className="menu-row">
                 <input
                   type="checkbox"
@@ -272,8 +293,10 @@ export function DatabaseViewer({
           )}
         </span>
         <Toolbar
+          databaseId={databaseId}
           schema={schema}
           view={view}
+          locked={locked}
           templates={templates}
           onSchema={(s) => void db.saveSchema(s)}
           onNewRow={(templateId) => void addRow(undefined, templateId)}

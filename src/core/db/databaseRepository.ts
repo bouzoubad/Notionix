@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import type { DatabaseData, NewRow, PageId, PageSummary, RowData } from '../../shared/types'
 import {
   convertProperty,
@@ -12,9 +13,17 @@ import {
   type DatabaseRow,
   type DatabaseSchema,
   type PropertyType,
-  type PropertyValue
+  type PropertyValue,
+  allowedWhileLocked
 } from '../../shared/database'
 import type { PageRepository } from './pageRepository'
+import {
+  nextOccurrence,
+  occurrenceDay,
+  parseRule,
+  type Recurrence,
+  type RecurrenceRule
+} from '../../shared/recurrence'
 import { computeDatabase, type DatabaseSource } from '../../shared/computed'
 
 interface RowRecord {
@@ -36,6 +45,9 @@ const ROW_COLUMNS =
 
 /** Databases are pages of kind 'database'; their non-trashed child pages are the rows. */
 export class DatabaseRepository {
+  /** Names people for formulas (the server's accounts); unknown people have none. */
+  personOf: (id: string) => { name: string; email: string } | undefined = () => undefined
+
   constructor(readonly pages: PageRepository) {}
 
   private get db(): PageRepository['db'] {
@@ -68,7 +80,9 @@ export class DatabaseRepository {
       id,
       stored,
       (other) => this.stored(other),
-      (pid) => titles.get(pid)
+      (pid) => titles.get(pid),
+      undefined,
+      (person) => this.personOf(person)
     )
     return { id, schema: stored.schema, rows }
   }
@@ -106,6 +120,10 @@ export class DatabaseRepository {
     const next = parseSchema(raw)
     const schema =
       base === undefined ? next : parseSchema(mergeSchema(parseSchema(base), next, current))
+    if (current.locked && !allowedWhileLocked(current, schema))
+      throw new Error(
+        'Base verrouillée : déverrouillez-la pour changer ses vues ou ses propriétés.'
+      )
     return this.pages.transaction(() => {
       this.db
         .prepare(
@@ -305,6 +323,136 @@ export class DatabaseRepository {
       }
       return this.getRow(page.id)!.row
     })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recurring templates
+
+  recurrences(databaseId: PageId): Recurrence[] {
+    return (
+      this.db
+        .prepare(
+          'SELECT id, database_id, template_id, rule, next_at FROM recurrences WHERE database_id = ?'
+        )
+        .all(databaseId) as {
+        id: string
+        database_id: string
+        template_id: string
+        rule: string
+        next_at: number
+      }[]
+    ).flatMap((r) => {
+      try {
+        return [
+          {
+            id: r.id,
+            databaseId: r.database_id,
+            templateId: r.template_id,
+            rule: parseRule(JSON.parse(r.rule)),
+            nextAt: r.next_at
+          }
+        ]
+      } catch {
+        return []
+      }
+    })
+  }
+
+  /** Repeats a template on a schedule, or stops (null). Returns the schedule. */
+  setRecurrence(databaseId: PageId, templateId: PageId, raw: unknown): Recurrence | null {
+    const template = this.pages.get(templateId)
+    if (!template || template.parentId !== databaseId || !template.isTemplate)
+      throw new Error('Modèle introuvable dans cette base.')
+    if (raw === null) {
+      this.db.prepare('DELETE FROM recurrences WHERE template_id = ?').run(templateId)
+      return null
+    }
+    const rule = parseRule(raw)
+    const schema = this.schemaOf(databaseId)
+    if (
+      rule.dateProperty &&
+      !schema?.properties.some((p) => p.id === rule.dateProperty && p.type === 'date')
+    )
+      throw new Error('Propriété de date inconnue.')
+    const now = this.pages.now()
+    const next = nextOccurrence(rule, now, now)
+    if (next === null) throw new Error('Aucune date ne correspond à cette règle.')
+    this.db
+      .prepare(
+        `INSERT INTO recurrences (id, database_id, template_id, rule, anchor_at, next_at, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(template_id) DO UPDATE SET rule = excluded.rule, anchor_at = excluded.anchor_at,
+           next_at = excluded.next_at, created_by = excluded.created_by`
+      )
+      .run(
+        randomUUID(),
+        databaseId,
+        templateId,
+        JSON.stringify(rule),
+        next,
+        next,
+        this.pages.actor,
+        now
+      )
+    return this.recurrences(databaseId).find((r) => r.templateId === templateId) ?? null
+  }
+
+  /**
+   * Creates the rows of the schedules that are due, once each (missed
+   * occurrences while the app or server was stopped are not all replayed),
+   * then moves each schedule to its next date. Returns the databases changed.
+   */
+  runDueRecurrences(now = this.pages.now()): PageId[] {
+    const due = this.db
+      .prepare(
+        `SELECT r.id, r.database_id, r.template_id, r.rule, r.anchor_at, r.next_at, r.created_by
+         FROM recurrences r JOIN pages d ON d.id = r.database_id JOIN pages t ON t.id = r.template_id
+         WHERE r.next_at <= ? AND d.trashed_at IS NULL AND t.trashed_at IS NULL`
+      )
+      .all(now) as {
+      id: string
+      database_id: string
+      template_id: string
+      rule: string
+      anchor_at: number
+      next_at: number
+      created_by: string | null
+    }[]
+    const changed = new Set<PageId>()
+    for (const r of due) {
+      let rule: RecurrenceRule
+      try {
+        rule = parseRule(JSON.parse(r.rule))
+      } catch {
+        this.db.prepare('DELETE FROM recurrences WHERE id = ?').run(r.id)
+        continue
+      }
+      // Missed occurrences make one row, dated by the latest of them.
+      let occurrence = r.next_at
+      for (let i = 0; i < 4000; i++) {
+        const later = nextOccurrence(rule, occurrence, r.anchor_at)
+        if (later === null || later > now) break
+        occurrence = later
+      }
+      // The next date is set first: a failing template is not retried in a loop.
+      const next = nextOccurrence(rule, now, r.anchor_at)
+      if (next === null) this.db.prepare('DELETE FROM recurrences WHERE id = ?').run(r.id)
+      else this.db.prepare('UPDATE recurrences SET next_at = ? WHERE id = ?').run(next, r.id)
+      try {
+        this.pages.as(r.created_by, () =>
+          this.createRow(r.database_id, {
+            templateId: r.template_id,
+            properties: rule.dateProperty
+              ? { [rule.dateProperty]: { start: occurrenceDay(rule, occurrence) } }
+              : {}
+          })
+        )
+        changed.add(r.database_id)
+      } catch {
+        // The template or database changed in a way that prevents it: skipped this time.
+      }
+    }
+    return [...changed]
   }
 
   /** Merges new values into a row; `title` is the row title. Invalid values are cleared. */

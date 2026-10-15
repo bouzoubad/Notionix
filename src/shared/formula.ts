@@ -3,11 +3,33 @@
  *   prop("Prix") * 1.2
  *   if(prop("Fait"), "✅", "⏳")
  *   dateBetween(prop("Fin"), prop("Début"), "days")
+ *   prop("Tâches").filter(current.prop("Fait")).length()
  * Parsed into a tree and evaluated without `eval`. Values are numbers,
- * strings, booleans, dates (JS Date), lists or null.
+ * strings, booleans, dates (JS Date), lists, pages and people, or null.
+ * `x.f(a)` is written for `f(x, a)`, as in Notion's formulas 2.0.
  */
 
-export type FormulaValue = number | string | boolean | Date | FormulaValue[] | null
+/** A page (a related row): its title, and its properties through `.prop("Nom")`. */
+export class FormulaPage {
+  constructor(
+    readonly id: string,
+    readonly title: string,
+    /** Value of one of its properties; throws FormulaError if unknown */
+    readonly get: (name: string) => FormulaValue
+  ) {}
+}
+
+/** A person (person, created by, edited by properties). */
+export class FormulaPerson {
+  constructor(
+    readonly id: string,
+    readonly name: string,
+    readonly email: string
+  ) {}
+}
+
+export type FormulaValue =
+  number | string | boolean | Date | FormulaPage | FormulaPerson | FormulaValue[] | null
 
 export class FormulaError extends Error {}
 
@@ -53,7 +75,8 @@ function tokenize(src: string): Token[] {
       while (j < src.length && src[j] !== close) {
         if (src[j] === '\\' && j + 1 < src.length) {
           const e = src[j + 1]
-          out += e === 'n' ? '\n' : e === 't' ? '\t' : e
+          // Other escapes are kept as written, for regular expressions: "\d+".
+          out += e === 'n' ? '\n' : e === 't' ? '\t' : `"'“”\\`.includes(e) ? e : `\\${e}`
           j += 2
         } else {
           out += src[j]
@@ -77,7 +100,7 @@ function tokenize(src: string): Token[] {
       i += 2
       continue
     }
-    if ('+-*/%^()<>,![]'.includes(c)) {
+    if ('+-*/%^()<>,![].'.includes(c)) {
       tokens.push({ type: 'op', value: c, pos: i })
       i += 1
       continue
@@ -166,8 +189,28 @@ export function parseFormula(src: string): Node {
     throw new FormulaError(`« ${t.value} » inattendu à la position ${t.pos + 1}.`)
   }
 
+  /** A primary followed by method calls: x.f(a) is f(x, a). */
+  const postfix = (): Node => {
+    let node = primary()
+    while (peek().value === '.') {
+      next()
+      const t = next()
+      if (t.type !== 'ident')
+        throw new FormulaError(`Nom de fonction attendu après « . » à la position ${t.pos + 1}.`)
+      const args: Node[] = [node]
+      expect('(')
+      if (peek().value !== ')') {
+        do args.push(expression(0))
+        while (peek().value === ',' && next())
+      }
+      expect(')')
+      node = { kind: 'call', name: t.value.toLowerCase(), args }
+    }
+    return node
+  }
+
   const expression = (minPrec: number): Node => {
-    let left = primary()
+    let left = postfix()
     for (;;) {
       const op = binaryOf(peek())
       if (!op || BINARY[op].prec < minPrec) return left
@@ -188,6 +231,8 @@ export interface FormulaContext {
   /** Value of the property named `name` for the current row; throws if unknown */
   prop(name: string): FormulaValue
   now(): Date
+  /** Id of the current row: id() */
+  id?: string
   /** Variables in scope: current and index inside map()/filter(), names given by let() */
   vars?: Map<string, FormulaValue>
 }
@@ -201,6 +246,8 @@ function toNumber(v: FormulaValue): number {
   if (typeof v === 'boolean') return v ? 1 : 0
   if (v === null || v === '') return 0
   if (isDate(v)) return v.getTime()
+  if (v instanceof FormulaPage || v instanceof FormulaPerson)
+    throw new FormulaError(`« ${toText(v)} » n’est pas un nombre.`)
   if (typeof v === 'string') {
     const n = Number(v.replace(',', '.'))
     if (Number.isFinite(n)) return n
@@ -215,6 +262,8 @@ export function toText(v: FormulaValue): string {
     return Number.isInteger(v) ? String(v) : String(Math.round(v * 1e10) / 1e10)
   if (typeof v === 'boolean') return v ? 'true' : 'false'
   if (isDate(v)) return formatDate(v)
+  if (v instanceof FormulaPage) return v.title
+  if (v instanceof FormulaPerson) return v.name
   return v.map(toText).join(', ')
 }
 
@@ -227,9 +276,9 @@ const truthy = (v: FormulaValue): boolean =>
         ? v !== ''
         : typeof v === 'number'
           ? v !== 0
-          : isDate(v)
-            ? true
-            : v
+          : typeof v === 'boolean'
+            ? v
+            : true
 
 const isEmptyValue = (v: FormulaValue): boolean =>
   v === null || v === '' || (Array.isArray(v) && v.length === 0)
@@ -305,6 +354,34 @@ function between(a: Date, b: Date, unit: string): number {
   return Math.trunc(ms / size)
 }
 
+/** A related page's property; nothing for anything else. */
+function propOf(v: FormulaValue, key: string): FormulaValue {
+  if (v instanceof FormulaPage) return v.get(key)
+  if (v === null) return null
+  throw new FormulaError(`.prop("${key}") s’applique à une page liée (relation).`)
+}
+
+/** A regular expression written in a formula; refused when invalid or too long. */
+function regex(v: FormulaValue, flags = ''): RegExp {
+  const source = toText(v)
+  if (source.length > 200) throw new FormulaError('Expression régulière trop longue.')
+  try {
+    return new RegExp(source, flags)
+  } catch {
+    throw new FormulaError(`Expression régulière invalide : ${source}`)
+  }
+}
+
+/** "2026-10-15", "2026-10-15 14:30", "15/10/2026" as a local date. */
+function parseDateText(t: string): Date | null {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?$/.exec(t.trim())
+  if (iso)
+    return new Date(+iso[1], +iso[2] - 1, +iso[3], iso[4] ? +iso[4] : 0, iso[5] ? +iso[5] : 0)
+  const fr = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t.trim())
+  if (fr) return new Date(+fr[3], +fr[2] - 1, +fr[1])
+  return null
+}
+
 function needDate(v: FormulaValue, fn: string): Date {
   if (!isDate(v)) throw new FormulaError(`${fn} attend une date.`)
   return v
@@ -352,6 +429,32 @@ export const FORMULA_HELP: { syntax: string; description: string }[] = [
   {
     syntax: 'sort(liste), sort(liste, clé), reverse, unique, includes(liste, v), flat',
     description: 'listes'
+  },
+  {
+    syntax: 'x.f(a) pour f(x, a) : prop("Tags").length(), prop("Nom").upper()',
+    description: 'écriture à points (comme Notion 2.0)'
+  },
+  {
+    syntax:
+      'prop("Tâches").filter(current.prop("Fait")).length(), prop("Projet").first().prop("Statut")',
+    description: 'pages liées : leurs propriétés par .prop()'
+  },
+  {
+    syntax: 'prop("Responsable").name(), .email(), id(), id(page)',
+    description: 'personnes et identifiants'
+  },
+  {
+    syntax:
+      'trim, repeat, padStart, padEnd, startsWith, endsWith, test(t, "regex"), match, replaceAll',
+    description: 'texte'
+  },
+  {
+    syntax: 'mean, median, mod, sign, exp, ln, log10, log2, cbrt, pi(), e()',
+    description: 'nombres'
+  },
+  {
+    syntax: 'hour, minute, week, weekday, timestamp, fromTimestamp, parseDate("2026-10-15")',
+    description: 'dates'
   }
 ]
 
@@ -575,11 +678,139 @@ function call(
         .filter((t) => t !== '')
     }
     case 'prop': {
-      arity(1)
-      const key = ev(args[0])
+      arity(1, 2)
+      // prop("Nom") of the row, or page.prop("Nom") of a related page.
+      const key = ev(args[args.length - 1])
       if (typeof key !== 'string')
         throw new FormulaError('prop() attend un nom de propriété entre guillemets.')
-      return ctx.prop(key)
+      if (args.length === 1) return ctx.prop(key)
+      const page = ev(args[0])
+      if (Array.isArray(page)) return page.map((p) => propOf(p, key))
+      return propOf(page, key)
+    }
+    case 'id': {
+      arity(0, 1)
+      if (args.length === 0) return ctx.id ?? null
+      const v = ev(args[0])
+      return v instanceof FormulaPage || v instanceof FormulaPerson ? v.id : null
+    }
+    case 'name':
+    case 'email': {
+      arity(1)
+      const v = ev(args[0])
+      const one = (x: FormulaValue): FormulaValue =>
+        x instanceof FormulaPerson ? (name === 'name' ? x.name : x.email) : null
+      return Array.isArray(v) ? v.map(one) : one(v)
+    }
+    case 'title': {
+      arity(1)
+      const v = ev(args[0])
+      return Array.isArray(v) ? v.map(toText) : toText(v)
+    }
+    case 'trim':
+      arity(1)
+      return toText(ev(args[0])).trim()
+    case 'repeat': {
+      arity(2)
+      const n = toNumber(ev(args[1]))
+      if (n < 0 || n > 10_000) throw new FormulaError('repeat() : nombre de répétitions invalide.')
+      return toText(ev(args[0])).repeat(n)
+    }
+    case 'padstart':
+    case 'padend': {
+      arity(2, 3)
+      const t = toText(ev(args[0]))
+      const n = Math.min(toNumber(ev(args[1])), 10_000)
+      const fill = args[2] ? toText(ev(args[2])) : ' '
+      return name === 'padstart' ? t.padStart(n, fill) : t.padEnd(n, fill)
+    }
+    case 'startswith':
+    case 'endswith': {
+      arity(2)
+      const t = toText(ev(args[0]))
+      const s = toText(ev(args[1]))
+      return name === 'startswith' ? t.startsWith(s) : t.endsWith(s)
+    }
+    case 'test':
+      arity(2)
+      return regex(ev(args[1])).test(toText(ev(args[0])))
+    case 'match': {
+      arity(2)
+      return toText(ev(args[0])).match(regex(ev(args[1]), 'g')) ?? []
+    }
+    case 'replaceall':
+      arity(3)
+      return toText(ev(args[0])).replace(regex(ev(args[1]), 'g'), toText(ev(args[2])))
+    case 'style':
+    case 'unstyle':
+    case 'link':
+      // Text styling (colors, links) is not shown in cells: the text stays.
+      if (args.length === 0) throw new FormulaError(`${name}() attend un texte.`)
+      return toText(ev(args[0]))
+    case 'sign':
+      arity(1)
+      return Math.sign(toNumber(ev(args[0])))
+    case 'exp':
+    case 'cbrt':
+    case 'log10':
+    case 'log2':
+      arity(1)
+      return Math[name](toNumber(ev(args[0])))
+    case 'ln':
+      arity(1)
+      return Math.log(toNumber(ev(args[0])))
+    case 'mod':
+      arity(2)
+      return toNumber(ev(args[0])) % toNumber(ev(args[1]))
+    case 'pi':
+      arity(0)
+      return Math.PI
+    case 'e':
+      arity(0)
+      return Math.E
+    case 'mean':
+    case 'average':
+    case 'median': {
+      const nums = values()
+        .filter((v) => v !== null && v !== '')
+        .map(toNumber)
+        .sort((a, b) => a - b)
+      if (!nums.length) return null
+      if (name !== 'median') return nums.reduce((s, n) => s + n, 0) / nums.length
+      const mid = Math.floor(nums.length / 2)
+      return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2
+    }
+    case 'hour':
+      arity(1)
+      return needDate(ev(args[0]), name).getHours()
+    case 'minute':
+      arity(1)
+      return needDate(ev(args[0]), name).getMinutes()
+    case 'week': {
+      arity(1)
+      // ISO 8601 week number.
+      const d = needDate(ev(args[0]), name)
+      const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+      const dayNum = t.getUTCDay() || 7
+      t.setUTCDate(t.getUTCDate() + 4 - dayNum)
+      const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1))
+      return Math.ceil(((t.getTime() - yearStart.getTime()) / 864e5 + 1) / 7)
+    }
+    case 'weekday':
+      arity(1)
+      // 1 (Monday) to 7 (Sunday).
+      return needDate(ev(args[0]), name).getDay() || 7
+    case 'timestamp':
+      arity(1)
+      return needDate(ev(args[0]), name).getTime()
+    case 'fromtimestamp':
+      arity(1)
+      return new Date(toNumber(ev(args[0])))
+    case 'parsedate': {
+      arity(1)
+      const d = parseDateText(toText(ev(args[0])))
+      if (!d) throw new FormulaError(`parseDate() : date illisible « ${toText(ev(args[0]))} ».`)
+      return d
     }
     case 'if':
       arity(3)

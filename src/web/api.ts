@@ -93,6 +93,10 @@ export const webApi: NotionixApi = {
     linkRelation: (id, propertyId) => rpc('databases.linkRelation', id, propertyId),
     enableNesting: (id, kind) => rpc('databases.enableNesting', id, kind),
     importCsv: (id, csv) => rpc('databases.importCsv', id, csv),
+    recurrences: (id) => rpc('databases.recurrences', id),
+    setRecurrence: (id, templateId, rule) => rpc('databases.setRecurrence', id, templateId, rule),
+    // The server announces changes through the session.
+    onChange: () => () => undefined,
     createRow: (id, init) => rpc('databases.createRow', id, init),
     updateRow: (rowId, values) => rpc('databases.updateRow', rowId, values),
     setTemplate: (rowId, flag) => rpc('databases.setTemplate', rowId, flag),

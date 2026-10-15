@@ -262,14 +262,16 @@ export function TableView(props: ViewProps): React.JSX.Element {
             <th className="drag-col" aria-hidden />
             {columns.map((p) => (
               <th key={p.id} className={p.id === TITLE_PROPERTY_ID ? 'title-col' : ''}>
-                <button className="col-head" onClick={() => setMenu(p.id)}>
+                <button className="col-head" disabled={props.locked} onClick={() => setMenu(p.id)}>
                   <span className="type-icon">{TYPE_ICONS[p.type]}</span> {p.name}
                 </button>
-                <span
-                  className="col-resize"
-                  title="Glisser pour changer la largeur"
-                  onPointerDown={(e) => startResize(e, p)}
-                />
+                {!props.locked && (
+                  <span
+                    className="col-resize"
+                    title="Glisser pour changer la largeur"
+                    onPointerDown={(e) => startResize(e, p)}
+                  />
+                )}
                 {menu === p.id && (
                   <PropertyMenu
                     prop={p}
@@ -284,9 +286,11 @@ export function TableView(props: ViewProps): React.JSX.Element {
               </th>
             ))}
             <th className="add-col">
-              <button aria-label="Ajouter une propriété" onClick={() => setAdding(true)}>
-                +
-              </button>
+              {!props.locked && (
+                <button aria-label="Ajouter une propriété" onClick={() => setAdding(true)}>
+                  +
+                </button>
+              )}
               {adding && (
                 <Popover onClose={() => setAdding(false)} align="right">
                   <div className="menu-label">Nouvelle propriété</div>
@@ -318,6 +322,7 @@ export function TableView(props: ViewProps): React.JSX.Element {
                 <td key={p.id} className={p.id === TITLE_PROPERTY_ID ? 'title-col' : ''}>
                   <button
                     className={`calc-cell${kind ? ' set' : ''}`}
+                    disabled={props.locked}
                     onClick={() => setCalcMenu(p.id)}
                   >
                     {kind ? (

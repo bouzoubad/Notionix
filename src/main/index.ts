@@ -74,6 +74,7 @@ app.whenReady().then(() => {
   })
   registerPageHandlers(ipcMain, repo)
   const dbs = new DatabaseRepository(repo)
+  dbs.personOf = (id) => (id === LOCAL_PERSON.id ? LOCAL_PERSON : undefined)
   const team = new TeamRepository(db)
   registerTeamHandlers(ipcMain, team)
   // Reminders: a system notification, and an entry in the inbox.
@@ -84,6 +85,9 @@ app.whenReady().then(() => {
       if (Notification.isSupported()) new Notification({ title: 'Notionix', body: r.text }).show()
       for (const w of BrowserWindow.getAllWindows()) w.webContents.send('inbox:changed')
     }
+    // Recurring templates due: new rows, then the open windows reload.
+    if (dbs.runDueRecurrences().length)
+      for (const w of BrowserWindow.getAllWindows()) w.webContents.send('databases:changed')
   }, 30_000)
   app.on('before-quit', () => clearInterval(reminders))
   // The trash keeps pages 30 days.

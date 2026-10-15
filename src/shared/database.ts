@@ -138,7 +138,18 @@ export const isComputed = (type: PropertyType): boolean => type === 'formula' ||
 export type ViewType =
   'table' | 'board' | 'list' | 'gallery' | 'calendar' | 'timeline' | 'chart' | 'form'
 
-export type ChartType = 'bar' | 'line' | 'donut'
+export type ChartType = 'bar' | 'hbar' | 'stacked' | 'line' | 'area' | 'donut' | 'pie' | 'number'
+export const CHART_TYPES: ChartType[] = [
+  'bar',
+  'hbar',
+  'stacked',
+  'line',
+  'area',
+  'donut',
+  'pie',
+  'number'
+]
+export type ChartAggregate = 'count' | 'sum' | 'average' | 'median' | 'min' | 'max'
 
 export type CalcKind =
   | 'count_all'
@@ -183,9 +194,13 @@ export interface ChartConfig {
   type: ChartType
   /** property whose values make the bars or slices */
   groupBy: string | null
-  /** 'count' counts rows; 'sum'/'average' use `valueProperty` (a number) */
-  aggregate: 'count' | 'sum' | 'average'
+  /** 'count' counts rows; the others use `valueProperty` (a number) */
+  aggregate: ChartAggregate
   valueProperty: string | null
+  /** Stacked bars: the property splitting each bar */
+  stackBy?: string | null
+  /** Line and area: running total */
+  cumulative?: boolean
 }
 
 export type FilterOperator =
@@ -324,6 +339,8 @@ export interface DatabaseSchema {
   subItems?: { parentPropertyId: string; childrenPropertyId: string } | null
   /** Dependencies: rows blocked by other rows */
   dependencies?: { blockedByPropertyId: string; blockingPropertyId: string } | null
+  /** Views and properties locked: rows stay editable (and select options can be added) */
+  locked?: boolean
 }
 
 export interface DatabaseRow {
@@ -575,6 +592,7 @@ export function parseSchema(raw: unknown): DatabaseSchema {
     if (blockedBy && blocking)
       schema.dependencies = { blockedByPropertyId: blockedBy, blockingPropertyId: blocking }
   }
+  if (input.locked === true) schema.locked = true
   return schema
 }
 
@@ -711,12 +729,18 @@ function parseChart(raw: unknown, properties: PropertyDef[]): ChartConfig {
     const p = properties.find((x) => x.id === id)
     return p && (!types || types.includes(p.type)) ? p.id : null
   }
-  const aggregate = c.aggregate === 'sum' || c.aggregate === 'average' ? c.aggregate : 'count'
+  const aggregates: ChartAggregate[] = ['count', 'sum', 'average', 'median', 'min', 'max']
+  const aggregate = aggregates.includes(c.aggregate as ChartAggregate)
+    ? (c.aggregate as ChartAggregate)
+    : 'count'
+  const stackBy = has(c.stackBy)
   return {
-    type: c.type === 'line' || c.type === 'donut' ? c.type : 'bar',
+    type: CHART_TYPES.includes(c.type as ChartType) ? (c.type as ChartType) : 'bar',
     groupBy: has(c.groupBy),
     aggregate,
-    valueProperty: has(c.valueProperty, ['number', 'formula', 'rollup'])
+    valueProperty: has(c.valueProperty, ['number', 'formula', 'rollup']),
+    ...(stackBy ? { stackBy } : {}),
+    ...(c.cumulative === true ? { cumulative: true } : {})
   }
 }
 
@@ -1379,8 +1403,33 @@ export function mergeSchema(
     properties: mergeList(base.properties, next.properties, current.properties),
     views: mergeList(base.views, next.views, current.views),
     subItems: changed('subItems') ? next.subItems : current.subItems,
-    dependencies: changed('dependencies') ? next.dependencies : current.dependencies
+    dependencies: changed('dependencies') ? next.dependencies : current.dependencies,
+    ...((base.locked ?? false) !== (next.locked ?? false)
+      ? next.locked
+        ? { locked: true }
+        : {}
+      : current.locked
+        ? { locked: true }
+        : {})
   }
+}
+
+/**
+ * What a locked database still accepts: unlocking it, and new options of its
+ * select, multi-select and status properties (typed while filling rows).
+ */
+export function allowedWhileLocked(current: DatabaseSchema, next: DatabaseSchema): boolean {
+  if (!next.locked) return true
+  const withoutNewOptions = {
+    ...next,
+    properties: next.properties.map((p) => {
+      const before = current.properties.find((c) => c.id === p.id)
+      if (!p.options || !before?.options) return p
+      const known = new Set(before.options.map((o) => o.id))
+      return { ...p, options: p.options.filter((o) => known.has(o.id)) }
+    })
+  }
+  return JSON.stringify(withoutNewOptions) === JSON.stringify(current)
 }
 
 // ---------------------------------------------------------------------------

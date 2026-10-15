@@ -101,6 +101,10 @@ export function registerDatabaseHandlers(ipc: IpcMain, dbs: DatabaseRepository):
   ipc.handle('databases:linkRelation', (_e, id: string, propertyId: string) =>
     dbs.linkRelation(id, propertyId)
   )
+  ipc.handle('databases:recurrences', (_e, id: string) => dbs.recurrences(id))
+  ipc.handle('databases:setRecurrence', (_e, id: string, templateId: string, rule: unknown) =>
+    dbs.setRecurrence(id, templateId, rule)
+  )
   ipc.handle('databases:importCsv', (_e, id: string, csv: string) =>
     dbs.pages.transaction(() => importCsvRows(dbs, id, String(csv), [LOCAL_PERSON]))
   )

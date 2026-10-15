@@ -230,3 +230,85 @@ describe('formulas on lists and variables', () => {
     expect(() => run('inconnu + 1')).toThrow(/prop\("inconnu"\)/)
   })
 })
+
+describe('formulas 2.0', () => {
+  it('chains functions with dots and adds text, number and date functions', () => {
+    expect(run('prop("Tags").length()', { Tags: ['a', 'b'] })).toBe(2)
+    expect(run('"notionix".upper().slice(0, 6)')).toBe('NOTION')
+    expect(run('[3, 1, 2].sort().map(current * 10).join("-")')).toBe('10-20-30')
+    expect(run('"  x ".trim().padStart(3, "0")')).toBe('00x')
+    expect(run('test("REF-042", "^REF-[0-9]+$")')).toBe(true)
+    expect(run('"a1b22".match("[0-9]+")')).toEqual(['1', '22'])
+    expect(run(String.raw`test("REF-042", "^REF-\d+$")`)).toBe(true)
+    expect(run('replaceAll("a.b.c", "[.]", "/")')).toBe('a/b/c')
+    expect(run('[1, 2, 3, 10].median()')).toBe(2.5)
+    expect(run('mean(2, 4)')).toBe(3)
+    expect(run('7.mod(3)')).toBe(1)
+    expect(run('week(parseDate("2026-10-15"))')).toBe(42)
+    expect(run('weekday(parseDate("15/10/2026"))')).toBe(4)
+    expect(run('style("Urgent", "b", "red")')).toBe('Urgent')
+    expect(() => run('test("x", "(")')).toThrow(/régulière/)
+  })
+
+  it('reads the properties of related pages and names people', () => {
+    const tasks: DatabaseSource = {
+      schema: {
+        properties: [
+          { id: 'title', name: 'Nom', type: 'title' },
+          { id: 'done', name: 'Fait', type: 'checkbox' },
+          { id: 'who', name: 'Responsable', type: 'person' },
+          { id: 'h', name: 'Heures', type: 'number' }
+        ],
+        views: [defaultView()]
+      },
+      rows: [row('T1', { done: true, who: ['u1'], h: 2 }), row('T2', { who: ['u2'], h: 5 })]
+    }
+    const [t1, t2] = tasks.rows
+    const projects: DatabaseSource = {
+      schema: {
+        properties: [
+          { id: 'title', name: 'Nom', type: 'title' },
+          { id: 'rel', name: 'Tâches', type: 'relation', relationDatabaseId: 'tasks' },
+          {
+            id: 'left',
+            name: 'Restantes',
+            type: 'formula',
+            formula: 'prop("Tâches").filter(not current.prop("Fait")).length()'
+          },
+          {
+            id: 'who',
+            name: 'Équipe',
+            type: 'formula',
+            formula: 'prop("Tâches").map(current.prop("Responsable").first().name()).join(", ")'
+          },
+          {
+            id: 'hours',
+            name: 'Heures',
+            type: 'formula',
+            formula: 'prop("Tâches").map(current.prop("Heures")).sum()'
+          },
+          { id: 'self', name: 'Id', type: 'formula', formula: 'id() == "P1"' }
+        ],
+        views: [defaultView()]
+      },
+      rows: [{ ...row('P1', { rel: [t1.id, t2.id] }), id: 'P1' }]
+    }
+    const titles = new Map([...tasks.rows, ...projects.rows].map((r) => [r.id, r.title]))
+    const people = new Map([
+      ['u1', { name: 'Ana', email: 'ana@x.fr' }],
+      ['u2', { name: 'Bo', email: 'bo@x.fr' }]
+    ])
+    const [p] = computeDatabase(
+      'projects',
+      projects,
+      (id) => (id === 'tasks' ? tasks : null),
+      (id) => titles.get(id),
+      undefined,
+      (id) => people.get(id)
+    )
+    expect(p.properties.left).toBe(1)
+    expect(p.properties.who).toBe('Ana, Bo')
+    expect(p.properties.hours).toBe(7)
+    expect(p.properties.self).toBe(true)
+  })
+})

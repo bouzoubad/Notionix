@@ -29,7 +29,9 @@ export class Workspaces {
   constructor(
     private readonly db: DatabaseSync,
     private readonly dataDir: string,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    /** Called on each workspace when it is opened */
+    private readonly configure: (workspace: Workspace) => void = () => undefined
   ) {}
 
   get main(): Workspace {
@@ -44,6 +46,7 @@ export class Workspaces {
     const dir = id === MAIN_WORKSPACE ? this.dataDir : join(this.dataDir, 'workspaces', id)
     mkdirSync(dir, { recursive: true })
     const workspace = openWorkspace(dir)
+    this.configure(workspace)
     this.opened.set(id, workspace)
     return workspace
   }

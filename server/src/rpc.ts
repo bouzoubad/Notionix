@@ -521,6 +521,14 @@ const METHODS: Record<string, Method> = {
     if (prop?.relationDatabaseId) ctx.need(prop.relationDatabaseId, 'edit')
     return ctx.ws.databases.linkRelation(id(p), text(property))
   }),
+  'databases.recurrences': read((ctx, [p]) => {
+    ctx.need(id(p), 'read')
+    return ctx.ws.databases.recurrences(id(p))
+  }),
+  'databases.setRecurrence': write((ctx, [p, template, rule]) => {
+    ctx.need(id(p), 'edit')
+    return ctx.ws.databases.setRecurrence(id(p), id(template), rule ?? null)
+  }),
   'databases.importCsv': write((ctx, [p, csv]) => {
     ctx.need(id(p), 'edit')
     return ctx.ws.pages.transaction(() =>

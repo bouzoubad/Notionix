@@ -12,12 +12,15 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 ## Points forts
 
 - **Importez votre Notion** : un export « Markdown & CSV » (`.zip` ou dossier) devient des pages Notionix, hiérarchie et liens entre pages compris. Réimport sans doublon, sans jamais écraser vos modifications.
-- **Bases de données** : propriétés typées (texte, nombre, sélection, multi-sélection, date, case à cocher, URL, e-mail, téléphone, relation, **formule**, **rollup**, dates de création/modification), vues tableau, board, liste, galerie et calendrier, filtres, tris, **groupes**, ordre manuel des lignes par glisser-déposer, modèles de lignes.
-- **Exportez quand vous voulez** : tout (ou une page et ses sous-pages) en Markdown, dans l'organisation d'un export Notion.
+- **Bases de données** : propriétés typées (texte, nombre, sélection, multi-sélection, **statut**, date, case à cocher, URL, e-mail, téléphone, **personne**, **fichiers**, relation **à double sens**, **formule**, **rollup**, identifiant unique, créé/modifié par et quand), vues tableau, board, liste, galerie, calendrier, **chronologie**, **graphique** et **formulaire**, **vues liées** dans les pages, filtres, tris, groupes, **sous-éléments** et **dépendances**, ordre manuel des lignes, modèles de lignes.
+- **Travail d'équipe** : pages privées, partage page par page (lecture, commentaire, modification, accès complet), espaces d'équipe, invités, **commentaires** et **mentions @**, **boîte de réception** (mentions, réponses, partages, rappels), fil d'activité, **historique des versions**, présence des autres sur la page, **publication sur le web**.
+- **Exportez quand vous voulez** : tout (ou une page et ses sous-pages) en Markdown dans l'organisation d'un export Notion, en HTML, ou une page en PDF.
 - **Local d'abord** : l'app de bureau n'a besoin d'aucun compte ni d'aucune connexion ; tout est dans une base SQLite sur votre machine.
 - **À plusieurs, chez vous** : le serveur Notionix (un conteneur Docker) sert l'application dans le navigateur, avec comptes, rôles et édition simultanée d'une même page (curseurs des autres visibles).
-- **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, tableaux, images (stockées en local), callouts, toggles, équations LaTeX (KaTeX) ; menu `/`, menu de mise en forme sur la sélection, blocs déplaçables à la poignée ⋮⋮, icônes et couvertures de pages.
-- **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K`), favoris, corbeille.
+- **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, tableaux, **colonnes**, images, **fichiers, vidéos et audios**, callouts, toggles et **titres repliables**, équations LaTeX, **table des matières**, **liens vers une page**, **blocs synchronisés**, **boutons**, **couleurs** de texte, de fond et de bloc, mentions de personnes, de pages et de dates avec **rappels** ; menu `/`, menu de mise en forme, menu de bloc (transformer en, couleur, dupliquer), icônes, couvertures, options de page (pleine largeur, petit texte, police, verrouillage).
+- **Modèles** prêts à l'emploi (réunion, projet, wiki, journal, suivi de bugs, liste de lecture) et pages enregistrées comme modèles.
+- **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K`) avec pages récentes, rétroliens, favoris, corbeille.
+- **API** pour vos scripts, avec des jetons personnels ([docs/api.md](docs/api.md)).
 - **Thème clair et sombre** selon le système.
 
 ## Migrer depuis Notion
@@ -55,7 +58,8 @@ docker compose -f server/docker-compose.yml up -d --build
 
 - Même application que sur le bureau (pages, bases de données, images, import Notion par envoi du `.zip`, export Markdown téléchargé), sur un espace partagé.
 - Édition simultanée : le contenu de chaque page est un document Yjs partagé (Hocuspocus) ; titres, arborescence et bases se mettent à jour chez tout le monde.
-- Comptes gérés dans l'app (bouton « Comptes » pour l'administrateur, « Mon compte » pour changer son mot de passe) : `admin`, `editor`, `reader` (lecture seule, imposée par le serveur). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
+- Comptes gérés dans l'app (bouton « Comptes » pour l'administrateur, « Mon compte » pour son mot de passe et ses jetons d'API) : `admin`, `editor`, `reader` (lecture et commentaires), `guest` (seulement les pages partagées avec lui). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
+- Droits vérifiés par le serveur sur chaque opération, recherche, export et connexion temps réel : page de l'espace, privée (son créateur) ou restreinte aux personnes invitées, droits hérités par les sous-pages.
 - Données dans un volume : `workspace.db` (même format que la base de l'app de bureau), `notionix-server.db` (comptes, documents partagés), `assets/`.
 
 Mise à jour du serveur après des modifications poussées sur GitHub : `sh server/update.sh` (données et comptes conservés). Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
@@ -86,7 +90,7 @@ npm run typecheck && npm run lint
 npm run server   # serveur + client web sur http://localhost:8080
 ```
 
-## État actuel (phases 1, 2 et 3, import/export Notion et serveur collaboratif terminés)
+## État actuel (phases 1 à 3, import/export Notion, serveur collaboratif et fonctions d'équipe terminés)
 
 - Pages imbriquées, arbre en sidebar, glisser-déposer pour réordonner ou imbriquer, favoris, duplication (sous-pages incluses), fil d'Ariane.
 - Corbeille : sous-arbre mis à la corbeille ensemble, restauration, suppression définitive.
@@ -99,6 +103,10 @@ npm run server   # serveur + client web sur http://localhost:8080
 - Import d'un export Notion (Markdown & CSV) et export Markdown, voir « Migrer depuis Notion ».
 - Données : `pages(id, parent_id, position, version, updated_at…)`, `version` incrémentée à chaque écriture.
 - Serveur Notionix (phase de test sur réseau local) : client web servi par le serveur, comptes et rôles, édition simultanée des pages (Yjs, curseurs), mise à jour en direct de l'arborescence, des titres et des bases, images partagées, import Notion et export Markdown, image Docker validée (API, recherche, sauvegarde à chaud).
+- Équipe : droits par page et partages, espaces d'équipe, invités, historique des versions (états regroupés par tranche de 10 minutes, 100 par page, restauration y compris dans les documents partagés), commentaires sur une sélection ou la page, mentions @ (personnes, pages, dates), notifications et activité, rappels (notification système dans l'app de bureau), présence, publication web en lecture seule.
+- Éditeur : colonnes, couleurs, menu de bloc, fichiers/vidéos/audios, table des matières, liens vers une page, blocs synchronisés (contenu dans une page cachée), boutons, titres repliables, options de page.
+- Bases : personne, fichiers, statut, créé/modifié par, identifiant unique, relations à double sens, sous-éléments, dépendances, vues chronologie, graphique et formulaire, vues liées, fusion des modifications de structure simultanées.
+- Espace : rétroliens, récents, modèles, exports HTML et PDF, API à jetons.
 
 ## Identité visuelle
 
@@ -113,12 +121,14 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 - Valider sur un vrai export les cas encore non rencontrés : relations entre bases, colonnes nombre et case à cocher, toggles.
 - Embeds (YouTube…) : reportés, ils supposent du réseau ; à reprendre avec la phase en ligne.
-- Serveur : HTTPS (IIS ou proxy) avant toute sortie de la phase de test, présence (qui est sur quelle page), adaptation mobile et installation sur téléphone (PWA, nécessite HTTPS).
+- Serveur : HTTPS (IIS ou proxy) avant toute sortie de la phase de test ; invitations et mot de passe oublié par e-mail (nécessite un serveur SMTP) ; adaptation mobile et installation sur téléphone (PWA, nécessite HTTPS).
+- Hors périmètre décidé : intégrations externes (YouTube…), automatisations, IA.
 - App de bureau : se connecter à un serveur Notionix (aujourd'hui seulement locale) et y envoyer ses pages locales.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
 
 ## Limites connues
 
 - Le contenu d'une page est un seul document JSON (côté serveur : un document Yjs par page) : pas de bloc adressable individuellement.
-- Serveur : propriétés et schémas des bases s'écrivent en « dernier qui écrit gagne » (le contenu des pages, lui, fusionne les modifications simultanées) ; en HTTP simple, mots de passe et contenus circulent en clair sur le réseau.
+- Serveur : une même cellule modifiée au même moment par deux personnes garde la dernière valeur (comme dans Notion) ; les modifications de structure (propriétés, vues) sont fusionnées. En HTTP simple, mots de passe et contenus circulent en clair sur le réseau.
+- Les blocs synchronisés et les boutons ne sont pas repris dans l'export Markdown ; les vues liées exportent la base d'origine.
 - `node:sqlite` est expérimental dans Node 22 (avertissement au lancement).

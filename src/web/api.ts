@@ -30,6 +30,11 @@ function attachmentName(header: string | null): string {
   return match ? decodeURIComponent(match[1]) : 'Notionix.zip'
 }
 
+const inboxListeners = new Set<() => void>()
+
+/** Called by the real-time connection when the server says the inbox changed. */
+export const inboxChanged = (): void => inboxListeners.forEach((l) => l())
+
 /** The app's operations, run on the Notionix server. */
 export const webApi: NotionixApi = {
   pages: {
@@ -54,6 +59,25 @@ export const webApi: NotionixApi = {
   },
   people: {
     list: () => rpc('people.list')
+  },
+  comments: {
+    list: (pageId) => rpc('comments.list', pageId),
+    add: (pageId, input) => rpc('comments.add', pageId, input),
+    update: (id, body, mentions) => rpc('comments.update', id, body, mentions),
+    remove: (id) => rpc('comments.remove', id),
+    resolve: (threadId, resolved) => rpc('comments.resolve', threadId, resolved)
+  },
+  inbox: {
+    list: () => rpc('inbox.list'),
+    markRead: (ids) => rpc('inbox.markRead', ids),
+    activity: () => rpc('inbox.activity'),
+    onChange: (listener) => {
+      inboxListeners.add(listener)
+      return () => inboxListeners.delete(listener)
+    }
+  },
+  reminders: {
+    set: (pageId, key, at, text) => rpc('reminders.set', pageId, key, at, text)
   },
   databases: {
     create: (parentId) => rpc('databases.create', parentId),

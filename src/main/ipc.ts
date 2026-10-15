@@ -1,6 +1,7 @@
 import { writeFile } from 'fs/promises'
 import type { BrowserWindow, Dialog, IpcMain } from 'electron'
-import type { ExportSummary, ImportSummary, PageAccess, Person } from '../shared/types'
+import type { ExportSummary, ImportSummary, NewComment, PageAccess, Person } from '../shared/types'
+import type { TeamRepository } from '../core/db/teamRepository'
 import type { PageRepository } from '../core/db/pageRepository'
 import type { AssetStore } from '../core/assets'
 import type { DatabaseRepository } from '../core/db/databaseRepository'
@@ -40,6 +41,26 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
 
 /** The only person of the desktop app, recorded as the author of every change. */
 export const LOCAL_PERSON: Person = { id: 'local', name: 'Moi', email: '' }
+
+/** Comments, inbox and reminders of the only person of the desktop app. */
+export function registerTeamHandlers(ipc: IpcMain, team: TeamRepository): void {
+  const me = LOCAL_PERSON.id
+  ipc.handle('comments:list', (_e, pageId: string) => team.comments(pageId))
+  ipc.handle('comments:add', (_e, pageId: string, input: NewComment) =>
+    team.addComment(pageId, me, input)
+  )
+  ipc.handle('comments:update', (_e, id: string, body: string) => team.updateComment(id, body, []))
+  ipc.handle('comments:remove', (_e, id: string) => team.removeComment(id))
+  ipc.handle('comments:resolve', (_e, threadId: string, resolved: boolean) =>
+    team.resolveThread(threadId, resolved === true)
+  )
+  ipc.handle('inbox:list', () => team.inbox(me))
+  ipc.handle('inbox:markRead', (_e, ids: string[] | null) => team.markRead(me, ids))
+  ipc.handle('inbox:activity', () => team.activity(150))
+  ipc.handle('reminders:set', (_e, pageId: string, key: string, at: number | null, text: string) =>
+    team.setReminder(me, pageId, key, at, text)
+  )
+}
 
 export interface TransferDeps {
   dialog: Pick<Dialog, 'showOpenDialog' | 'showSaveDialog'>

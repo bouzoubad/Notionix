@@ -8,6 +8,8 @@ import { useStore } from '../store'
 export interface SlashItem {
   title: string
   hint: string
+  /** Shown before the title (mention menu) */
+  icon?: string
   keywords: string[]
   run: (editor: Editor, range: Range) => void
 }
@@ -154,12 +156,15 @@ function SlashMenu({ items, selected, onHover, onPick }: MenuProps): React.JSX.E
     <div className="slash-menu">
       {items.map((item, i) => (
         <button
-          key={item.title}
+          key={`${item.title}-${i}`}
           className={i === selected ? 'slash-item active' : 'slash-item'}
           onMouseEnter={() => onHover(i)}
           onClick={() => onPick(i)}
         >
-          <span className="slash-title">{item.title}</span>
+          <span className="slash-title">
+            {item.icon && <span className="slash-icon">{item.icon}</span>}
+            {item.title}
+          </span>
           <span className="slash-hint">{item.hint}</span>
         </button>
       ))}
@@ -171,7 +176,7 @@ function SlashMenu({ items, selected, onHover, onPick }: MenuProps): React.JSX.E
  * The suggestion props and selected index live here, not in React state, so a
  * key pressed right after a keystroke always acts on the current range.
  */
-function createMenuController(): ReturnType<
+export function createMenuController(): ReturnType<
   NonNullable<Parameters<typeof Suggestion<SlashItem, SlashItem>>[0]['render']>
 > {
   let component: ReactRenderer<unknown, MenuProps> | null = null

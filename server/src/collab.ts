@@ -25,16 +25,29 @@ export interface CollabContext {
 export class PageDocuments {
   constructor(
     private readonly store: DatabaseSync,
-    private readonly workspace: Workspace
+    private readonly workspace: Workspace,
+    /** Called after a page's content was written back, with the content before */
+    private readonly onChange: (
+      pageId: string,
+      before: string,
+      actorId: string | null
+    ) => void = () => undefined
   ) {}
+
+  /** Who last changed each open document: the author of what is written back. */
+  private readonly lastEditor = new Map<string, string>()
 
   extension(): Extension {
     return {
       onLoadDocument: async ({ documentName, document }) => this.load(documentName, document),
-      onStoreDocument: async ({ documentName, document, lastContext }) =>
-        this.workspace.pages.as((lastContext as CollabContext | undefined)?.user?.id ?? null, () =>
-          this.save(documentName, document)
-        )
+      onChange: async ({ documentName, context }) => {
+        const user = (context as CollabContext | undefined)?.user
+        if (user) this.lastEditor.set(documentName, user.id)
+      },
+      onStoreDocument: async ({ documentName, document }) => this.save(documentName, document),
+      afterUnloadDocument: async ({ documentName }) => {
+        this.lastEditor.delete(documentName)
+      }
     }
   }
 
@@ -77,7 +90,10 @@ export class PageDocuments {
       documentSchema()
     )
     const content = JSON.stringify(root.toJSON())
-    if (content !== page.content) this.workspace.pages.update(id, { content })
+    if (content === page.content) return
+    const actor = this.lastEditor.get(name) ?? null
+    this.workspace.pages.as(actor, () => this.workspace.pages.update(id, { content }))
+    this.onChange(id, page.content, actor)
   }
 
   /**
@@ -115,6 +131,16 @@ export class PageDocuments {
       this.store.prepare('DELETE FROM documents WHERE name = ?').run(name)
     }
   }
+}
+
+/** Tells these people's clients that their inbox changed. */
+export function announceInbox(instance: Hocuspocus, userIds: string[]): void {
+  const wanted = new Set(userIds)
+  instance.documents
+    .get(WORKSPACE_DOCUMENT)
+    ?.broadcastStateless(JSON.stringify({ type: 'inbox' }), (connection) =>
+      wanted.has((connection.context as CollabContext | undefined)?.user?.id ?? '')
+    )
 }
 
 /** Tells every connected client that pages or databases changed. */

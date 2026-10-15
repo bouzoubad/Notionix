@@ -11,6 +11,7 @@ import { BlockMath, InlineMath } from '@tiptap/extension-mathematics'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Callout } from './callout'
 import { DatabaseView } from './databaseView'
+import { CommentMark, Mention } from './mention'
 
 type Lowlight = ReturnType<typeof createLowlight>
 
@@ -34,6 +35,8 @@ export interface DocumentExtensionOverrides {
    * HTML (web client: notionix-asset://file/<name> is served under /api/assets).
    */
   imageSrc?: { display: (src: string) => string; stored: (url: string) => string }
+  /** Mention with an interactive view: live names and titles (renderer only) */
+  mention?: AnyExtension
   /** Real-time collaboration brings its own undo history (renderer only) */
   collaboration?: Extensions
 }
@@ -72,6 +75,8 @@ export function createDocumentExtensions(
     }),
     overrides.callout ?? Callout,
     overrides.databaseView ?? DatabaseView,
+    overrides.mention ?? Mention,
+    CommentMark,
     ...(overrides.collaboration ?? [])
   ]
 }

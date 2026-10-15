@@ -10,6 +10,7 @@ import {
 } from '../shared/collab'
 import type { ServerSession } from '../renderer/src/platform'
 import { request } from './http'
+import { inboxChanged } from './api'
 
 const COLORS = ['#e03e3e', '#d9730d', '#0f7b6c', '#0b6e99', '#6940a5', '#ad1a72', '#64473a']
 
@@ -41,12 +42,13 @@ export function connect(
     name: WORKSPACE_DOCUMENT,
     token,
     onStateless: ({ payload }) => {
-      let notice: ChangeNotice | null = null
+      let notice: ChangeNotice | { type: 'inbox' } | null = null
       try {
-        notice = JSON.parse(payload) as ChangeNotice
+        notice = JSON.parse(payload) as ChangeNotice | { type: 'inbox' }
       } catch {
         return
       }
+      if (notice?.type === 'inbox') return inboxChanged()
       if (notice?.type !== 'changed') return
       // Several changes in a row are reloaded once.
       window.clearTimeout(timer)

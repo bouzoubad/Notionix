@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog, ipcMain, net, protocol } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain, net, Notification, protocol } from 'electron'
 import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -10,8 +10,11 @@ import {
   registerDatabaseHandlers,
   registerPageHandlers,
   registerTransferHandlers,
+  registerTeamHandlers,
   LOCAL_PERSON
 } from './ipc'
+import { reminderKey, TeamRepository } from '../core/db/teamRepository'
+import { docHasMention } from '../core/db/text'
 import { DatabaseRepository } from '../core/db/databaseRepository'
 import { AssetStore } from '../core/assets'
 import { ASSET_SCHEME } from '../shared/assets'
@@ -71,6 +74,18 @@ app.whenReady().then(() => {
   })
   registerPageHandlers(ipcMain, repo)
   const dbs = new DatabaseRepository(repo)
+  const team = new TeamRepository(db)
+  registerTeamHandlers(ipcMain, team)
+  // Reminders: a system notification, and an entry in the inbox.
+  const reminders = setInterval(() => {
+    for (const r of team.takeDueReminders()) {
+      if (!docHasMention(repo.get(r.pageId)?.content ?? '', reminderKey(r))) continue
+      team.notify([r.userId], { kind: 'reminder', pageId: r.pageId, actorId: null, text: r.text })
+      if (Notification.isSupported()) new Notification({ title: 'Notionix', body: r.text }).show()
+      for (const w of BrowserWindow.getAllWindows()) w.webContents.send('inbox:changed')
+    }
+  }, 30_000)
+  app.on('before-quit', () => clearInterval(reminders))
   registerDatabaseHandlers(ipcMain, dbs)
   registerAssetHandlers(ipcMain, assets)
   registerTransferHandlers(ipcMain, repo, dbs, assets, {

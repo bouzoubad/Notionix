@@ -8,6 +8,7 @@ import { MathDialog } from './components/MathDialog'
 import { PageEditor } from './editor/PageEditor'
 import { DatabasePage } from './database/DatabasePage'
 import { Logo } from './components/Logo'
+import { InboxDialog } from './components/InboxDialog'
 
 export default function App(): React.JSX.Element {
   const load = useStore((s) => s.load)
@@ -20,6 +21,14 @@ export default function App(): React.JSX.Element {
   const mathEdit = useStore((s) => s.mathEdit)
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const createPage = useStore((s) => s.createPage)
+
+  const inboxOpen = useStore((s) => s.inboxOpen)
+  const setInboxOpen = useStore((s) => s.setInboxOpen)
+  const refreshInbox = useStore((s) => s.refreshInbox)
+  useEffect(() => {
+    void refreshInbox()
+    return window.api.inbox.onChange(() => void refreshInbox())
+  }, [refreshInbox])
 
   useEffect(() => {
     void load()
@@ -52,6 +61,7 @@ export default function App(): React.JSX.Element {
       {searchOpen && <SearchDialog />}
       {trashOpen && <TrashDialog />}
       {transferOpen && <TransferDialog />}
+      {inboxOpen && <InboxDialog onClose={() => setInboxOpen(false)} />}
       {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}
       {notice && <div className="notice">{notice}</div>}
     </div>

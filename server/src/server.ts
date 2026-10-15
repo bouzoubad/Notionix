@@ -2,7 +2,16 @@ import { Server } from '@hocuspocus/server'
 import type { DatabaseSync } from 'node:sqlite'
 import { Accounts } from './auth'
 import { cookieToken, createApi } from './api'
-import { announceChange, authenticate, PageDocuments, type CollabContext } from './collab'
+import {
+  announceChange,
+  announceInbox,
+  authenticate,
+  PageDocuments,
+  type CollabContext
+} from './collab'
+import { CallContext, type LiveDocuments } from './rpc'
+import { docHasMention, docMentionedPeople } from '../../src/core/db/text'
+import { reminderKey } from '../../src/core/db/teamRepository'
 import type { Config } from './config'
 import { openDatabase } from './db'
 import { createStatic } from './static'
@@ -31,18 +40,40 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     })
     console.log(`Compte administrateur créé : ${config.adminEmail}`)
   }
-  const documents = new PageDocuments(db, workspace)
   // Assigned below: the API and the real-time side refer to each other.
   let server: Server<CollabContext> | null = null
+  const notifyUsers = (ids: string[]): void => {
+    if (server && ids.length) announceInbox(server.hocuspocus, ids)
+  }
+  const live: LiveDocuments = {
+    replaceContent: async (pageId, content, user) => {
+      if (server) await documents.replace(server.hocuspocus, pageId, content, user)
+    },
+    notifyUsers
+  }
+  // Edits of a shared page: activity, and a notice to the people newly mentioned.
+  const documents = new PageDocuments(db, workspace, (pageId, before, actorId) => {
+    const actor = actorId ? accounts.byId(actorId) : null
+    if (!actor) return
+    const ctx = new CallContext(workspace, actor, () => accounts.list(), live)
+    ctx.log(pageId, 'edited')
+    const after = workspace.pages.get(pageId)?.content ?? ''
+    const known = new Set(docMentionedPeople(before))
+    const added = docMentionedPeople(after).filter((u) => !known.has(u))
+    if (added.length)
+      ctx.notify(added, {
+        kind: 'mention',
+        pageId,
+        text: `${actor.name} vous a mentionné dans « ${workspace.pages.summary(pageId).title || 'Sans titre'} ».`
+      })
+  })
   const api = createApi({
     accounts,
     workspace,
     sessionDays: config.sessionDays,
     collab: {
       flush: () => server && documents.projectOpenPages(server.hocuspocus),
-      replaceContent: async (pageId, content, user) => {
-        if (server) await documents.replace(server.hocuspocus, pageId, content, user)
-      },
+      ...live,
       changed: (user) => {
         if (!server) return
         documents.forgetDeletedPages(server.hocuspocus)
@@ -71,6 +102,21 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   await server.listen()
   const purge = setInterval(() => accounts.purgeExpired(), 60 * 60 * 1000)
   purge.unref()
+  // Reminders become notifications when their time comes.
+  const reminders = setInterval(() => {
+    const due = workspace.team
+      .takeDueReminders()
+      .filter((r) => docHasMention(workspace.pages.get(r.pageId)?.content ?? '', reminderKey(r)))
+    for (const r of due)
+      workspace.team.notify([r.userId], {
+        kind: 'reminder',
+        pageId: r.pageId,
+        actorId: null,
+        text: r.text
+      })
+    notifyUsers([...new Set(due.map((r) => r.userId))])
+  }, config.reminderIntervalMs)
+  reminders.unref()
   const { port } = server.address
   const running = server
   return {
@@ -81,6 +127,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     url: `http://${config.host === '0.0.0.0' ? '127.0.0.1' : config.host}:${port}`,
     stop: async () => {
       clearInterval(purge)
+      clearInterval(reminders)
       running.hocuspocus.flushPendingStores()
       await running.destroy()
       workspace.db.close()

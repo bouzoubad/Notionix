@@ -78,6 +78,55 @@ export interface PageVersionContent extends PageVersion {
   content: string
 }
 
+export interface Comment {
+  id: string
+  pageId: PageId
+  /** Comments of one discussion share a thread; the first one opens it */
+  threadId: string
+  authorId: string | null
+  body: string
+  /** People mentioned in the body (notified) */
+  mentions: string[]
+  /** Text of the page the discussion is about; null for a comment on the whole page */
+  quote: string | null
+  createdAt: number
+  editedAt: number | null
+  resolvedAt: number | null
+}
+
+export interface NewComment {
+  /** Replies to this thread; a new thread when absent */
+  threadId?: string
+  body: string
+  mentions?: string[]
+  quote?: string | null
+}
+
+export type InboxKind = 'mention' | 'comment' | 'share' | 'reminder'
+
+export interface InboxItem {
+  id: string
+  kind: InboxKind
+  pageId: PageId | null
+  actorId: string | null
+  text: string
+  /** Thread of a comment notification */
+  ref: string | null
+  createdAt: number
+  readAt: number | null
+}
+
+export type ActivityKind = 'created' | 'edited' | 'commented' | 'shared' | 'restored' | 'trashed'
+
+export interface ActivityItem {
+  id: number
+  pageId: PageId
+  actorId: string | null
+  kind: ActivityKind
+  detail: string | null
+  at: number
+}
+
 export interface PageShare {
   userId: string
   level: Exclude<AccessLevel, 'none'>
@@ -172,6 +221,26 @@ export interface NotionixApi {
   }
   people: {
     list(): Promise<Person[]>
+  }
+  comments: {
+    list(pageId: PageId): Promise<Comment[]>
+    add(pageId: PageId, input: NewComment): Promise<Comment>
+    update(id: string, body: string, mentions: string[]): Promise<Comment>
+    remove(id: string): Promise<void>
+    resolve(threadId: string, resolved: boolean): Promise<void>
+  }
+  inbox: {
+    list(): Promise<InboxItem[]>
+    /** Marks these notifications read; all of them when null */
+    markRead(ids: string[] | null): Promise<void>
+    /** Latest changes in the pages this person can see */
+    activity(): Promise<ActivityItem[]>
+    /** Calls `listener` when new notifications arrive; returns how to stop */
+    onChange(listener: () => void): () => void
+  }
+  reminders: {
+    /** Sets (or clears with null) the reminder `key` of a page, at a time in ms */
+    set(pageId: PageId, key: string, at: number | null, text: string): Promise<void>
   }
   databases: {
     create(parentId: PageId | null): Promise<PageSummary>

@@ -28,6 +28,26 @@ const api: NotionixApi = {
   people: {
     list: () => call('people:list')
   },
+  comments: {
+    list: (pageId) => call('comments:list', pageId),
+    add: (pageId, input) => call('comments:add', pageId, input),
+    update: (id, body, mentions) => call('comments:update', id, body, mentions),
+    remove: (id) => call('comments:remove', id),
+    resolve: (threadId, resolved) => call('comments:resolve', threadId, resolved)
+  },
+  inbox: {
+    list: () => call('inbox:list'),
+    markRead: (ids) => call('inbox:markRead', ids),
+    activity: () => call('inbox:activity'),
+    onChange: (listener) => {
+      const handler = (): void => listener()
+      ipcRenderer.on('inbox:changed', handler)
+      return () => ipcRenderer.removeListener('inbox:changed', handler)
+    }
+  },
+  reminders: {
+    set: (pageId, key, at, text) => call('reminders:set', pageId, key, at, text)
+  },
   databases: {
     create: (parentId) => call('databases:create', parentId),
     get: (id) => call('databases:get', id),

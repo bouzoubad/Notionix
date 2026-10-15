@@ -9,8 +9,15 @@ export function docToText(content: string): string {
   const out: string[] = []
   const walk = (n: unknown): void => {
     if (!n || typeof n !== 'object') return
-    const node = n as { text?: string; content?: unknown[] }
+    const node = n as {
+      type?: string
+      text?: string
+      attrs?: { label?: unknown }
+      content?: unknown[]
+    }
     if (typeof node.text === 'string') out.push(node.text)
+    // Mentions are atoms: their label is their text.
+    if (node.type === 'mention' && typeof node.attrs?.label === 'string') out.push(node.attrs.label)
     node.content?.forEach(walk)
     if (node.content) out.push(' ')
   }
@@ -53,4 +60,29 @@ export function docLinks(content: string): string[] {
   }
   walk(doc)
   return [...out]
+}
+
+/** People mentioned in a document (@name). */
+export function docMentionedPeople(content: string): string[] {
+  let doc: unknown
+  try {
+    doc = JSON.parse(content)
+  } catch {
+    return []
+  }
+  const out = new Set<string>()
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return
+    const node = n as { type?: string; attrs?: Record<string, unknown>; content?: unknown[] }
+    if (node.type === 'mention' && node.attrs?.kind === 'user' && typeof node.attrs.id === 'string')
+      out.add(node.attrs.id)
+    node.content?.forEach(walk)
+  }
+  walk(doc)
+  return [...out]
+}
+
+/** Whether a document still holds the mention `id` (a reminder whose date was deleted is dropped). */
+export function docHasMention(content: string, id: string): boolean {
+  return content.includes(`"id":"${id}"`) && content.includes('"type":"mention"')
 }

@@ -11,7 +11,6 @@ import { importNotionExport } from '../../src/core/transfer/notionImport'
 import { buildMarkdownArchive } from '../../src/core/transfer/markdownExport'
 import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
 import type { Workspace } from './workspace'
-import type { Person } from '../../src/shared/types'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -122,6 +121,8 @@ export interface CollabHooks {
   changed: (by: User) => void
   /** Replaces the content of a page's shared document (restoring a saved state) */
   replaceContent: (pageId: string, content: string, user: User) => Promise<void>
+  /** Tells these people their inbox changed */
+  notifyUsers: (userIds: string[]) => void
 }
 
 export interface ApiOptions {
@@ -156,9 +157,7 @@ export function createApi({
     return user
   }
   const editors: Role[] = ['admin', 'editor']
-  /** Everyone's name, for authors, mentions and sharing. */
-  const people = (): Person[] =>
-    accounts.list().map((u) => ({ id: u.id, name: u.name, email: u.email, disabled: u.disabled }))
+  const members = (): User[] => accounts.list()
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://localhost')
@@ -228,7 +227,7 @@ export function createApi({
         if (call.readsContent) collab.flush()
         let result: unknown
         try {
-          result = await runCall(call, new CallContext(workspace, user, people, collab))
+          result = await runCall(call, new CallContext(workspace, user, members, collab))
         } catch (e) {
           if (e instanceof RpcError) throw e
           if (e instanceof ForbiddenError) throw new HttpError(403, e.message)
@@ -257,7 +256,7 @@ export function createApi({
         collab.flush()
         const page = url.searchParams.get('page')
         // Only the pages the person can read are exported.
-        const ctx = new CallContext(workspace, user, people)
+        const ctx = new CallContext(workspace, user, members)
         if (page) ctx.need(page, 'read')
         const archive = await buildMarkdownArchive(
           {

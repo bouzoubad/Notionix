@@ -6,6 +6,7 @@ import type { Page } from '../../../shared/types'
 import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editorExtensions'
 import { useStore } from '../store'
 import { SlashCommands } from './slashCommands'
+import { InteractiveMention, MentionSuggestion } from './mentions'
 import { FileHandler } from '@tiptap/extension-file-handler'
 import { InteractiveCallout } from './CalloutView'
 import { BlockHandle } from './blockHandle'
@@ -16,6 +17,7 @@ import { RowProperties } from '../database/RowProperties'
 import { InteractiveDatabaseView } from '../database/InlineDatabase'
 import { canEditPage, platform, type SharedPage } from '../platform'
 import { PageTopBar } from '../components/PageTopBar'
+import { CommentsPanel } from '../components/CommentsPanel'
 
 const lowlight = createLowlight(common)
 const SAVE_DELAY_MS = 400
@@ -77,6 +79,7 @@ function LoadedEditor({
   const timer = useRef<number | undefined>(undefined)
   const titleInput = useRef<HTMLInputElement>(null)
   const editable = summary ? canEditPage(summary) : false
+  const commentsOpen = useStore((s) => s.comments.open)
 
   // A title renamed by someone else shows up unless this person is typing one.
   const remoteTitle = summary?.title
@@ -132,6 +135,7 @@ function LoadedEditor({
         onMathClick: (node, pos) =>
           editMath(node.type.name === 'inlineMath', node.attrs.latex, pos),
         imageSrc: platform().imageSrc,
+        mention: InteractiveMention,
         collaboration: shared?.extensions
       }),
       FileHandler.configure({
@@ -144,10 +148,14 @@ function LoadedEditor({
         placeholder: ({ node }) =>
           node.type.name === 'heading' ? 'Titre' : "Tapez '/' pour insérer un bloc"
       }),
-      SlashCommands
+      SlashCommands,
+      MentionSuggestion
     ],
     editorProps: {
       handleClick: (_view, _pos, event) => {
+        // Clicking discussed text shows its discussion.
+        const discussed = (event.target as HTMLElement).closest('[data-thread]')
+        if (discussed) useStore.getState().openComments(discussed.getAttribute('data-thread'))
         const anchor = (event.target as HTMLElement).closest('a')
         const href = anchor?.getAttribute('href')
         if (!href) return false
@@ -206,6 +214,7 @@ function LoadedEditor({
         {isRow && <RowProperties rowId={page.id} />}
         <EditorContent editor={editor} className="editor" />
         {editor && <TextBubbleMenu editor={editor} />}
+        {commentsOpen && summary && <CommentsPanel page={summary} editor={editor} />}
         {editor && <TableBubbleMenu editor={editor} />}
       </div>
     </div>

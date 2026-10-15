@@ -17,6 +17,9 @@ export function PageTopBar({
   const pages = useStore((s) => s.pages)
   const open = useStore((s) => s.open)
   const [menu, setMenu] = useState<'share' | 'history' | null>(null)
+  const commentsOpen = useStore((s) => s.comments.open)
+  const openComments = useStore((s) => s.openComments)
+  const closeComments = useStore((s) => s.closeComments)
   const crumbs = ancestorsOf(pages, page.id)
   const web = platform().session !== null
   const shared = page.access === 'restricted' || page.publicToken !== null
@@ -32,6 +35,15 @@ export function PageTopBar({
         {page.icon ?? (page.kind === 'database' ? '🗃️' : '')} {title || 'Sans titre'}
       </span>
       <div className="topbar-actions">
+        {page.kind === 'page' && (
+          <button
+            className={commentsOpen ? 'active' : ''}
+            title="Commentaires"
+            onClick={() => (commentsOpen ? closeComments() : openComments())}
+          >
+            💬
+          </button>
+        )}
         {page.kind === 'page' && (
           <button title="Historique des versions" onClick={() => setMenu('history')}>
             Historique

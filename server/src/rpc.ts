@@ -2,6 +2,7 @@ import { isPropertyType, type PropertyType, type PropertyValue } from '../../src
 import {
   atLeast,
   type AccessLevel,
+  type ActivityKind,
   type PageAccess,
   type PageShare,
   type PageSummary,
@@ -59,6 +60,21 @@ const shareLevel = (v: unknown): PageShare['level'] | null => {
 export interface LiveDocuments {
   /** Replaces the content of a page's shared document */
   replaceContent: (pageId: string, content: string, user: User) => Promise<void>
+  /** Tells these people their inbox changed */
+  notifyUsers: (userIds: string[]) => void
+}
+
+const NO_LIVE: LiveDocuments = {
+  replaceContent: async () => undefined,
+  notifyUsers: () => undefined
+}
+
+/** Ids of existing people, from a list sent by the client. */
+const people = (ctx: CallContext, v: unknown): string[] => {
+  if (v === undefined) return []
+  if (!Array.isArray(v)) throw new RpcError('Liste de personnes attendue.')
+  const known = new Set(ctx.members().map((m) => m.id))
+  return [...new Set(v.filter((x): x is string => typeof x === 'string' && known.has(x)))]
 }
 
 /** What a call knows about its caller. */
@@ -68,9 +84,45 @@ export class CallContext {
   constructor(
     readonly ws: Workspace,
     readonly user: User,
-    readonly people: () => Person[],
-    readonly live: LiveDocuments = { replaceContent: async () => undefined }
+    /** Every account, disabled ones included */
+    readonly members: () => User[],
+    readonly live: LiveDocuments = NO_LIVE
   ) {}
+
+  people(): Person[] {
+    return this.members().map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      disabled: u.disabled
+    }))
+  }
+
+  /** Active people who can at least read the page. */
+  readers(pageId: string, among: Iterable<string>): string[] {
+    const wanted = new Set(among)
+    const pages = this.ws.pages.list()
+    const shares = this.ws.pages.allShares()
+    return this.members()
+      .filter((m) => wanted.has(m.id) && !m.disabled)
+      .filter((m) => (resolveLevels(pages, shares, m).get(pageId) ?? 'none') !== 'none')
+      .map((m) => m.id)
+  }
+
+  /** Notifies the people (who can read the page) and tells their clients. */
+  notify(
+    userIds: Iterable<string>,
+    item: Omit<Parameters<Workspace['team']['notify']>[1], 'actorId'>
+  ): void {
+    const targets = item.pageId ? this.readers(item.pageId, userIds) : [...userIds]
+    const sent = this.ws.team.notify(targets, { ...item, actorId: this.user.id })
+    if (sent.length) this.live.notifyUsers(sent)
+  }
+
+  /** Records an activity entry of the caller. */
+  log(pageId: string, kind: ActivityKind, detail: string | null = null): void {
+    this.ws.team.log(pageId, this.user.id, kind, detail)
+  }
 
   /** The caller's level on every page, computed once per call (and after changes). */
   all(): Map<string, AccessLevel> {
@@ -144,7 +196,9 @@ const METHODS: Record<string, Method> = {
   'pages.create': write((ctx, [p, a]) => {
     const parentId = parent(p)
     ctx.needParent(parentId)
-    const page = ctx.ws.pages.create(parentId, a === undefined ? 'inherit' : access(a))
+    // JSON turns an omitted argument into null.
+    const page = ctx.ws.pages.create(parentId, a === undefined || a === null ? 'inherit' : access(a))
+    ctx.log(page.id, 'created')
     ctx.invalidate()
     return { ...page, level: ctx.level(page.id) }
   }),
@@ -168,6 +222,7 @@ const METHODS: Record<string, Method> = {
   }),
   'pages.trash': write((ctx, [p]) => {
     ctx.need(id(p), 'edit')
+    ctx.log(id(p), 'trashed')
     return ctx.ws.pages.trash(id(p))
   }),
   'pages.restore': write((ctx, [p]) => {
@@ -208,7 +263,17 @@ const METHODS: Record<string, Method> = {
     const userId = id(user)
     if (!ctx.people().some((person) => person.id === userId))
       throw new RpcError('Personne inconnue.')
-    return ctx.ws.pages.setShare(id(p), userId, shareLevel(level))
+    const before = ctx.ws.pages.shares(id(p)).find((s) => s.userId === userId)
+    const next = shareLevel(level)
+    ctx.ws.pages.setShare(id(p), userId, next)
+    if (next && !before) {
+      ctx.log(id(p), 'shared')
+      ctx.notify([userId], {
+        kind: 'share',
+        pageId: id(p),
+        text: `${ctx.user.name} a partagé « ${ctx.ws.pages.summary(id(p)).title || 'Sans titre'} » avec vous.`
+      })
+    }
   }),
   'pages.versions': read((ctx, [p]) => {
     ctx.need(id(p), 'read')
@@ -225,6 +290,7 @@ const METHODS: Record<string, Method> = {
     ctx.need(id(p), 'edit')
     if (typeof v !== 'number' || !Number.isInteger(v)) throw new RpcError('Version invalide.')
     ctx.ws.pages.restoreVersion(id(p), v)
+    ctx.log(id(p), 'restored')
     await ctx.live.replaceContent(id(p), ctx.ws.pages.get(id(p))!.content, ctx.user)
   }),
   'pages.backlinks': read((ctx, [p]) => {
@@ -232,9 +298,108 @@ const METHODS: Record<string, Method> = {
     return ctx.filter(ctx.ws.pages.backlinks(id(p)))
   }),
 
+  'comments.list': read((ctx, [p]) => {
+    ctx.need(id(p), 'read')
+    return ctx.ws.team.comments(id(p))
+  }),
+  'comments.add': write((ctx, [p, input]) => {
+    ctx.need(id(p), 'comment')
+    const r = record(input)
+    const threadId = optional(r.threadId, id)
+    const mentions = people(ctx, r.mentions)
+    const comment = ctx.ws.team.addComment(id(p), ctx.user.id, {
+      threadId,
+      body: text(r.body),
+      mentions,
+      quote: optional(r.quote, nullableText) ?? null
+    })
+    ctx.log(id(p), 'commented', comment.body.slice(0, 140))
+    const title = ctx.ws.pages.summary(id(p)).title || 'Sans titre'
+    const excerpt = comment.body.length > 120 ? `${comment.body.slice(0, 120)}…` : comment.body
+    // The people discussing, and the page's creator, hear about the new comment.
+    const thread = ctx.ws.team.thread(comment.threadId)
+    const followers = new Set(thread.map((c) => c.authorId).filter((a): a is string => !!a))
+    const creator = ctx.ws.pages.summary(id(p)).createdBy
+    if (creator) followers.add(creator)
+    for (const m of mentions) followers.delete(m)
+    ctx.notify(mentions, {
+      kind: 'mention',
+      pageId: id(p),
+      ref: comment.threadId,
+      text: `${ctx.user.name} vous a mentionné dans un commentaire sur « ${title} » : ${excerpt}`
+    })
+    ctx.notify(followers, {
+      kind: 'comment',
+      pageId: id(p),
+      ref: comment.threadId,
+      text: `${ctx.user.name} a commenté « ${title} » : ${excerpt}`
+    })
+    return comment
+  }),
+  'comments.update': write((ctx, [c, body, mentioned]) => {
+    const comment = ctx.ws.team.comment(id(c))
+    if (!comment || comment.authorId !== ctx.user.id)
+      throw new ForbiddenError('Seul son auteur modifie un commentaire.')
+    ctx.need(comment.pageId, 'comment')
+    const mentions = people(ctx, mentioned)
+    const updated = ctx.ws.team.updateComment(comment.id, text(body), mentions)
+    const added = mentions.filter((m) => !comment.mentions.includes(m))
+    ctx.notify(added, {
+      kind: 'mention',
+      pageId: comment.pageId,
+      ref: comment.threadId,
+      text: `${ctx.user.name} vous a mentionné dans un commentaire sur « ${ctx.ws.pages.summary(comment.pageId).title || 'Sans titre'} ».`
+    })
+    return updated
+  }),
+  'comments.remove': write((ctx, [c]) => {
+    const comment = ctx.ws.team.comment(id(c))
+    if (!comment) return
+    if (comment.authorId !== ctx.user.id) ctx.need(comment.pageId, 'full')
+    else ctx.need(comment.pageId, 'comment')
+    ctx.ws.team.removeComment(comment.id)
+  }),
+  'comments.resolve': write((ctx, [t, flag]) => {
+    const first = ctx.ws.team.thread(id(t))[0]
+    if (!first) throw new RpcError('Discussion introuvable.')
+    ctx.need(first.pageId, 'comment')
+    ctx.ws.team.resolveThread(first.threadId, flag === true)
+  }),
+
+  'inbox.list': read((ctx) =>
+    ctx.ws.team
+      .inbox(ctx.user.id)
+      .filter((item) => item.pageId === null || ctx.level(item.pageId) !== 'none')
+  ),
+  'inbox.markRead': read((ctx, [list]) => {
+    const ids =
+      list === null
+        ? null
+        : Array.isArray(list)
+          ? list.map((v) => id(v))
+          : (() => {
+              throw new RpcError('Liste attendue.')
+            })()
+    ctx.ws.team.markRead(ctx.user.id, ids)
+  }),
+  'inbox.activity': read((ctx) =>
+    ctx.ws.team
+      .activity(400)
+      .filter((a) => ctx.level(a.pageId) !== 'none')
+      .slice(0, 150)
+  ),
+  'reminders.set': read((ctx, [p, key, at, label]) => {
+    ctx.need(id(p), 'read')
+    if (at !== null && (typeof at !== 'number' || !Number.isFinite(at)))
+      throw new RpcError('Date invalide.')
+    ctx.ws.team.setReminder(ctx.user.id, id(p), id(key), at as number | null, text(label))
+  }),
+
   'databases.create': write((ctx, [p]) => {
     ctx.needParent(parent(p))
-    return ctx.ws.databases.create(parent(p))
+    const db = ctx.ws.databases.create(parent(p))
+    ctx.log(db.id, 'created')
+    return db
   }),
   'databases.get': read((ctx, [p]) => {
     ctx.need(id(p), 'read')
@@ -259,7 +424,9 @@ const METHODS: Record<string, Method> = {
   }),
   'databases.updateRow': write((ctx, [p, values]) => {
     ctx.need(id(p), 'edit')
-    return ctx.ws.databases.updateRow(id(p), record(values))
+    const row = ctx.ws.databases.updateRow(id(p), record(values))
+    ctx.log(id(p), 'edited')
+    return row
   }),
   'databases.setTemplate': write((ctx, [p, flag]) => {
     ctx.need(id(p), 'edit')

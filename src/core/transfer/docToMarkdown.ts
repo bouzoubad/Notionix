@@ -1,5 +1,6 @@
 import { pageIdFromHref } from '../../shared/editorExtensions'
 import type { JsonMark, JsonNode } from './markdownToDoc'
+import { mentionText, type MentionAttrs } from '../../shared/mention'
 
 /** Resolves the target page of an internal link to a path relative to the exported file, or null. */
 export type PageLinkResolver = (pageId: string) => string | null
@@ -170,6 +171,16 @@ function inline(nodes: JsonNode[], r: Resolvers): string {
 function inlineNode(node: JsonNode, r: Resolvers): string {
   if (node.type === 'hardBreak') return '  \n'
   if (node.type === 'inlineMath') return `$${String(node.attrs?.latex ?? '')}$`
+  if (node.type === 'mention') {
+    const attrs = node.attrs ?? {}
+    if (attrs.kind === 'page') {
+      const id = String(attrs.id ?? '')
+      const title = escapeInline(r.title(id) || String(attrs.label ?? '') || 'Sans titre')
+      const path = r.page(id)
+      return path ? `[${title}](${path})` : title
+    }
+    return escapeInline(mentionText(attrs as unknown as MentionAttrs))
+  }
   if (node.type !== 'text') return inline(node.content ?? [], r)
   const marks = node.marks ?? []
   const raw = node.text ?? ''

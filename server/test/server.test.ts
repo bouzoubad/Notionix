@@ -26,6 +26,7 @@ const start = async (): Promise<void> => {
       NOTIONIX_HOST: '127.0.0.1',
       NOTIONIX_DATA_DIR: dataDir,
       NOTIONIX_WEB_DIR: webDir,
+      NOTIONIX_REMINDER_INTERVAL_MS: '100',
       NOTIONIX_ADMIN_EMAIL: ADMIN.email,
       NOTIONIX_ADMIN_PASSWORD: ADMIN.password
     })
@@ -350,6 +351,110 @@ describe('access to pages', () => {
     expect(zip.includes(Buffer.from('Publique'))).toBe(true)
     expect(zip.includes(Buffer.from('Secrète'))).toBe(false)
     expect((await call(`/api/transfer/export?page=${secret.id}`, { token: bob })).status).toBe(400)
+  })
+})
+
+describe('comments, mentions and notifications', () => {
+  it('notifies mentioned people and followers, and lets each person handle their comments', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const reader = await createUser(admin, 'lecteur@example.com', 'reader')
+    const people = (await rpc<{ id: string; email: string }[]>(alice, 'people.list')).result
+    const idOf = (email: string): string => people.find((p) => p.email === email)!.id
+    const page = (await rpc<Page>(alice, 'pages.create', null)).result
+    await rpc(alice, 'pages.update', page.id, { title: 'Plan' })
+    const secret = (await rpc<Page>(alice, 'pages.create', null, 'restricted')).result
+
+    const watcher = connect('workspace:main', bob)
+    await watcher.synced
+    const first = await rpc<{ id: string; threadId: string }>(bob, 'comments.add', page.id, {
+      threadId: 'fil-1',
+      body: 'Tu peux relire @Lecteur ?',
+      mentions: [idOf('lecteur@example.com'), 'inconnu'],
+      quote: 'le budget'
+    })
+    expect(first.status).toBe(200)
+    expect(first.result.threadId).toBe('fil-1')
+    const inbox = async (token: string) =>
+      (
+        await rpc<{ id: string; kind: string; text: string; readAt: number | null }[]>(
+          token,
+          'inbox.list'
+        )
+      ).result
+    expect((await inbox(reader)).map((i) => i.kind)).toEqual(['mention'])
+    expect((await inbox(alice)).map((i) => i.kind)).toEqual(['comment'])
+    expect(await inbox(bob)).toEqual([])
+    // Readers comment; the thread's author hears about it, live.
+    await rpc(reader, 'comments.add', page.id, { threadId: 'fil-1', body: 'Fait.' })
+    await until(() => watcher.notices.some((n) => JSON.parse(n).type === 'inbox'))
+    expect((await inbox(bob))[0].text).toContain('Fait.')
+    // Mentioning someone who cannot read the page notifies nobody.
+    await rpc(alice, 'comments.add', secret.id, {
+      body: '@bob',
+      mentions: [idOf('bob@example.com')]
+    })
+    expect((await inbox(bob)).length).toBe(1)
+    expect((await rpc(bob, 'comments.list', secret.id)).status).toBe(400)
+
+    const list = (await rpc<{ id: string; authorId: string }[]>(alice, 'comments.list', page.id))
+      .result
+    expect(list).toHaveLength(2)
+    expect((await rpc(alice, 'comments.update', first.result.id, 'x', [])).status).toBe(403)
+    expect((await rpc(alice, 'comments.remove', list[1].id)).status).toBe(200)
+    expect((await rpc(reader, 'comments.remove', first.result.id)).status).toBe(403)
+    await rpc(bob, 'comments.resolve', 'fil-1', true)
+    expect(
+      (await rpc<{ resolvedAt: number | null }[]>(bob, 'comments.list', page.id)).result[0]
+        .resolvedAt
+    ).not.toBeNull()
+
+    await rpc(bob, 'inbox.markRead', null)
+    expect((await inbox(bob)).every((i) => i.readAt !== null)).toBe(true)
+    const activity = (await rpc<{ kind: string }[]>(bob, 'inbox.activity')).result.map(
+      (a) => a.kind
+    )
+    expect(activity).toContain('commented')
+    expect(activity).toContain('created')
+    watcher.provider.destroy()
+  })
+
+  it('notifies people mentioned in a page and sends reminders still in the page', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const bobId = (await rpc<{ id: string; email: string }[]>(admin, 'people.list')).result.find(
+      (p) => p.email === 'bob@example.com'
+    )!.id
+    const page = (await rpc<Page>(admin, 'pages.create', null)).result
+    const editor = connect(`page:${page.id}`, admin)
+    await editor.synced
+    const p = new Y.XmlElement('paragraph')
+    const mention = (attrs: Record<string, string>): Y.XmlElement => {
+      const m = new Y.XmlElement('mention')
+      for (const [k, v] of Object.entries(attrs)) m.setAttribute(k, v)
+      return m
+    }
+    p.insert(0, [
+      mention({ kind: 'user', id: bobId, label: 'bob' }),
+      mention({ kind: 'date', id: 'rappel1', label: 'demain', date: '2026-01-01T09:00' })
+    ])
+    editor.doc.getXmlFragment(PAGE_FIELD).insert(1, [p])
+    await new Promise((r) => setTimeout(r, 200))
+    await rpc(admin, 'pages.search', 'bob')
+    const items = (await rpc<{ kind: string }[]>(bob, 'inbox.list')).result
+    expect(items.map((i) => i.kind)).toEqual(['mention'])
+
+    // A reminder fires once, only while its date is in the page.
+    await rpc(bob, 'reminders.set', page.id, 'rappel1', Date.now() - 1000, 'Rappel : réunion')
+    await rpc(bob, 'reminders.set', page.id, 'disparu', Date.now() - 1000, 'Rappel : supprimé')
+    await until(() => true)
+    await new Promise((r) => setTimeout(r, 400))
+    const after = (await rpc<{ kind: string; text: string }[]>(bob, 'inbox.list')).result
+    expect(after.filter((i) => i.kind === 'reminder').map((i) => i.text)).toEqual([
+      'Rappel : réunion'
+    ])
+    editor.provider.destroy()
   })
 })
 

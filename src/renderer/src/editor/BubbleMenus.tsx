@@ -3,6 +3,28 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { NodeSelection } from '@tiptap/pm/state'
+import { atLeast } from '../../../shared/types'
+import { useStore } from '../store'
+
+/** Whether this person may comment on the page being edited. */
+const canCommentOpenPage = (): boolean => {
+  const { pages, currentId } = useStore.getState()
+  const page = pages.find((p) => p.id === currentId)
+  return !!page && atLeast(page.level, 'comment')
+}
+
+/**
+ * Opens a discussion on the selection: the text is marked (when the person may
+ * edit the page) and quoted in the comments panel.
+ */
+function startComment(editor: Editor): void {
+  const { from, to } = editor.state.selection
+  const quote = editor.state.doc.textBetween(from, to, ' ').slice(0, 500)
+  const threadId = globalThis.crypto.randomUUID()
+  const marked = editor.isEditable
+  if (marked) editor.chain().focus().setComment(threadId).run()
+  useStore.getState().startComment({ threadId, quote, marked })
+}
 
 const SAFE_LINK = /^(https?:|mailto:|tel:|notionix:)/i
 
@@ -10,8 +32,9 @@ type ShouldShow = NonNullable<React.ComponentProps<typeof BubbleMenu>['shouldSho
 
 // Module-level so they keep the same identity across renders: BubbleMenu hides
 // itself whenever these props change, e.g. when an autosave re-renders the page.
+// Readers who may comment get the menu too, with the comment button only.
 const showTextMenu: ShouldShow = ({ editor, state, from, to }) =>
-  editor.isEditable &&
+  (editor.isEditable || canCommentOpenPage()) &&
   from !== to &&
   !(state.selection instanceof NodeSelection) &&
   !editor.isActive('codeBlock')
@@ -83,19 +106,29 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
         </span>
       ) : (
         <>
-          {button('B', 'Gras (⌘B)', state.bold, () => editor.chain().focus().toggleBold().run())}
-          {button('I', 'Italique (⌘I)', state.italic, () =>
-            editor.chain().focus().toggleItalic().run()
+          {canCommentOpenPage() &&
+            button('💬 Commenter', 'Commenter la sélection', false, () => startComment(editor))}
+          {editor.isEditable && (
+            <>
+              {button('B', 'Gras (⌘B)', state.bold, () =>
+                editor.chain().focus().toggleBold().run()
+              )}
+              {button('I', 'Italique (⌘I)', state.italic, () =>
+                editor.chain().focus().toggleItalic().run()
+              )}
+              {button('U', 'Souligné (⌘U)', state.underline, () =>
+                editor.chain().focus().toggleUnderline().run()
+              )}
+              {button('S', 'Barré', state.strike, () =>
+                editor.chain().focus().toggleStrike().run()
+              )}
+              {button('<>', 'Code', state.code, () => editor.chain().focus().toggleCode().run())}
+              {button('Lien', 'Lien', state.link !== null, () => {
+                setHref(state.link ?? '')
+                setLinking(true)
+              })}
+            </>
           )}
-          {button('U', 'Souligné (⌘U)', state.underline, () =>
-            editor.chain().focus().toggleUnderline().run()
-          )}
-          {button('S', 'Barré', state.strike, () => editor.chain().focus().toggleStrike().run())}
-          {button('<>', 'Code', state.code, () => editor.chain().focus().toggleCode().run())}
-          {button('Lien', 'Lien', state.link !== null, () => {
-            setHref(state.link ?? '')
-            setLinking(true)
-          })}
         </>
       )}
     </BubbleMenu>

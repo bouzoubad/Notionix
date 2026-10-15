@@ -18,6 +18,8 @@ export function Sidebar(): React.JSX.Element {
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const unread = useStore((s) => s.inboxUnread)
+  const setInboxOpen = useStore((s) => s.setInboxOpen)
 
   const favorites = pages.filter((p) => p.favorite && !p.trashedAt)
   const open = useStore((s) => s.open)
@@ -59,8 +61,14 @@ export function Sidebar(): React.JSX.Element {
         <button onClick={() => setSearchOpen(true)}>
           Rechercher <kbd>⌘K</kbd>
         </button>
-        <button onClick={() => void createPage(null)}>+ Nouvelle page</button>
-        <button onClick={() => void createDatabase(null)}>+ Nouvelle base de données</button>
+        <button onClick={() => setInboxOpen(true)}>
+          Boîte de réception
+          {unread > 0 && <span className="badge">{unread}</span>}
+        </button>
+        {canCreate && <button onClick={() => void createPage(null)}>+ Nouvelle page</button>}
+        {canCreate && (
+          <button onClick={() => void createDatabase(null)}>+ Nouvelle base de données</button>
+        )}
       </div>
       <div className="sidebar-sections">
         {favorites.length > 0 && (

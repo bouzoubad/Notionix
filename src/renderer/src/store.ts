@@ -13,6 +13,23 @@ interface State {
   notice: string | null
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
+  /** Unread notifications */
+  inboxUnread: number
+  refreshInbox: () => Promise<void>
+  inboxOpen: boolean
+  setInboxOpen: (open: boolean) => void
+  /** Comments panel of the open page */
+  comments: {
+    open: boolean
+    /** Discussion to show first */
+    focus: string | null
+    /** New discussion on a selection, not posted yet */
+    draft: { threadId: string; quote: string; marked: boolean } | null
+  }
+  openComments: (threadId?: string | null) => void
+  closeComments: () => void
+  startComment: (draft: { threadId: string; quote: string; marked: boolean }) => void
+  clearDraft: () => void
   /** Increased when the open page's content was replaced (restored version): editors reload */
   contentReload: number
   reloadContent: () => void
@@ -62,6 +79,23 @@ export const useStore = create<State>((set, get) => ({
   notice: null,
   revision: 0,
   contentReload: 0,
+  comments: { open: false, focus: null, draft: null },
+  inboxUnread: 0,
+  refreshInbox: async () => {
+    try {
+      const items = await window.api.inbox.list()
+      set({ inboxUnread: items.filter((i) => !i.readAt).length })
+    } catch {
+      // the count is a hint; the next change retries
+    }
+  },
+  inboxOpen: false,
+  setInboxOpen: (inboxOpen) => set({ inboxOpen }),
+  openComments: (threadId = null) =>
+    set({ comments: { ...get().comments, open: true, focus: threadId } }),
+  closeComments: () => set({ comments: { open: false, focus: null, draft: null } }),
+  startComment: (draft) => set({ comments: { open: true, focus: draft.threadId, draft } }),
+  clearDraft: () => set({ comments: { ...get().comments, draft: null } }),
   reloadContent: () => set({ contentReload: get().contentReload + 1 }),
   mathEdit: null,
   setMathEdit: (mathEdit) => set({ mathEdit }),
@@ -79,7 +113,9 @@ export const useStore = create<State>((set, get) => ({
   open: (id) => {
     if (id) localStorage.setItem('currentId', id)
     else localStorage.removeItem('currentId')
-    set({ currentId: id })
+    // A discussion being written belongs to the page being left.
+    const comments = get().comments
+    set({ currentId: id, comments: { ...comments, draft: null, focus: null } })
   },
   toggle: (id) => {
     const expanded = { ...get().expanded, [id]: !get().expanded[id] }

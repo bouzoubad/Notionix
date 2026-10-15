@@ -543,6 +543,64 @@ describe('API tokens, publishing and exports', () => {
   })
 })
 
+describe('feedback', () => {
+  it('lets everyone report, and administrators follow up', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const marie = await createUser(admin, 'marie@example.com', 'editor')
+    const paul = await createUser(admin, 'paul@example.com', 'reader')
+    const sent = await api('/api/feedback', {
+      token: marie,
+      json: {
+        kind: 'bug',
+        title: 'La recherche plante',
+        body: 'Avec un accent',
+        context: { page: 'x' }
+      }
+    })
+    expect(sent.status).toBe(201)
+    const id = (sent.body.feedback as { id: string }).id
+    await api('/api/feedback', { token: paul, json: { kind: 'idea', title: 'Mode sombre forcé' } })
+    expect(
+      (await api('/api/feedback', { token: marie, json: { kind: 'bug', title: '' } })).status
+    ).toBe(400)
+
+    // Each person sees their own; administrators see everything and are notified.
+    expect(((await api('/api/feedback', { token: marie })).body.feedback as unknown[]).length).toBe(
+      1
+    )
+    expect(((await api('/api/feedback', { token: admin })).body.feedback as unknown[]).length).toBe(
+      2
+    )
+    const adminInbox = (await rpc<{ kind: string; text: string }[]>(admin, 'inbox.list')).result
+    expect(adminInbox.filter((i) => i.kind === 'feedback')).toHaveLength(2)
+
+    expect(
+      (
+        await api(`/api/feedback/${id}`, {
+          method: 'PATCH',
+          token: marie,
+          json: { status: 'done' }
+        })
+      ).status
+    ).toBe(403)
+    const answered = await api(`/api/feedback/${id}`, {
+      method: 'PATCH',
+      token: admin,
+      json: { status: 'in_progress', reply: 'Merci, corrigé bientôt.' }
+    })
+    expect(answered.body.feedback).toMatchObject({
+      status: 'in_progress',
+      reply: 'Merci, corrigé bientôt.'
+    })
+    const marieInbox = (await rpc<{ kind: string; text: string }[]>(marie, 'inbox.list')).result
+    expect(marieInbox[0].text).toContain('En cours')
+    await api(`/api/feedback/${id}`, { method: 'DELETE', token: admin })
+    expect(((await api('/api/feedback', { token: admin })).body.feedback as unknown[]).length).toBe(
+      1
+    )
+  })
+})
+
 describe('shared pages', () => {
   it('starts from the stored content, syncs editors, keeps readers read-only and writes content back', async () => {
     const admin = await login(ADMIN.email, ADMIN.password)

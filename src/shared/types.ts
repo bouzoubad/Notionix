@@ -114,7 +114,7 @@ export interface NewComment {
   quote?: string | null
 }
 
-export type InboxKind = 'mention' | 'comment' | 'share' | 'reminder'
+export type InboxKind = 'mention' | 'comment' | 'share' | 'reminder' | 'feedback'
 
 export interface InboxItem {
   id: string

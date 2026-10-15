@@ -14,6 +14,8 @@ import { buildHtmlArchive } from '../../src/core/transfer/htmlExport'
 import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
 import type { Workspace } from './workspace'
 import { PublicPages } from './publicPages'
+import { FeedbackError, FeedbackRepository } from './feedback'
+import { FEEDBACK_STATUS_LABELS } from '../../src/shared/collab'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -162,6 +164,7 @@ export function createApi({
   const editors: Role[] = ['admin', 'editor']
   const members = (): User[] => accounts.list()
   const publicPages = new PublicPages(workspace)
+  const feedback = new FeedbackRepository(accounts.db)
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://localhost')
@@ -225,6 +228,54 @@ export function createApi({
           .then(({ token }) => accounts.logout(token))
         await accounts.update(user.id, { password: str(body.next) ?? '' })
         send(res, 200, { ok: true })
+      } else if (path === '/api/feedback' && method === 'GET') {
+        // Administrators see every report; everyone else their own.
+        const user = requireUser(req)
+        send(res, 200, { feedback: feedback.list(user.role === 'admin' ? null : user.id) })
+      } else if (path === '/api/feedback' && method === 'POST') {
+        const user = requireUser(req)
+        const item = feedback.create(user.id, await readJson(req))
+        const admins = accounts
+          .list()
+          .filter((u) => u.role === 'admin' && !u.disabled && u.id !== user.id)
+        const sent = workspace.team.notify(
+          admins.map((a) => a.id),
+          {
+            kind: 'feedback',
+            pageId: null,
+            actorId: user.id,
+            ref: item.id,
+            text: `${item.kind === 'bug' ? 'Bug signalé' : 'Idée proposée'} par ${user.name} : ${item.title}`
+          }
+        )
+        collab.notifyUsers(sent)
+        send(res, 201, { feedback: item })
+      } else if (path.startsWith('/api/feedback/') && (method === 'PATCH' || method === 'DELETE')) {
+        const admin = requireUser(req, ['admin'])
+        const id = decodeURIComponent(path.slice('/api/feedback/'.length))
+        if (method === 'DELETE') {
+          feedback.remove(id)
+          send(res, 200, { ok: true })
+        } else {
+          const before = feedback.get(id)
+          const item = feedback.update(id, await readJson(req))
+          // The sender hears about the answer or the new status.
+          if (
+            before &&
+            item.userId &&
+            (before.status !== item.status || before.reply !== item.reply)
+          ) {
+            const sent = workspace.team.notify([item.userId], {
+              kind: 'feedback',
+              pageId: null,
+              actorId: admin.id,
+              ref: item.id,
+              text: `Votre retour « ${item.title} » : ${FEEDBACK_STATUS_LABELS[item.status]}${item.reply ? ` — ${item.reply.slice(0, 140)}` : ''}`
+            })
+            collab.notifyUsers(sent)
+          }
+          send(res, 200, { feedback: item })
+        }
       } else if (path === '/api/tokens' && method === 'GET') {
         const user = requireUser(req)
         send(res, 200, { tokens: accounts.tokens(user.id) })
@@ -381,6 +432,8 @@ export function createApi({
       } else if (e instanceof HttpError || e instanceof AuthError) {
         send(res, e.status, { error: e.message })
       } else if (e instanceof RpcError) {
+        send(res, 400, { error: e.message })
+      } else if (e instanceof FeedbackError) {
         send(res, 400, { error: e.message })
       } else if (e instanceof ForbiddenError) {
         send(res, 403, { error: e.message })

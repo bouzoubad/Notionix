@@ -29,7 +29,8 @@ function colorOf(id: string): string {
 export function connect(
   user: SessionUser,
   onChange: () => void,
-  Settings: ServerSession['Settings']
+  Settings: ServerSession['Settings'],
+  Feedback: ServerSession['Feedback']
 ): ServerSession {
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/collab`
   const socket = new HocuspocusProviderWebsocket({ url })
@@ -93,6 +94,7 @@ export function connect(
   return {
     user,
     Settings,
+    Feedback,
     setPage: (pageId) => workspace.setAwarenessField('pageId', pageId),
     onPresence: (listener) => {
       presenceListeners.add(listener)

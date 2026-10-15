@@ -34,6 +34,8 @@ export interface ServerSession {
   logout: () => Promise<void>
   /** Account settings (own password; team accounts for administrators) */
   Settings: ComponentType<{ onClose: () => void }>
+  /** Bugs and ideas sent to the administrators; `focus` shows one first */
+  Feedback: ComponentType<{ onClose: () => void; focus: string | null }>
 }
 
 /**

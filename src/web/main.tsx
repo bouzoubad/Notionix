@@ -11,6 +11,7 @@ import { json, ServerError, whenSignedOut } from './http'
 import { connect } from './session'
 import { Login } from './Login'
 import { SettingsDialog } from './SettingsDialog'
+import { FeedbackDialog } from './FeedbackDialog'
 
 const root = createRoot(document.getElementById('root')!)
 
@@ -23,7 +24,8 @@ async function startApp(user: SessionUser): Promise<void> {
     session: connect(
       user,
       () => void useStore.getState().remoteChange(),
-      ({ onClose }) => <SettingsDialog user={user} onClose={onClose} />
+      ({ onClose }) => <SettingsDialog user={user} onClose={onClose} />,
+      ({ onClose, focus }) => <FeedbackDialog user={user} focus={focus} onClose={onClose} />
     ),
     imageSrc: {
       display: (src) => {

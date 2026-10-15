@@ -22,6 +22,10 @@ interface State {
   presence: Presence[]
   /** Real-time connection to the server (always true in the desktop app) */
   connected: boolean
+  /** Feedback window (server workspace): null when closed, else the report to show first */
+  feedback: { focus: string | null } | null
+  openFeedback: (focus?: string | null) => void
+  closeFeedback: () => void
   /** Unread notifications */
   inboxUnread: number
   refreshInbox: () => Promise<void>
@@ -114,6 +118,9 @@ export const useStore = create<State>((set, get) => ({
   closePagePicker: () => set({ pagePicker: null }),
   presence: [],
   connected: true,
+  feedback: null,
+  openFeedback: (focus = null) => set({ feedback: { focus } }),
+  closeFeedback: () => set({ feedback: null }),
   inboxUnread: 0,
   refreshInbox: async () => {
     try {

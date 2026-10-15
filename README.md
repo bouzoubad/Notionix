@@ -20,6 +20,7 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 - **Éditeur de blocs** : titres, listes, tâches, citations, code coloré, tableaux, **colonnes**, images, **fichiers, vidéos et audios**, callouts, toggles et **titres repliables**, équations LaTeX, **table des matières**, **liens vers une page**, **blocs synchronisés**, **boutons**, **couleurs** de texte, de fond et de bloc, mentions de personnes, de pages et de dates avec **rappels** ; menu `/`, menu de mise en forme, menu de bloc (transformer en, couleur, dupliquer), icônes, couvertures, options de page (pleine largeur, petit texte, police, verrouillage).
 - **Modèles** prêts à l'emploi (réunion, projet, wiki, journal, suivi de bugs, liste de lecture) et pages enregistrées comme modèles.
 - **Retrouvez tout** : recherche plein texte instantanée (`Cmd/Ctrl+K`) avec pages récentes, rétroliens, favoris, corbeille.
+- **Feedback** : chacun signale un bug ou propose une idée depuis l'app (capture d'écran et contexte joints) ; les administrateurs les suivent, changent leur statut et répondent, l'auteur est prévenu.
 - **API** pour vos scripts, avec des jetons personnels ([docs/api.md](docs/api.md)).
 - **Thème clair et sombre** selon le système.
 

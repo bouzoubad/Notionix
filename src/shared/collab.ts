@@ -29,3 +29,33 @@ export interface SessionUser {
   name: string
   role: 'admin' | 'editor' | 'reader' | 'guest'
 }
+
+export type FeedbackKind = 'bug' | 'idea'
+export type FeedbackStatus = 'new' | 'planned' | 'in_progress' | 'done' | 'declined'
+
+export const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
+  new: 'Nouveau',
+  planned: 'Prévu',
+  in_progress: 'En cours',
+  done: 'Fait',
+  declined: 'Non retenu'
+}
+
+/** A bug report or an idea sent from the app to the administrators. */
+export interface Feedback {
+  id: string
+  userId: string | null
+  userName: string
+  kind: FeedbackKind
+  title: string
+  body: string
+  /** Stored image (notionix-asset://…) */
+  screenshot: string | null
+  /** Where it was sent from: page, browser, version */
+  context: Record<string, string>
+  status: FeedbackStatus
+  /** The administrators' answer, shown to the sender */
+  reply: string | null
+  createdAt: number
+  updatedAt: number
+}

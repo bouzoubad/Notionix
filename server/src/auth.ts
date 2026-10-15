@@ -82,7 +82,7 @@ export class AuthError extends Error {
 /** Accounts and login sessions. Only a hash of each session token is stored. */
 export class Accounts {
   constructor(
-    private readonly db: DatabaseSync,
+    readonly db: DatabaseSync,
     private readonly sessionDays: number,
     private readonly now: () => number = Date.now
   ) {}

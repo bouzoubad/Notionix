@@ -8,7 +8,8 @@ const ICONS: Record<InboxItem['kind'], string> = {
   mention: '@',
   comment: '💬',
   share: '🔗',
-  reminder: '⏰'
+  reminder: '⏰',
+  feedback: '💬'
 }
 
 const ACTIVITY: Record<ActivityItem['kind'], string> = {
@@ -48,6 +49,11 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
   const go = async (item: InboxItem): Promise<void> => {
     if (!item.readAt) await window.api.inbox.markRead([item.id])
     void refreshInbox()
+    if (item.kind === 'feedback') {
+      useStore.getState().openFeedback(item.ref)
+      onClose()
+      return
+    }
     if (item.pageId) {
       open(item.pageId)
       if (item.ref) openComments(item.ref)
@@ -104,7 +110,8 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
                   <span className="inbox-text">
                     <span>{item.text}</span>
                     <small>
-                      {pageLabel(item.pageId)} · {ago(item.createdAt)}
+                      {item.pageId ? `${pageLabel(item.pageId)} · ` : ''}
+                      {ago(item.createdAt)}
                     </small>
                   </span>
                 </button>

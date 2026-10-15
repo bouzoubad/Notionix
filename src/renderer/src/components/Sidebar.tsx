@@ -130,6 +130,11 @@ export function Sidebar(): React.JSX.Element {
         <button onClick={() => setTransferOpen(true)}>Importer / Exporter</button>
         <button onClick={() => setTrashOpen(true)}>Corbeille</button>
         {session && (
+          <button onClick={() => useStore.getState().openFeedback()}>
+            {session.user.role === 'admin' ? 'Feedback des utilisateurs' : 'Feedback : bug ou idée'}
+          </button>
+        )}
+        {session && (
           <div className="sidebar-account" title={session.user.email}>
             <span className="account-name">
               {session.user.name}

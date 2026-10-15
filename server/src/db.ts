@@ -45,7 +45,22 @@ const MIGRATIONS = [
      token_hash TEXT NOT NULL UNIQUE,
      created_at INTEGER NOT NULL,
      last_used_at INTEGER
-   );`
+   );`,
+  // Feedback: bugs and ideas sent from the app, followed by the administrators.
+  `CREATE TABLE feedback (
+     id TEXT PRIMARY KEY,
+     user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('bug', 'idea')),
+     title TEXT NOT NULL,
+     body TEXT NOT NULL,
+     screenshot TEXT,
+     context TEXT,
+     status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'planned', 'in_progress', 'done', 'declined')),
+     reply TEXT,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   );
+   CREATE INDEX feedback_created ON feedback(created_at);`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

@@ -80,6 +80,7 @@ export default function App(): React.JSX.Element {
       {trashOpen && <TrashDialog />}
       {transferOpen && <TransferDialog />}
       <PagePicker />
+      <FeedbackWindow />
       {inboxOpen && <InboxDialog onClose={() => setInboxOpen(false)} />}
       {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}
       {notice && <div className="notice">{notice}</div>}
@@ -90,4 +91,13 @@ export default function App(): React.JSX.Element {
       )}
     </div>
   )
+}
+
+/** Feedback window of the server workspace (bugs and ideas). */
+function FeedbackWindow(): React.JSX.Element | null {
+  const feedback = useStore((s) => s.feedback)
+  const close = useStore((s) => s.closeFeedback)
+  const session = platform().session
+  if (!session || !feedback) return null
+  return <session.Feedback focus={feedback.focus} onClose={close} />
 }

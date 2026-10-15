@@ -1,6 +1,7 @@
 import type { PageOptions, PageSummary } from '../../../shared/types'
 import { atLeast } from '../../../shared/types'
-import { useStore } from '../store'
+import { pageUrl, useStore } from '../store'
+import { copyText } from '../clipboard'
 import { Popover } from '../database/Popover'
 
 const FONTS: { value: NonNullable<PageOptions['font']>; label: string; sample: string }[] = [
@@ -94,6 +95,16 @@ export function PageOptionsMenu({
         />
       </label>
       <hr />
+      <button
+        onClick={() => {
+          onClose()
+          void copyText(pageUrl(page.id)).then((ok) =>
+            showNotice(ok ? 'Lien de la page copié.' : `Lien : ${pageUrl(page.id)}`)
+          )
+        }}
+      >
+        Copier le lien
+      </button>
       <button onClick={() => (onClose(), void patch(page.id, { favorite: !page.favorite }))}>
         {page.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
       </button>

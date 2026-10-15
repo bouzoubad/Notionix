@@ -287,7 +287,16 @@ export const defaultStatusOptions = (): SelectOption[] => [
   { id: newId(), name: 'Terminé', color: 'green', group: 'done' }
 ]
 
-export const newId = (): string => globalThis.crypto.randomUUID().slice(0, 8)
+/**
+ * Random id. crypto.getRandomValues works everywhere, unlike randomUUID,
+ * which browsers only offer over HTTPS (or on localhost).
+ */
+export function randomId(length = 8): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(length))
+  return Array.from(bytes, (b) => (b % 36).toString(36)).join('')
+}
+
+export const newId = (): string => randomId(8)
 
 export function defaultView(type: ViewType = 'table', name = VIEW_TYPE_LABELS[type]): ViewDef {
   return { id: newId(), name, type, filters: [], filterMode: 'and', sorts: [], hidden: [] }

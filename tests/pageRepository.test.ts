@@ -127,3 +127,22 @@ describe('page history', () => {
     expect(() => repo.restoreVersion(page.id, 9999)).toThrow()
   })
 })
+
+describe('trash retention', () => {
+  it('deletes for good what was trashed more than 30 days ago', () => {
+    let t = 1_000_000
+    const db = new DatabaseSync(':memory:')
+    migrate(db)
+    const repo = new PageRepository(db, () => t)
+    const old = repo.create(null)
+    const child = repo.create(old.id)
+    const recent = repo.create(null)
+    repo.trash(old.id)
+    t += 31 * 24 * 3600 * 1000
+    repo.trash(recent.id)
+    expect(repo.purgeTrash()).toBe(2)
+    expect(repo.get(old.id)).toBeNull()
+    expect(repo.get(child.id)).toBeNull()
+    expect(repo.get(recent.id)).not.toBeNull()
+  })
+})

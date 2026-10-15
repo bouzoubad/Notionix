@@ -16,6 +16,7 @@ export function TrashDialog(): React.JSX.Element {
     <div className="overlay" onMouseDown={() => setOpen(false)}>
       <div className="dialog" onMouseDown={(e) => e.stopPropagation()}>
         <h3>Corbeille</h3>
+        <p className="trash-note">Les pages sont supprimées définitivement 30 jours après leur mise à la corbeille.</p>
         <div className="results">
           {trashed.map((p) => (
             <div key={p.id} className="hit trash-item">

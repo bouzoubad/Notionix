@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from './store'
 import { Sidebar } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
@@ -10,6 +10,7 @@ import { DatabasePage } from './database/DatabasePage'
 import { Logo } from './components/Logo'
 import { InboxDialog } from './components/InboxDialog'
 import { PagePicker } from './components/PagePicker'
+import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { platform } from './platform'
 
 export default function App(): React.JSX.Element {
@@ -24,6 +25,8 @@ export default function App(): React.JSX.Element {
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const createPage = useStore((s) => s.createPage)
 
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const sidebarHidden = useStore((s) => s.sidebarHidden)
   const inboxOpen = useStore((s) => s.inboxOpen)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
   const refreshInbox = useStore((s) => s.refreshInbox)
@@ -51,17 +54,37 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void load()
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const key = e.key.toLowerCase()
+      const state = useStore.getState()
+      // Cmd+K on selected text adds a link (formatting menu); elsewhere it searches, like Cmd+P.
+      const selectedText =
+        !!window.getSelection()?.toString() && !!document.activeElement?.closest('.ProseMirror')
+      const run = (action: () => void): void => {
         e.preventDefault()
-        setSearchOpen(true)
+        action()
       }
+      if (key === 'p' && !e.shiftKey) run(() => setSearchOpen(true))
+      else if (key === 'k' && !e.shiftKey && !selectedText) run(() => setSearchOpen(true))
+      else if (key === 'n' && (e.altKey || !e.shiftKey) && !e.code.startsWith('Digit'))
+        run(() => void state.createPage(null))
+      else if (e.code === 'BracketLeft' && !e.altKey) run(() => history.back())
+      else if (e.code === 'BracketRight' && !e.altKey) run(() => history.forward())
+      else if (e.code === 'Backslash') run(() => state.toggleSidebar())
+      else if (e.shiftKey && key === 'l') run(() => state.toggleTheme())
+      else if (e.shiftKey && key === 'u')
+        run(() => {
+          const parent = state.pages.find((p) => p.id === state.currentId)?.parentId
+          if (parent) state.open(parent)
+        })
+      else if (e.code === 'Slash' && !e.shiftKey) run(() => setShortcutsOpen(true))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [load, setSearchOpen])
 
   return (
-    <div className="app">
+    <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
       <Sidebar />
       <main>
         {current?.kind === 'database' ? (
@@ -80,6 +103,7 @@ export default function App(): React.JSX.Element {
       {trashOpen && <TrashDialog />}
       {transferOpen && <TransferDialog />}
       <PagePicker />
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
       <FeedbackWindow />
       {inboxOpen && <InboxDialog onClose={() => setInboxOpen(false)} />}
       {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}

@@ -20,6 +20,28 @@ const chain = (editor: Editor, range: Range): ReturnType<Editor['chain']> =>
 
 export const SLASH_ITEMS: SlashItem[] = [
   {
+    title: 'Page',
+    hint: 'Sous-page dans cette page',
+    keywords: ['page', 'sous-page', 'subpage', 'new'],
+    run: (e, r) => {
+      chain(e, r).run()
+      const { currentId, load, open } = useStore.getState()
+      void window.api.pages
+        .create(currentId)
+        .then(async (page) => {
+          e.chain().focus().insertPageLink(page.id).run()
+          await load()
+          // Like Notion: the new page opens, ready for its title.
+          open(page.id)
+        })
+        .catch((err) =>
+          useStore
+            .getState()
+            .showNotice(`Page non créée : ${err instanceof Error ? err.message : err}`)
+        )
+    }
+  },
+  {
     title: 'Texte',
     hint: 'Paragraphe simple',
     keywords: ['text', 'paragraph', 'p'],

@@ -167,6 +167,49 @@ export const MentionSuggestion = Extension.create({
   }
 })
 
+/** "[[" links to a page, like Notion: the page menu only. */
+export const PageLinkSuggestion = Extension.create({
+  name: 'pageLinkSuggestion',
+  addProseMirrorPlugins() {
+    return [
+      Suggestion<SlashItem, SlashItem>({
+        editor: this.editor,
+        pluginKey: new PluginKey('pageLinkSuggestion'),
+        char: '[[',
+        allowSpaces: true,
+        items: ({ query }) => {
+          const q = fold(query)
+          const { pages, currentId } = useStore.getState()
+          return pages
+            .filter(
+              (p) =>
+                !p.trashedAt &&
+                p.kind !== 'synced' &&
+                p.id !== currentId &&
+                (!q || fold(p.title).includes(q))
+            )
+            .slice(0, 10)
+            .map((p) => ({
+              icon: p.icon ?? (p.kind === 'database' ? '🗃️' : '📄'),
+              title: p.title || 'Sans titre',
+              hint: 'Lien vers la page',
+              keywords: [],
+              run: (e, r) =>
+                e
+                  .chain()
+                  .focus()
+                  .deleteRange(r)
+                  .insertMention({ kind: 'page', id: p.id, label: p.title || 'Sans titre' })
+                  .run()
+            }))
+        },
+        command: ({ editor, range, props }) => props.run(editor, range),
+        render: createMenuController
+      })
+    ]
+  }
+})
+
 /** Mentions shown live: current names and titles, clickable pages, editable dates. */
 export const InteractiveMention = Mention.extend({
   addNodeView() {

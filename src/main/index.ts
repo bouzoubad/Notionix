@@ -86,6 +86,10 @@ app.whenReady().then(() => {
     }
   }, 30_000)
   app.on('before-quit', () => clearInterval(reminders))
+  // The trash keeps pages 30 days.
+  repo.purgeTrash()
+  const purge = setInterval(() => repo.purgeTrash(), 6 * 60 * 60 * 1000)
+  app.on('before-quit', () => clearInterval(purge))
   registerDatabaseHandlers(ipcMain, dbs)
   const dialogs = {
     dialog,

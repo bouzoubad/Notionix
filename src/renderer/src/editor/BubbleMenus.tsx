@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { NodeSelection } from '@tiptap/pm/state'
 import { atLeast } from '../../../shared/types'
 import { useStore } from '../store'
+import { startComment } from './commenting'
+import { rememberHighlight } from './shortcuts'
 import { backgroundColor, COLOR_LABELS, COLORS, textColor } from '../../../shared/colors'
 
 /** Whether this person may comment on the page being edited. */
@@ -18,14 +20,6 @@ const canCommentOpenPage = (): boolean => {
  * Opens a discussion on the selection: the text is marked (when the person may
  * edit the page) and quoted in the comments panel.
  */
-function startComment(editor: Editor): void {
-  const { from, to } = editor.state.selection
-  const quote = editor.state.doc.textBetween(from, to, ' ').slice(0, 500)
-  const threadId = globalThis.crypto.randomUUID()
-  const marked = editor.isEditable
-  if (marked) editor.chain().focus().setComment(threadId).run()
-  useStore.getState().startComment({ threadId, quote, marked })
-}
 
 const SAFE_LINK = /^(https?:|mailto:|tel:|notionix:)/i
 
@@ -47,6 +41,19 @@ const TABLE_MENU_OPTIONS = { placement: 'top-start' } as const
 export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
   const [linking, setLinking] = useState(false)
   const [coloring, setColoring] = useState(false)
+  // Cmd+K on selected text: add or change its link.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'k' || e.shiftKey) return
+      const { from, to } = editor.state.selection
+      if (from === to || !editor.isEditable || !editor.isFocused) return
+      e.preventDefault()
+      setHref(String(editor.getAttributes('link').href ?? ''))
+      setLinking(true)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [editor])
   const [href, setHref] = useState('')
   const state = useEditorState({
     editor,
@@ -183,8 +190,13 @@ function ColorPalette({
       <div className="palette-row">
         {swatch('Sans fond', {}, () => editor.chain().focus().unsetBackgroundColor().run())}
         {COLORS.map((c) =>
-          swatch(`Fond ${COLOR_LABELS[c].toLowerCase()}`, { background: backgroundColor(c) }, () =>
-            editor.chain().focus().setBackgroundColor(backgroundColor(c)).run()
+          swatch(
+            `Fond ${COLOR_LABELS[c].toLowerCase()}`,
+            { background: backgroundColor(c) },
+            () => (
+              rememberHighlight(backgroundColor(c)),
+              editor.chain().focus().setBackgroundColor(backgroundColor(c)).run()
+            )
           )
         )}
       </div>

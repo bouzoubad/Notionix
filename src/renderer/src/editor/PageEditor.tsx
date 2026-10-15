@@ -4,9 +4,10 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { common, createLowlight } from 'lowlight'
 import type { Page } from '../../../shared/types'
 import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editorExtensions'
-import { useStore } from '../store'
+import { pageHash, useStore } from '../store'
 import { SlashCommands } from './slashCommands'
-import { InteractiveMention, MentionSuggestion } from './mentions'
+import { InteractiveMention, MentionSuggestion, PageLinkSuggestion } from './mentions'
+import { NotionShortcuts } from './shortcuts'
 import { FileHandler } from '@tiptap/extension-file-handler'
 import { InteractiveCallout } from './CalloutView'
 import { BlockHandle } from './blockHandle'
@@ -162,7 +163,9 @@ function LoadedEditor({
           node.type.name === 'heading' ? 'Titre' : "Tapez '/' pour insérer un bloc"
       }),
       SlashCommands,
-      MentionSuggestion
+      MentionSuggestion,
+      PageLinkSuggestion,
+      NotionShortcuts
     ],
     editorProps: {
       handleClick: (_view, _pos, event) => {
@@ -173,7 +176,9 @@ function LoadedEditor({
         const href = anchor?.getAttribute('href')
         if (!href) return false
         const target = pageIdFromHref(href)
-        if (target) open(target)
+        if (target && (event.metaKey || event.ctrlKey) && platform().kind === 'web')
+          window.open(pageHash(target), '_blank')
+        else if (target) open(target)
         else window.open(href)
         return true
       }

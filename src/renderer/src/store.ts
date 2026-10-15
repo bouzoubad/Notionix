@@ -14,6 +14,12 @@ interface State {
   notice: string | null
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
+  /** Sidebar hidden with Cmd+\\ */
+  sidebarHidden: boolean
+  toggleSidebar: () => void
+  /** Forced theme, or the system's */
+  theme: 'system' | 'light' | 'dark'
+  toggleTheme: () => void
   /** Page chooser (link-to-page block…) */
   pagePicker: { title: string; onPick: (id: PageId) => void; kind?: 'database' } | null
   pickPage: (title: string, onPick: (id: PageId) => void, kind?: 'database') => void
@@ -74,6 +80,49 @@ interface State {
 
 const api = window.api.pages
 
+type Theme = 'system' | 'light' | 'dark'
+function storedTheme(): Theme {
+  let t: string | null = null
+  try {
+    t = localStorage.getItem('theme')
+  } catch {
+    t = null
+  }
+  const theme: Theme = t === 'light' || t === 'dark' ? t : 'system'
+  if (theme !== 'system') document.documentElement.dataset.theme = theme
+  return theme
+}
+function applyTheme(theme: Theme): void {
+  if (theme === 'system') delete document.documentElement.dataset.theme
+  else document.documentElement.dataset.theme = theme
+  try {
+    localStorage.setItem('theme', theme)
+  } catch {
+    // a convenience only
+  }
+}
+
+/** Address of a page inside the app: #/page/<id>. */
+export const pageHash = (id: PageId): string => `#/page/${id}`
+
+export function pageIdFromHash(hash: string): PageId | null {
+  const match = /^#\/page\/([A-Za-z0-9_-]{1,64})$/.exec(hash)
+  return match ? match[1] : null
+}
+
+/** Full link to a page: the web address on a server, an internal link in the desktop app. */
+export const pageUrl = (id: PageId): string =>
+  location.protocol.startsWith('http')
+    ? `${location.origin}${location.pathname}${pageHash(id)}`
+    : `notionix://page/${id}`
+
+// Back, forward, or an address typed or pasted: the page follows the address.
+window.addEventListener('hashchange', () => {
+  const id = pageIdFromHash(location.hash)
+  const state = useStore.getState()
+  if (id !== state.currentId) state.open(id)
+})
+
 /** Pages opened lately on this device, newest first. */
 const RECENT_KEY = 'recentPages'
 const MAX_RECENT = 12
@@ -104,7 +153,8 @@ function notify(set: (partial: Partial<State>) => void, message: string): void {
 export const useStore = create<State>((set, get) => ({
   pages: [],
   people: [],
-  currentId: localStorage.getItem('currentId'),
+  // The address names the page (#/page/<id>): links, back and forward, new tabs.
+  currentId: pageIdFromHash(location.hash) ?? localStorage.getItem('currentId'),
   expanded: JSON.parse(localStorage.getItem('expanded') ?? '{}'),
   searchOpen: false,
   trashOpen: false,
@@ -113,6 +163,21 @@ export const useStore = create<State>((set, get) => ({
   revision: 0,
   contentReload: 0,
   comments: { open: false, focus: null, draft: null },
+  sidebarHidden: false,
+  toggleSidebar: () => set({ sidebarHidden: !get().sidebarHidden }),
+  theme: storedTheme(),
+  toggleTheme: () => {
+    // Like Notion's Cmd+Shift+L: switches to the other theme than the one shown.
+    const shown =
+      get().theme === 'system'
+        ? matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+        : get().theme
+    const theme = shown === 'dark' ? 'light' : 'dark'
+    applyTheme(theme)
+    set({ theme })
+  },
   pagePicker: null,
   pickPage: (title, onPick, kind) => set({ pagePicker: { title, onPick, kind } }),
   closePagePicker: () => set({ pagePicker: null }),
@@ -156,6 +221,12 @@ export const useStore = create<State>((set, get) => ({
       localStorage.setItem('currentId', id)
       rememberRecent(id)
     } else localStorage.removeItem('currentId')
+    // A new history entry, so that "back" returns to the page left.
+    const hash = id ? pageHash(id) : ''
+    if (location.hash !== hash) {
+      if (hash) location.hash = hash
+      else history.pushState(null, '', location.pathname + location.search)
+    }
     // A discussion being written belongs to the page being left.
     const comments = get().comments
     set({ currentId: id, comments: { ...comments, draft: null, focus: null } })

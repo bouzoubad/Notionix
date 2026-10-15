@@ -100,7 +100,15 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     }
   })
   await server.listen()
-  const purge = setInterval(() => accounts.purgeExpired(), 60 * 60 * 1000)
+  // Every hour: expired sessions, and pages in the trash for more than 30 days.
+  const purgeTrash = (): void => {
+    if (workspace.pages.purgeTrash() > 0 && server) documents.forgetDeletedPages(server.hocuspocus)
+  }
+  const purge = setInterval(() => {
+    accounts.purgeExpired()
+    purgeTrash()
+  }, 60 * 60 * 1000)
+  purgeTrash()
   purge.unref()
   // Reminders become notifications when their time comes.
   const reminders = setInterval(() => {

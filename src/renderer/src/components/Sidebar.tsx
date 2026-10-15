@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { childrenOf, useStore } from '../store'
+import { childrenOf, pageHash, useStore } from '../store'
 import { Logo } from './Logo'
 import { platform } from '../platform'
 import { Avatars } from './PageTopBar'
@@ -256,7 +256,15 @@ function Row(props: RowProps): React.JSX.Element {
           setDrag(null)
           setDrop(null)
         }}
-        onClick={() => open(page.id)}
+        onClick={(e) => {
+          // Cmd/Ctrl-click opens the page in a new tab (web client).
+          if ((e.metaKey || e.ctrlKey) && platform().kind === 'web')
+            window.open(pageHash(page.id), '_blank')
+          else open(page.id)
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 1 && platform().kind === 'web') window.open(pageHash(page.id), '_blank')
+        }}
       >
         {!flat && (
           <button

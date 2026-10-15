@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme='light'] {
   --bg: #ffffff;
   --bg-sidebar: #f7f7f5;
   --bg-hover: rgba(55, 53, 47, 0.08);
@@ -31,7 +32,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #191919;
     --bg-sidebar: #202020;
     --bg-hover: rgba(255, 255, 255, 0.07);
@@ -61,6 +62,36 @@
     --nx-red-bg: #522e2a;
     color-scheme: dark;
   }
+}
+:root[data-theme='dark'] {
+  --bg: #191919;
+  --bg-sidebar: #202020;
+  --bg-hover: rgba(255, 255, 255, 0.07);
+  --bg-active: rgba(255, 255, 255, 0.12);
+  --text: rgba(255, 255, 255, 0.9);
+  --text-muted: rgba(255, 255, 255, 0.5);
+  --border: rgba(255, 255, 255, 0.12);
+  --code-bg: rgba(255, 255, 255, 0.1);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --nx-gray: #9b9b9b;
+  --nx-brown: #ba856f;
+  --nx-orange: #c77d48;
+  --nx-yellow: #ca9849;
+  --nx-green: #529e72;
+  --nx-blue: #5e87c9;
+  --nx-purple: #9d68d3;
+  --nx-pink: #d15796;
+  --nx-red: #df5452;
+  --nx-gray-bg: #2f2f2f;
+  --nx-brown-bg: #4a3228;
+  --nx-orange-bg: #5c3b23;
+  --nx-yellow-bg: #564328;
+  --nx-green-bg: #243d30;
+  --nx-blue-bg: #143a4e;
+  --nx-purple-bg: #3c2d49;
+  --nx-pink-bg: #4e2c3c;
+  --nx-red-bg: #522e2a;
+  color-scheme: dark;
 }
 
 * {
@@ -3386,4 +3417,41 @@ button:focus:not(:focus-visible) {
   margin-top: 0;
   padding-top: 0;
   border-top: 0;
+}
+
+/* Sidebar hidden (Cmd+\\) */
+.app.sidebar-hidden .sidebar {
+  display: none;
+}
+/* Keyboard shortcuts */
+.dialog.shortcuts {
+  width: 640px;
+}
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 16px;
+  padding: 6px 12px 12px;
+  font-size: 14px;
+}
+.shortcuts-grid h4 {
+  grid-column: 1 / -1;
+  margin: 10px 0 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.shortcuts-grid kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-sidebar);
+  font: 12px ui-monospace, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.trash-note {
+  margin: 0;
+  padding: 0 16px 6px;
+  color: var(--text-muted);
+  font-size: 12px;
 }

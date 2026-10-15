@@ -2,6 +2,7 @@ import wordmarkLight from '../assets/logo-wordmark-light.png'
 import wordmarkDark from '../assets/logo-wordmark-dark.png'
 import tileLight from '../assets/logo-tile-light.png'
 import tileDark from '../assets/logo-tile-dark.png'
+import { useStore } from '../store'
 
 const SOURCES = {
   wordmark: { light: wordmarkLight, dark: wordmarkDark },
@@ -17,6 +18,17 @@ export function Logo({
   className?: string
 }): React.JSX.Element {
   const { light, dark } = SOURCES[variant]
+  const theme = useStore((s) => s.theme)
+  // A forced theme wins over the system's.
+  if (theme !== 'system')
+    return (
+      <img
+        src={theme === 'dark' ? dark : light}
+        alt="Notionix"
+        className={className}
+        draggable={false}
+      />
+    )
   return (
     <picture>
       <source media="(prefers-color-scheme: dark)" srcSet={dark} />

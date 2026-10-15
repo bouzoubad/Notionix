@@ -14,6 +14,7 @@ import { DatabaseView } from './databaseView'
 import { CommentMark, Mention } from './mention'
 import { BackgroundColor, Color, TextStyle } from '@tiptap/extension-text-style'
 import { BlockColors } from './colors'
+import { NotionBlockquote, NotionInputRules } from './inputRules'
 import {
   Audio,
   BlockCommands,
@@ -74,9 +75,13 @@ function baseExtensions(lowlight: Lowlight, overrides: DocumentExtensionOverride
   return [
     StarterKit.configure({
       codeBlock: false,
+      // Replaced below: '"' makes a quote and '>' a toggle, as in Notion.
+      blockquote: false,
       ...(overrides.collaboration ? { undoRedo: false as const } : {}),
       link: { openOnClick: false, autolink: true, protocols: [PAGE_LINK_PROTOCOL] }
     }),
+    NotionBlockquote,
+    NotionInputRules,
     CodeBlockLowlight.configure({ lowlight }),
     TaskList,
     TaskItem.configure({ nested: true }),

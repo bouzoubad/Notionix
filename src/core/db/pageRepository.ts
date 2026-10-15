@@ -45,6 +45,9 @@ const SUMMARY_COLUMNS =
 
 /** Changes within this delay extend the latest saved state instead of adding one. */
 export const VERSION_WINDOW_MS = 10 * 60 * 1000
+/** How long a page stays in the trash before being deleted for good. */
+export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
 /** Saved states kept per page; older ones are dropped. */
 export const MAX_VERSIONS = 100
 
@@ -477,6 +480,27 @@ export class PageRepository {
       ids.forEach((x) => fts.run(x))
       this.db.prepare('DELETE FROM pages WHERE id = ?').run(id)
     })
+  }
+
+  /**
+   * Deletes for good what has been in the trash for longer than `maxAgeMs`
+   * (30 days, as in Notion). Returns the number of pages deleted.
+   */
+  purgeTrash(maxAgeMs = TRASH_RETENTION_MS): number {
+    const limit = this.now() - maxAgeMs
+    const old = this.db
+      .prepare(
+        `SELECT p.id FROM pages p LEFT JOIN pages parent ON parent.id = p.parent_id
+         WHERE p.trashed_at IS NOT NULL AND p.trashed_at < ?
+           AND (parent.id IS NULL OR parent.trashed_at IS NULL OR parent.trashed_at >= ?)`
+      )
+      .all(limit, limit) as { id: string }[]
+    let deleted = 0
+    for (const { id } of old) {
+      deleted += 1 + this.descendantIds(id).length
+      this.deleteForever(id)
+    }
+    return deleted
   }
 
   duplicate(id: PageId): Page {

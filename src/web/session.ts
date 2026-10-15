@@ -25,7 +25,11 @@ function colorOf(id: string): string {
  * session cookie authenticates it; the token sent here is a placeholder the
  * server ignores when the cookie is valid.
  */
-export function connect(user: SessionUser, onChange: () => void): ServerSession {
+export function connect(
+  user: SessionUser,
+  onChange: () => void,
+  Settings: ServerSession['Settings']
+): ServerSession {
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/collab`
   const socket = new HocuspocusProviderWebsocket({ url })
   const token = 'cookie'
@@ -55,6 +59,7 @@ export function connect(user: SessionUser, onChange: () => void): ServerSession 
 
   return {
     user,
+    Settings,
     openPage: (pageId) => {
       const provider = new HocuspocusProvider({
         websocketProvider: socket,

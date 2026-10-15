@@ -67,15 +67,17 @@ Dossier de l'app : `~/Library/Application Support/Notionix` (macOS), `%APPDATA%\
 
 ## 3. Comptes
 
-En ligne de commande dans le conteneur (un écran d'administration dans l'app est prévu) :
+Dans Notionix, connecté en administrateur : bouton **Comptes** en bas de la barre latérale. On y crée un compte (nom, e-mail, rôle, mot de passe provisoire à communiquer), on change un rôle, on remet un mot de passe ou on désactive un compte. Chacun change son propre mot de passe dans **Mon compte**.
+
+En secours, la ligne de commande dans le conteneur fait la même chose (par exemple si plus personne ne connaît de mot de passe administrateur) :
 
 ```
-docker compose -f server/docker-compose.yml exec notionix node main.mjs create-user marie@entreprise.local "Marie Dupont" editor
-docker compose -f server/docker-compose.yml exec notionix node main.mjs reset-password marie@entreprise.local
+docker compose -f server/docker-compose.yml exec -it notionix node main.mjs create-user marie@entreprise.local "Marie Dupont" editor
+docker compose -f server/docker-compose.yml exec -it notionix node main.mjs reset-password marie@entreprise.local
 docker compose -f server/docker-compose.yml exec notionix node main.mjs list-users
 ```
 
-Ajouter `-it` après `exec` si le mot de passe n'est pas demandé. Rôles : `admin` (gère les comptes), `editor` (modifie), `reader` (lecture seule, imposée par le serveur).
+Rôles : `admin` (gère les comptes), `editor` (modifie), `reader` (lecture seule, imposée par le serveur).
 
 Sécurité : mots de passe hachés (scrypt), session par jeton aléatoire dont seule l'empreinte est stockée, cookie `HttpOnly` et `SameSite=Strict` (marqué `Secure` derrière HTTPS), toute modification exige un en-tête propre au client web (une page d'un autre site ne peut pas agir à votre place), essais de mot de passe limités, sessions fermées à chaque changement de mot de passe, de rôle ou désactivation. Politique de sécurité stricte sur la page web (aucun script ou contenu d'un autre site).
 

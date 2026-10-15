@@ -10,6 +10,7 @@ import { webApi } from './api'
 import { json, ServerError, whenSignedOut } from './http'
 import { connect } from './session'
 import { Login } from './Login'
+import { SettingsDialog } from './SettingsDialog'
 
 const root = createRoot(document.getElementById('root')!)
 
@@ -19,7 +20,11 @@ async function startApp(user: SessionUser): Promise<void> {
   const { useStore } = await import('../renderer/src/store')
   setPlatform({
     kind: 'web',
-    session: connect(user, () => void useStore.getState().remoteChange()),
+    session: connect(
+      user,
+      () => void useStore.getState().remoteChange(),
+      ({ onClose }) => <SettingsDialog user={user} onClose={onClose} />
+    ),
     imageSrc: {
       display: (src) => {
         const name = assetNameFromSrc(src)

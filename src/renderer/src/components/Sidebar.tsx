@@ -17,6 +17,7 @@ export function Sidebar(): React.JSX.Element {
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
   const session = platform().session
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const favorites = pages.filter((p) => p.favorite && !p.trashedAt)
   const roots = childrenOf(pages, null)
@@ -89,9 +90,15 @@ export function Sidebar(): React.JSX.Element {
               {session.user.name}
               {session.user.role === 'reader' ? ' (lecture seule)' : ''}
             </span>
-            <button onClick={() => void session.logout()}>Se déconnecter</button>
+            <span className="account-buttons">
+              <button onClick={() => setSettingsOpen(true)}>
+                {session.user.role === 'admin' ? 'Comptes' : 'Mon compte'}
+              </button>
+              <button onClick={() => void session.logout()}>Se déconnecter</button>
+            </span>
           </div>
         )}
+        {session && settingsOpen && <session.Settings onClose={() => setSettingsOpen(false)} />}
       </div>
     </aside>
   )

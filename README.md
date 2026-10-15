@@ -55,7 +55,7 @@ docker compose -f server/docker-compose.yml up -d --build
 
 - Même application que sur le bureau (pages, bases de données, images, import Notion par envoi du `.zip`, export Markdown téléchargé), sur un espace partagé.
 - Édition simultanée : le contenu de chaque page est un document Yjs partagé (Hocuspocus) ; titres, arborescence et bases se mettent à jour chez tout le monde.
-- Comptes : `admin` (gère les comptes), `editor`, `reader` (lecture seule, imposée par le serveur). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
+- Comptes gérés dans l'app (bouton « Comptes » pour l'administrateur, « Mon compte » pour changer son mot de passe) : `admin`, `editor`, `reader` (lecture seule, imposée par le serveur). Session par cookie `HttpOnly` ; les changements exigent un en-tête propre au client (protection CSRF).
 - Données dans un volume : `workspace.db` (même format que la base de l'app de bureau), `notionix-server.db` (comptes, documents partagés), `assets/`.
 
 Mise à jour du serveur après des modifications poussées sur GitHub : `sh server/update.sh` (données et comptes conservés). Installation, comptes, sauvegardes et passage en HTTPS derrière IIS : [docs/deploy/README.md](docs/deploy/README.md). Développement : `npm run server` (construit et lance sur le port 8080), `npm run dev:web` (client web avec rechargement, relayé vers ce serveur).
@@ -113,7 +113,7 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 - Valider sur un vrai export les cas encore non rencontrés : relations entre bases, colonnes nombre et case à cocher, toggles.
 - Embeds (YouTube…) : reportés, ils supposent du réseau ; à reprendre avec la phase en ligne.
-- Serveur : écran d'administration des comptes dans l'app (aujourd'hui en ligne de commande), HTTPS (IIS ou proxy) avant toute sortie de la phase de test, présence (qui est sur quelle page), adaptation mobile et installation sur téléphone (PWA, nécessite HTTPS).
+- Serveur : HTTPS (IIS ou proxy) avant toute sortie de la phase de test, présence (qui est sur quelle page), adaptation mobile et installation sur téléphone (PWA, nécessite HTTPS).
 - App de bureau : se connecter à un serveur Notionix (aujourd'hui seulement locale) et y envoyer ses pages locales.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
 

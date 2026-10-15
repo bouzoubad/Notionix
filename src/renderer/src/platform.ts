@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import type { Extensions } from '@tiptap/core'
 import type { SessionUser } from '../../shared/collab'
 
@@ -15,6 +16,8 @@ export interface ServerSession {
   /** Joins the shared document of a page */
   openPage: (pageId: string) => SharedPage
   logout: () => Promise<void>
+  /** Account settings (own password; team accounts for administrators) */
+  Settings: ComponentType<{ onClose: () => void }>
 }
 
 /**

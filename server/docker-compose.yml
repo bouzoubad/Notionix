@@ -36,7 +36,8 @@ services:
       - caddy-data:/data
     environment:
       NOTIONIX_ADDRESS: ${NOTIONIX_ADDRESS:-localhost}
-      NOTIONIX_SITE: ${NOTIONIX_ADDRESS:-localhost}${NOTIONIX_NAMES:+, ${NOTIONIX_NAMES}}
+      # The server itself (checks over SSH) is always served too.
+      NOTIONIX_SITE: ${NOTIONIX_ADDRESS:-localhost}, 127.0.0.1${NOTIONIX_NAMES:+, ${NOTIONIX_NAMES:-}}
       NOTIONIX_TLS: ${NOTIONIX_TLS:-internal}
       NOTIONIX_HTTPS_PORT: ${NOTIONIX_HTTPS_PORT:-443}
 

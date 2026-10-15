@@ -49,7 +49,7 @@ export const webApi: NotionixApi = {
     restore: (id) => rpc('pages.restore', id),
     deleteForever: (id) => rpc('pages.deleteForever', id),
     duplicate: (id) => rpc('pages.duplicate', id),
-    search: (q) => rpc('pages.search', q),
+    search: (q, f) => rpc('pages.search', q, f),
     setAccess: (id, access) => rpc('pages.setAccess', id, access),
     setSpace: (id, flag) => rpc('pages.setSpace', id, flag),
     shares: (id) => rpc('pages.shares', id),
@@ -57,6 +57,8 @@ export const webApi: NotionixApi = {
     backlinks: (id) => rpc('pages.backlinks', id),
     publish: (id, published) => rpc('pages.publish', id, published),
     versions: (id) => rpc('pages.versions', id),
+    view: (id) => rpc('pages.view', id),
+    stats: (id) => rpc('pages.stats', id),
     version: (versionId) => rpc('pages.version', versionId),
     restoreVersion: (id, versionId) => rpc('pages.restoreVersion', id, versionId)
   },

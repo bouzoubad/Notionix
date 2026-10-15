@@ -1,4 +1,5 @@
 import { GROUPABLE_TYPES, groupRows, type PropertyValue } from '../../../shared/database'
+import { PageIcon } from '../components/PageIcon'
 import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
 import { useRowDrag } from './rowDrag'
@@ -96,7 +97,13 @@ export function BoardView({
                 onClick={() => onOpenRow(row.id)}
               >
                 <div className="card-title">
-                  {row.icon ? `${row.icon} ` : ''}
+                  {row.icon ? (
+                    <>
+                      <PageIcon icon={row.icon} />{' '}
+                    </>
+                  ) : (
+                    ''
+                  )}
                   {row.title || <span className="muted">Sans titre</span>}
                 </div>
                 <RowSummary schema={schema} view={view} row={row} skip={[prop.id]} />

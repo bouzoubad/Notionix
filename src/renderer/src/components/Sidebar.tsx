@@ -4,6 +4,8 @@ import { Logo } from './Logo'
 import { platform } from '../platform'
 import { Avatars } from './PageTopBar'
 import { TemplatesDialog } from './TemplatesDialog'
+import { PageIcon } from './PageIcon'
+import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
@@ -95,7 +97,7 @@ export function Sidebar(): React.JSX.Element {
         {spaces.map((space) => (
           <TreeSection
             key={space.id}
-            title={`${space.icon ?? '👥'} ${space.title || 'Espace sans titre'}`}
+            title={`${iconText(space.icon, '👥')} ${space.title || 'Espace sans titre'}`}
             onTitle={() => open(space.id)}
             onAdd={space.level !== 'read' ? () => void createPage(space.id) : undefined}
             pages={childrenOf(pages, space.id)}
@@ -275,7 +277,9 @@ function Row(props: RowProps): React.JSX.Element {
             {expanded ? '▾' : '▸'}
           </button>
         )}
-        <span className="icon">{page.icon ?? (page.kind === 'database' ? '🗃️' : '📄')}</span>
+        <span className="icon">
+          <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
+        </span>
         <span className="label">{page.title || 'Sans titre'}</span>
         <Avatars people={here} small />
         {!flat && (

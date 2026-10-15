@@ -3,6 +3,7 @@ import type { PublicPage } from '../shared/types'
 import { coverStyle } from '../renderer/src/components/covers'
 import { SubEditor } from '../renderer/src/editor/SubEditor'
 import { json } from './http'
+import { PageIcon } from '../renderer/src/components/PageIcon'
 
 /** A published page, read-only, for anyone with its link: /p/<token>[/<page id>]. */
 export function PublicView({
@@ -43,9 +44,13 @@ export function PublicView({
         )}
         <span className="public-badge">Page publique, en lecture seule</span>
       </header>
-      {page.cover && <div className="page-cover" style={coverStyle(page.cover)} />}
+      {page.cover && <div className="page-cover" style={coverStyle(page.cover, page.coverY)} />}
       <div className="page-body">
-        {page.icon && <div className="public-icon">{page.icon}</div>}
+        {page.icon && (
+          <div className="public-icon">
+            <PageIcon icon={page.icon} className="large" />
+          </div>
+        )}
         <h1 className="public-title">{page.title || 'Sans titre'}</h1>
         {page.table ? (
           <div className="table-view">
@@ -81,7 +86,7 @@ export function PublicView({
           <nav className="public-children">
             {page.children.map((c) => (
               <a key={c.id} href={link(c.id)}>
-                {c.icon ?? '📄'} {c.title || 'Sans titre'}
+                <PageIcon icon={c.icon} fallback="📄" /> {c.title || 'Sans titre'}
               </a>
             ))}
           </nav>

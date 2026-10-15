@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
 
@@ -29,7 +30,8 @@ export function Backlinks({ pageId }: { pageId: string }): React.JSX.Element | n
         <div className="backlinks-list">
           {links.map((p) => (
             <button key={p.id} onClick={() => open(p.id)}>
-              {p.icon ?? (p.kind === 'database' ? '🗃️' : '📄')} {p.title || 'Sans titre'}
+              <PageIcon icon={p.icon} fallback={p.kind === 'database' ? '🗃️' : '📄'} />{' '}
+              {p.title || 'Sans titre'}
             </button>
           ))}
         </div>

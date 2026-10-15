@@ -7,7 +7,8 @@ import {
   type PageAccess,
   type PageShare,
   type PageSummary,
-  type Person
+  type Person,
+  type SearchFilters
 } from '../../src/shared/types'
 import { resolveLevels } from '../../src/core/access'
 import { canonicalDoc } from '../../src/core/transfer/canonicalDoc'
@@ -44,6 +45,17 @@ const text = (v: unknown): string => {
 const optional = <T>(v: unknown, parse: (v: unknown) => T): T | undefined =>
   v === undefined ? undefined : parse(v)
 const nullableText = (v: unknown): string | null => (v === null ? null : text(v))
+const searchFilters = (v: unknown): SearchFilters => {
+  if (v === undefined || v === null) return {}
+  const r = record(v)
+  const out: SearchFilters = {}
+  if (r.titleOnly === true) out.titleOnly = true
+  if (r.createdBy !== undefined) out.createdBy = id(r.createdBy)
+  if (r.within !== undefined) out.within = id(r.within)
+  if (r.editedAfter !== undefined) out.editedAfter = int(r.editedAfter)
+  if (r.kind === 'page' || r.kind === 'database') out.kind = r.kind
+  return out
+}
 const propertyType = (v: unknown): PropertyType => {
   if (!isPropertyType(v)) throw new RpcError('Type de propriété inconnu.')
   return v
@@ -273,9 +285,9 @@ const METHODS: Record<string, Method> = {
     ctx.invalidate()
     return { ...copy, level: ctx.level(copy.id) }
   }),
-  'pages.search': read((ctx, [q]) =>
+  'pages.search': read((ctx, [q, f]) =>
     ctx.ws.pages
-      .search(text(q), 50)
+      .search(text(q), 50, searchFilters(f))
       .filter((hit) => ctx.level(hit.id) !== 'none')
       .slice(0, 20)
   ),
@@ -316,6 +328,14 @@ const METHODS: Record<string, Method> = {
         text: `${ctx.user.name} a partagé « ${ctx.ws.pages.summary(id(p)).title || 'Sans titre'} » avec vous.`
       })
     }
+  }),
+  'pages.view': read((ctx, [p]) => {
+    ctx.need(id(p), 'read')
+    ctx.ws.pages.recordView(id(p))
+  }),
+  'pages.stats': read((ctx, [p]) => {
+    ctx.need(id(p), 'read')
+    return ctx.ws.pages.stats(id(p))
   }),
   'pages.versions': read((ctx, [p]) => {
     ctx.need(id(p), 'read')

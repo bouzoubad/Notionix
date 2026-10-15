@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageIcon } from './PageIcon'
 import { useStore } from '../store'
 
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -43,7 +44,8 @@ export function PagePicker(): React.JSX.Element | null {
           {matches.map((p) => (
             <button key={p.id} className="hit" onClick={() => pick(p.id)}>
               <span>
-                {p.icon ?? (p.kind === 'database' ? '🗃️' : '📄')} {p.title || 'Sans titre'}
+                <PageIcon icon={p.icon} fallback={p.kind === 'database' ? '🗃️' : '📄'} />{' '}
+                {p.title || 'Sans titre'}
               </span>
             </button>
           ))}

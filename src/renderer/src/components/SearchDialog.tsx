@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { SearchHit } from '../../../shared/types'
+import { PageIcon } from './PageIcon'
+import type { SearchFilters, SearchHit } from '../../../shared/types'
 import { recentPageIds, useStore } from '../store'
+
+const DAY = 24 * 60 * 60 * 1000
+const EDITED: { label: string; days: number }[] = [
+  { label: 'Aujourd’hui', days: 1 },
+  { label: '7 derniers jours', days: 7 },
+  { label: '30 derniers jours', days: 30 },
+  { label: 'Cette année', days: 365 }
+]
 
 const mark = (html: string): string =>
   html
@@ -14,9 +23,20 @@ export function SearchDialog(): React.JSX.Element {
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<SearchHit[]>([])
   const [sel, setSel] = useState(0)
+  const [titleOnly, setTitleOnly] = useState(false)
+  const [createdBy, setCreatedBy] = useState('')
+  const [within, setWithin] = useState('')
+  const [editedDays, setEditedDays] = useState(0)
+  const [kind, setKind] = useState<'' | 'page' | 'database'>('')
   const seq = useRef(0)
 
   const pages = useStore((s) => s.pages)
+  const people = useStore((s) => s.people)
+  const currentId = useStore((s) => s.currentId)
+  // "Inside": the top-level pages, and the page open now.
+  const scopes = pages.filter(
+    (p) => !p.trashedAt && p.kind !== 'synced' && (p.parentId === null || p.id === currentId)
+  )
   // Without a query: the pages opened lately.
   const recent: SearchHit[] = recentPageIds()
     .map((id) => pages.find((p) => p.id === id && !p.trashedAt))
@@ -25,12 +45,21 @@ export function SearchDialog(): React.JSX.Element {
   useEffect(() => {
     const n = ++seq.current
     if (!q.trim()) return
-    window.api.pages.search(q).then((h) => {
+    const filters: SearchFilters = {}
+    if (titleOnly) filters.titleOnly = true
+    if (createdBy) filters.createdBy = createdBy
+    if (within) filters.within = within
+    // Rounded to the hour so that the query stays the same while typing.
+    if (editedDays)
+      filters.editedAfter = Math.floor((Date.now() - editedDays * DAY) / 3600000) * 3600000
+    if (kind) filters.kind = kind
+    window.api.pages.search(q, filters).then((h) => {
       if (n !== seq.current) return
       setHits(h)
       setSel(0)
     })
-  }, [q])
+  }, [q, titleOnly, createdBy, within, editedDays, kind])
+  const filtered = titleOnly || !!createdBy || !!within || !!editedDays || !!kind
 
   const list = q.trim() ? hits : recent
   const go = (h?: SearchHit): void => {
@@ -60,6 +89,81 @@ export function SearchDialog(): React.JSX.Element {
             if (e.key === 'Enter') go(list[sel])
           }}
         />
+        <div className="search-filters">
+          <label className={titleOnly ? 'active' : ''}>
+            <input
+              type="checkbox"
+              checked={titleOnly}
+              onChange={(e) => setTitleOnly(e.target.checked)}
+            />
+            Titres seulement
+          </label>
+          {people.length > 0 && (
+            <select
+              aria-label="Créée par"
+              className={createdBy ? 'active' : ''}
+              value={createdBy}
+              onChange={(e) => setCreatedBy(e.target.value)}
+            >
+              <option value="">Créée par…</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            aria-label="Dans"
+            className={within ? 'active' : ''}
+            value={within}
+            onChange={(e) => setWithin(e.target.value)}
+          >
+            <option value="">Dans…</option>
+            {scopes.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.id === currentId ? 'Cette page : ' : ''}
+                {p.title || 'Sans titre'}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Modifiée"
+            className={editedDays ? 'active' : ''}
+            value={editedDays}
+            onChange={(e) => setEditedDays(Number(e.target.value))}
+          >
+            <option value={0}>Modifiée…</option>
+            {EDITED.map((d) => (
+              <option key={d.days} value={d.days}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Type"
+            className={kind ? 'active' : ''}
+            value={kind}
+            onChange={(e) => setKind(e.target.value as '' | 'page' | 'database')}
+          >
+            <option value="">Type…</option>
+            <option value="page">Pages</option>
+            <option value="database">Bases de données</option>
+          </select>
+          {filtered && (
+            <button
+              onClick={() => {
+                setTitleOnly(false)
+                setCreatedBy('')
+                setWithin('')
+                setEditedDays(0)
+                setKind('')
+              }}
+            >
+              Effacer
+            </button>
+          )}
+        </div>
         <div className="results">
           {!q.trim() && recent.length > 0 && <div className="menu-label">Récents</div>}
           {list.map((h, i) => (
@@ -70,7 +174,7 @@ export function SearchDialog(): React.JSX.Element {
               onClick={() => go(h)}
             >
               <span>
-                {h.icon ?? '📄'} {h.title || 'Sans titre'}
+                <PageIcon icon={h.icon} fallback="📄" /> {h.title || 'Sans titre'}
               </span>
               <small dangerouslySetInnerHTML={{ __html: mark(h.snippet) }} />
             </button>

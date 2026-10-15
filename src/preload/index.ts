@@ -16,7 +16,7 @@ const api: NotionixApi = {
     restore: (id) => call('pages:restore', id),
     deleteForever: (id) => call('pages:deleteForever', id),
     duplicate: (id) => call('pages:duplicate', id),
-    search: (q) => call('pages:search', q),
+    search: (q, f) => call('pages:search', q, f),
     setAccess: (id, access) => call('pages:setAccess', id, access),
     setSpace: (id, flag) => call('pages:setSpace', id, flag),
     shares: (id) => call('pages:shares', id),
@@ -24,6 +24,8 @@ const api: NotionixApi = {
     backlinks: (id) => call('pages:backlinks', id),
     publish: (id, published) => call('pages:publish', id, published),
     versions: (id) => call('pages:versions', id),
+    view: (id) => call('pages:view', id),
+    stats: (id) => call('pages:stats', id),
     version: (versionId) => call('pages:version', versionId),
     restoreVersion: (id, versionId) => call('pages:restoreVersion', id, versionId)
   },

@@ -67,6 +67,7 @@ export class PublicPages {
       title: page.title,
       icon: page.icon,
       cover: page.cover,
+      coverY: page.options.coverY,
       kind: page.kind,
       content: page.content,
       children:
@@ -85,7 +86,12 @@ export class PublicPages {
     for (const id of this.reachable(rootId)) {
       const page = this.ws.pages.get(id)
       if (!page) continue
-      if (page.content.includes(name) || assetNameFromSrc(page.cover ?? '') === name) return true
+      if (
+        page.content.includes(name) ||
+        assetNameFromSrc(page.cover ?? '') === name ||
+        assetNameFromSrc(page.icon ?? '') === name
+      )
+        return true
     }
     return false
   }

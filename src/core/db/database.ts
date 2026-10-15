@@ -97,7 +97,14 @@ const MIGRATIONS: string[] = [
      text TEXT NOT NULL,
      sent_at INTEGER
    );
-   CREATE INDEX reminders_due ON reminders(sent_at, at);`
+   CREATE INDEX reminders_due ON reminders(sent_at, at);`,
+  // Who opened a page and when, for its view statistics.
+  `CREATE TABLE page_views (
+     page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL,
+     at INTEGER NOT NULL
+   );
+   CREATE INDEX page_views_page ON page_views(page_id, at);`
 ]
 
 /** Opens (and migrates) a workspace database: the app's local file or the server's shared one. */

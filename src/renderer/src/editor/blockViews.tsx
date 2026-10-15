@@ -16,6 +16,8 @@ import { assetKind, assetNameFromSrc } from '../../../shared/assets'
 import { useStore } from '../store'
 import { displaySrc } from '../platform'
 import { PageSubEditor, SubEditor } from './SubEditor'
+import { PageIcon } from '../components/PageIcon'
+import { iconText } from '../icons'
 
 /** Atom blocks keep their own events (buttons, inputs, nested editors). */
 const isolated = {
@@ -87,7 +89,7 @@ function PageLinkView({ node }: ReactNodeViewProps): React.JSX.Element {
       {page && !page.trashedAt ? (
         <button onClick={() => open(id)}>
           <span className="page-link-icon">
-            {page.icon ?? (page.kind === 'database' ? '🗃️' : '📄')}
+            <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
           </span>
           <span className="page-link-title">{page.title || 'Sans titre'}</span>
         </button>
@@ -359,7 +361,7 @@ function ButtonView({
                 <option value="">Choisir…</option>
                 {databases.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.icon ?? '🗃️'} {d.title || 'Sans titre'}
+                    {iconText(d.icon, '🗃️')} {d.title || 'Sans titre'}
                   </option>
                 ))}
               </select>

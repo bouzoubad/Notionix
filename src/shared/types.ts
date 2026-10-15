@@ -56,6 +56,8 @@ export interface PageOptions {
   locked?: boolean
   /** Listed in the template gallery */
   template?: boolean
+  /** Vertical position of an image cover, 0 (top) to 100 (bottom) */
+  coverY?: number
 }
 
 /** What a page created from a template starts with. */
@@ -84,6 +86,18 @@ export interface PageVersion {
   createdAt: number
   /** Accounts whose changes the version includes */
   authors: string[]
+}
+
+/** How often a page is opened, and by whom. */
+export interface PageStats {
+  /** Openings (one per person per half hour) */
+  views: number
+  /** Distinct people (accounts) who opened it */
+  viewers: number
+  /** Openings on each of the last 28 days, oldest first */
+  days: number[]
+  /** The latest openings, one per person, newest first */
+  recent: { userId: string; at: number }[]
 }
 
 export interface PageVersionContent extends PageVersion {
@@ -145,6 +159,7 @@ export interface PublicPage {
   title: string
   icon: string | null
   cover: string | null
+  coverY?: number
   kind: PageKind
   content: string
   /** Sub-pages, reachable through the same link */
@@ -197,6 +212,19 @@ export interface SearchHit {
   snippet: string
 }
 
+/** Narrows a search; every filter given must hold. */
+export interface SearchFilters {
+  /** Only titles, not the text of the pages */
+  titleOnly?: boolean
+  /** Created by this account */
+  createdBy?: string
+  /** Inside this page (at any depth) */
+  within?: PageId
+  /** Changed at or after this time (ms) */
+  editedAfter?: number
+  kind?: 'page' | 'database'
+}
+
 export interface ImportSummary {
   /** Pages created by this import */
   created: number
@@ -236,7 +264,7 @@ export interface NotionixApi {
     restore(id: PageId): Promise<void>
     deleteForever(id: PageId): Promise<void>
     duplicate(id: PageId): Promise<Page>
-    search(query: string): Promise<SearchHit[]>
+    search(query: string, filters?: SearchFilters): Promise<SearchHit[]>
     setAccess(id: PageId, access: PageAccess): Promise<PageSummary>
     setSpace(id: PageId, isSpace: boolean): Promise<PageSummary>
     shares(id: PageId): Promise<PageShare[]>
@@ -247,6 +275,9 @@ export interface NotionixApi {
     backlinks(id: PageId): Promise<PageSummary[]>
     /** Saved states of the page, newest first */
     versions(id: PageId): Promise<PageVersion[]>
+    /** Counts an opening of the page by the signed-in person */
+    view(id: PageId): Promise<void>
+    stats(id: PageId): Promise<PageStats>
     version(versionId: number): Promise<PageVersionContent | null>
     /** Puts back the content of a saved state (itself saved as a new state) */
     restoreVersion(id: PageId, versionId: number): Promise<void>

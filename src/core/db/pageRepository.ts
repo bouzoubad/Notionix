@@ -11,6 +11,8 @@ import type {
   PageSummary,
   PageVersion,
   PageVersionContent,
+  PageStats,
+  SearchFilters,
   SearchHit
 } from '../../shared/types'
 import type { ShareRow } from '../access'
@@ -72,8 +74,13 @@ export function parseOptions(raw: unknown): PageOptions {
   if (o.font === 'serif' || o.font === 'mono') out.font = o.font
   if (o.locked === true) out.locked = true
   if (o.template === true) out.template = true
+  if (typeof o.coverY === 'number' && Number.isFinite(o.coverY))
+    out.coverY = Math.min(100, Math.max(0, Math.round(o.coverY)))
   return out
 }
+
+const VIEW_WINDOW_MS = 30 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const EMPTY_DOC = '{"type":"doc","content":[{"type":"paragraph"}]}'
 
@@ -509,23 +516,87 @@ export class PageRepository {
     return this.inTransaction(() => this.cloneTree(src, src.parentId, `${src.title} (copie)`))
   }
 
-  search(query: string, limit = 20): SearchHit[] {
-    const match = query
+  /** Counts an opening; the same person within half an hour counts once. */
+  recordView(id: PageId, at = this.now()): void {
+    const user = this.actor ?? ''
+    const recent = this.db
+      .prepare('SELECT 1 FROM page_views WHERE page_id = ? AND user_id = ? AND at > ? LIMIT 1')
+      .get(id, user, at - VIEW_WINDOW_MS)
+    if (recent || !this.get(id)) return
+    this.db
+      .prepare('INSERT INTO page_views (page_id, user_id, at) VALUES (?, ?, ?)')
+      .run(id, user, at)
+  }
+
+  stats(id: PageId, now = this.now()): PageStats {
+    const totals = this.db
+      .prepare(
+        'SELECT COUNT(*) AS views, COUNT(DISTINCT user_id) AS viewers FROM page_views WHERE page_id = ?'
+      )
+      .get(id) as { views: number; viewers: number }
+    const days = new Array<number>(28).fill(0)
+    const today = new Date(now)
+    today.setHours(0, 0, 0, 0)
+    const start = today.getTime() - 27 * DAY_MS
+    const rows = this.db
+      .prepare('SELECT at FROM page_views WHERE page_id = ? AND at >= ?')
+      .all(id, start) as { at: number }[]
+    for (const { at } of rows) {
+      const day = new Date(at)
+      day.setHours(0, 0, 0, 0)
+      // Rounded: days are not all 24 h long when the clock changes.
+      const index = Math.round((day.getTime() - start) / DAY_MS)
+      if (index >= 0 && index < 28) days[index] += 1
+    }
+    const recent = this.db
+      .prepare(
+        `SELECT user_id AS userId, MAX(at) AS at FROM page_views
+         WHERE page_id = ? AND user_id != '' GROUP BY user_id ORDER BY at DESC LIMIT 10`
+      )
+      .all(id) as { userId: string; at: number }[]
+    return { views: totals.views, viewers: totals.viewers, days, recent }
+  }
+
+  search(query: string, limit = 20, filters: SearchFilters = {}): SearchHit[] {
+    const words = query
       .split(/\s+/)
       .filter(Boolean)
       .map((w) => `"${w.replace(/"/g, '""')}"*`)
       .join(' ')
-    if (!match) return []
-    const rows = this.db
+    if (!words) return []
+    const match = filters.titleOnly ? `title : (${words})` : words
+    const where = ['page_fts MATCH ?', 'p.trashed_at IS NULL', "p.kind != 'synced'"]
+    const args: (string | number)[] = [match]
+    let scope = ''
+    if (filters.within) {
+      scope = `WITH RECURSIVE tree(id) AS (
+                 SELECT id FROM pages WHERE parent_id = ?
+                 UNION ALL SELECT p.id FROM pages p JOIN tree t ON p.parent_id = t.id)`
+      args.unshift(filters.within)
+      where.push('p.id IN (SELECT id FROM tree)')
+    }
+    if (filters.createdBy) {
+      where.push('p.created_by = ?')
+      args.push(filters.createdBy)
+    }
+    if (filters.editedAfter !== undefined) {
+      where.push('p.updated_at >= ?')
+      args.push(filters.editedAfter)
+    }
+    if (filters.kind) {
+      where.push('p.kind = ?')
+      args.push(filters.kind)
+    }
+    return this.db
       .prepare(
-        `SELECT f.id AS id, f.title AS title, p.icon AS icon,
+        `${scope}
+         SELECT f.id AS id, f.title AS title, p.icon AS icon,
                 snippet(page_fts, 2, '<mark>', '</mark>', '…', 12) AS snippet
          FROM page_fts f JOIN pages p ON p.id = f.id
-         WHERE page_fts MATCH ? AND p.trashed_at IS NULL AND p.kind != 'synced'
+         WHERE ${where.join(' AND ')}
          ORDER BY rank LIMIT ?`
       )
-      .all(match, limit) as unknown as SearchHit[]
-    return rows
+      .all(...args, limit) as unknown as SearchHit[]
   }
 
   /** Id of the page previously imported from `source`, trashed or not. */

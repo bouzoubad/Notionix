@@ -11,12 +11,12 @@ export const GRADIENT_COVERS = [
   'linear-gradient(120deg, #434343 0%, #000000 100%)'
 ]
 
-export function coverStyle(cover: string): CSSProperties {
+export function coverStyle(cover: string, y = 50): CSSProperties {
   const gradient = /^gradient:(\d+)$/.exec(cover)
   if (gradient)
     return { backgroundImage: GRADIENT_COVERS[Number(gradient[1])] ?? GRADIENT_COVERS[0] }
   // Covers are stored images (notionix-asset://…); anything else is ignored.
   return cover.startsWith('notionix-asset://')
-    ? { backgroundImage: `url("${displaySrc(cover)}")` }
+    ? { backgroundImage: `url("${displaySrc(cover)}")`, backgroundPositionY: `${y}%` }
     : {}
 }

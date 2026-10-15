@@ -9,6 +9,8 @@ import { newId } from '../../../shared/database'
 import { useStore } from '../store'
 import { platform } from '../platform'
 import { createMenuController, type SlashItem } from './slashCommands'
+import { PageIcon } from '../components/PageIcon'
+import { iconText } from '../icons'
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 const isoDay = (d: Date): string =>
@@ -132,7 +134,7 @@ function mentionItems(query: string): SlashItem[] {
   for (const p of pages) {
     if (p.trashedAt || p.id === currentId || (q && !fold(p.title).includes(q))) continue
     items.push({
-      icon: p.icon ?? (p.kind === 'database' ? '🗃️' : '📄'),
+      icon: iconText(p.icon, p.kind === 'database' ? '🗃️' : '📄'),
       title: p.title || 'Sans titre',
       hint: 'Lien vers la page',
       keywords: [],
@@ -190,7 +192,7 @@ export const PageLinkSuggestion = Extension.create({
             )
             .slice(0, 10)
             .map((p) => ({
-              icon: p.icon ?? (p.kind === 'database' ? '🗃️' : '📄'),
+              icon: iconText(p.icon, p.kind === 'database' ? '🗃️' : '📄'),
               title: p.title || 'Sans titre',
               hint: 'Lien vers la page',
               keywords: [],
@@ -250,7 +252,7 @@ function MentionView({
     content = page ? (
       <>
         <span className="mention-icon">
-          {page.icon ?? (page.kind === 'database' ? '🗃️' : '📄')}
+          <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
         </span>
         {page.title || 'Sans titre'}
       </>

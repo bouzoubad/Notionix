@@ -6,7 +6,8 @@ import type {
   NewComment,
   PageAccess,
   PageInit,
-  Person
+  Person,
+  SearchFilters
 } from '../shared/types'
 import { canonicalDoc } from '../core/transfer/canonicalDoc'
 import type { TeamRepository } from '../core/db/teamRepository'
@@ -40,7 +41,7 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   ipc.handle('pages:restore', (_e, id: string) => repo.restore(id))
   ipc.handle('pages:deleteForever', (_e, id: string) => repo.deleteForever(id))
   ipc.handle('pages:duplicate', (_e, id: string) => repo.duplicate(id))
-  ipc.handle('pages:search', (_e, q: string) => repo.search(q))
+  ipc.handle('pages:search', (_e, q: string, f?: SearchFilters) => repo.search(q, 20, f))
   ipc.handle('pages:setAccess', (_e, id: string, access: PageAccess) => repo.setAccess(id, access))
   ipc.handle('pages:setSpace', (_e, id: string, flag: boolean) => repo.setSpace(id, flag === true))
   // One person on this computer: nothing to share with.
@@ -53,6 +54,8 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
     throw new Error('La publication se fait depuis un serveur Notionix.')
   })
   ipc.handle('pages:versions', (_e, id: string) => repo.versions(id))
+  ipc.handle('pages:view', (_e, id: string) => repo.recordView(id))
+  ipc.handle('pages:stats', (_e, id: string) => repo.stats(id))
   ipc.handle('pages:version', (_e, versionId: number) => repo.version(versionId))
   ipc.handle('pages:restoreVersion', (_e, id: string, versionId: number) =>
     repo.restoreVersion(id, versionId)

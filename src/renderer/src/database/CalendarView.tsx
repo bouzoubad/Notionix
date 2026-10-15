@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageIcon } from '../components/PageIcon'
 import { rowValue, type DateValue } from '../../../shared/database'
 import type { ViewProps } from './viewTypes'
 
@@ -172,7 +173,13 @@ export function CalendarView({
                   }}
                   onClick={() => onOpenRow(row.id)}
                 >
-                  {row.icon ? `${row.icon} ` : ''}
+                  {row.icon ? (
+                    <>
+                      <PageIcon icon={row.icon} />{' '}
+                    </>
+                  ) : (
+                    ''
+                  )}
                   {row.title || 'Sans titre'}
                 </button>
               ))}

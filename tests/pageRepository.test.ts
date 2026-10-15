@@ -145,4 +145,48 @@ describe('trash retention', () => {
     expect(repo.get(child.id)).toBeNull()
     expect(repo.get(recent.id)).not.toBeNull()
   })
+
+  it('narrows a search by title, author, subtree, date and kind', () => {
+    const team = repo.create(null)
+    repo.update(team.id, { title: 'Équipe' })
+    const inside = repo.as('ann', () => repo.create(team.id))
+    repo.update(inside.id, { title: 'Budget', content: doc('budget annuel') })
+    const outside = repo.create(null)
+    repo.update(outside.id, { title: 'Notes', content: doc('budget perso') })
+    const ids = (f: Parameters<PageRepository['search']>[2]): string[] =>
+      repo
+        .search('budget', 20, f)
+        .map((h) => h.id)
+        .sort()
+    expect(ids({})).toEqual([inside.id, outside.id].sort())
+    expect(ids({ titleOnly: true })).toEqual([inside.id])
+    expect(ids({ within: team.id })).toEqual([inside.id])
+    expect(ids({ createdBy: 'ann' })).toEqual([inside.id])
+    expect(ids({ editedAfter: repo.get(outside.id)!.updatedAt })).toEqual([outside.id])
+    expect(ids({ kind: 'database' })).toEqual([])
+  })
+
+  it('counts page views once per person per half hour', () => {
+    const page = repo.create(null)
+    const now = Date.UTC(2026, 9, 15, 12)
+    repo.as('ann', () => repo.recordView(page.id, now))
+    repo.as('ann', () => repo.recordView(page.id, now + 60_000))
+    repo.as('bob', () => repo.recordView(page.id, now + 120_000))
+    repo.as('ann', () => repo.recordView(page.id, now + 31 * 60_000))
+    repo.recordView('missing', now)
+    const stats = repo.stats(page.id, now + 32 * 60_000)
+    expect(stats.views).toBe(3)
+    expect(stats.viewers).toBe(2)
+    expect(stats.days).toHaveLength(28)
+    expect(stats.days[27]).toBe(3)
+    expect(stats.recent.map((r) => r.userId)).toEqual(['ann', 'bob'])
+  })
+
+  it('keeps the cover position within 0 to 100', () => {
+    const page = repo.create(null)
+    expect(repo.update(page.id, { options: { coverY: 140 } }).options.coverY).toBe(100)
+    expect(repo.update(page.id, { options: { coverY: 'x' } as never }).options.coverY).toBe(
+      undefined
+    )
+  })
 })

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
 import { BUILT_IN_TEMPLATES, type Template } from '../templates'
@@ -73,7 +74,9 @@ export function TemplatesDialog({ onClose }: { onClose: () => void }): React.JSX
                   disabled={busy !== null}
                   onClick={() => void fromPage(p)}
                 >
-                  <span className="template-icon">{p.icon ?? '📄'}</span>
+                  <span className="template-icon">
+                    <PageIcon icon={p.icon} fallback="📄" />
+                  </span>
                   <strong>{p.title || 'Sans titre'}</strong>
                   <span>
                     {busy === p.id ? 'Création…' : 'Copie de la page et de ses sous-pages'}

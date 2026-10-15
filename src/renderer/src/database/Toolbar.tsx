@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageIcon } from '../components/PageIcon'
 import {
   TITLE_PROPERTY_ID,
   newId,
@@ -241,7 +242,7 @@ export function Toolbar({
             <div className="menu-label">Modèles</div>
             {templates.map((t) => (
               <button key={t.id} className="menu-item" onClick={() => (close(), onNewRow(t.id))}>
-                {t.icon ?? '📄'} {t.title || 'Sans titre'}
+                <PageIcon icon={t.icon} fallback="📄" /> {t.title || 'Sans titre'}
               </button>
             ))}
             {templates.length === 0 && (

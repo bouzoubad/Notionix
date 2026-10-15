@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
 import { ancestorsOf, useStore } from '../store'
 import { platform } from '../platform'
@@ -34,7 +35,7 @@ export function PageTopBar({
     <div className="breadcrumbs">
       {crumbs.map((c) => (
         <button key={c.id} onClick={() => open(c.id)}>
-          {c.icon ?? ''} {c.title || 'Sans titre'}
+          <PageIcon icon={c.icon} /> {c.title || 'Sans titre'}
         </button>
       ))}
       {page.options.locked && (
@@ -43,7 +44,8 @@ export function PageTopBar({
         </span>
       )}
       <span className="crumb-current">
-        {page.icon ?? (page.kind === 'database' ? '🗃️' : '')} {title || 'Sans titre'}
+        <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : ''} />{' '}
+        {title || 'Sans titre'}
       </span>
       <div className="topbar-actions">
         <Avatars people={here} />

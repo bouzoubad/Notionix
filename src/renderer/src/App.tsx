@@ -49,6 +49,8 @@ export default function App(): React.JSX.Element {
   }, [])
   useEffect(() => {
     platform().session?.setPage(currentId)
+    // Counted for the page's view statistics; a failure changes nothing.
+    if (currentId) window.api.pages.view(currentId).catch(() => {})
   }, [currentId])
 
   useEffect(() => {

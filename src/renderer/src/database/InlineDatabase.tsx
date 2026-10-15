@@ -1,4 +1,5 @@
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react'
+import { PageIcon } from '../components/PageIcon'
 import { DatabaseView } from '../../../shared/databaseView'
 import { useStore } from '../store'
 import { DatabaseViewer } from './DatabaseViewer'
@@ -23,7 +24,7 @@ function InlineDatabaseView({ node, updateAttributes }: ReactNodeViewProps): Rea
         <>
           <button className="inline-database-title" onClick={() => open(databaseId)}>
             {linked && <span className="linked-mark">↗ </span>}
-            {page.icon ?? '🗃️'} {page.title || 'Base de données sans titre'}
+            <PageIcon icon={page.icon} fallback="🗃️" /> {page.title || 'Base de données sans titre'}
           </button>
           <DatabaseViewer
             databaseId={databaseId}

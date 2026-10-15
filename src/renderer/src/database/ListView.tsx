@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import { PageIcon } from '../components/PageIcon'
 import { groupRows, type DatabaseRow, type PropertyValue } from '../../../shared/database'
 import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
@@ -42,7 +43,8 @@ export function ListView({
         )}
         <button className="list-item" onClick={() => onOpenRow(row.id)}>
           <span className="list-title">
-            {row.icon ?? '📄'} {row.title || <span className="muted">Sans titre</span>}
+            <PageIcon icon={row.icon} fallback="📄" />{' '}
+            {row.title || <span className="muted">Sans titre</span>}
           </span>
           <RowSummary
             schema={schema}

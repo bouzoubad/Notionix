@@ -1,4 +1,5 @@
 import { coverStyle } from '../components/covers'
+import { PageIcon } from '../components/PageIcon'
 import { RowSummary } from './RowSummary'
 import type { ViewProps } from './viewTypes'
 
@@ -14,7 +15,11 @@ export function GalleryView({
       {rows.map((row) => (
         <button key={row.id} className="gallery-card" onClick={() => onOpenRow(row.id)}>
           <span className="gallery-cover" style={row.cover ? coverStyle(row.cover) : undefined}>
-            {!row.cover && <span className="gallery-icon">{row.icon ?? '📄'}</span>}
+            {!row.cover && (
+              <span className="gallery-icon">
+                <PageIcon icon={row.icon} fallback="📄" />
+              </span>
+            )}
           </span>
           <span className="card-title">
             {row.title || <span className="muted">Sans titre</span>}

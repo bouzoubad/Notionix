@@ -3,6 +3,7 @@ import type { ActivityItem, InboxItem } from '../../../shared/types'
 import { useStore } from '../store'
 import { platform } from '../platform'
 import { ago } from '../time'
+import { iconText } from '../icons'
 
 const ICONS: Record<InboxItem['kind'], string> = {
   mention: '@',
@@ -44,7 +45,7 @@ export function InboxDialog({ onClose }: { onClose: () => void }): React.JSX.Ele
 
   const pageLabel = (id: string | null): string => {
     const p = pages.find((x) => x.id === id)
-    return p ? `${p.icon ?? '📄'} ${p.title || 'Sans titre'}` : 'Page supprimée'
+    return p ? `${iconText(p.icon)} ${p.title || 'Sans titre'}` : 'Page supprimée'
   }
   const go = async (item: InboxItem): Promise<void> => {
     if (!item.readAt) await window.api.inbox.markRead([item.id])

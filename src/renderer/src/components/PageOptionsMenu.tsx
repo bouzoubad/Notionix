@@ -1,4 +1,5 @@
-import type { PageOptions, PageSummary } from '../../../shared/types'
+import { useEffect, useState } from 'react'
+import type { PageOptions, PageStats, PageSummary } from '../../../shared/types'
 import { atLeast } from '../../../shared/types'
 import { pageUrl, useStore } from '../store'
 import { copyText } from '../clipboard'
@@ -115,6 +116,60 @@ export function PageOptionsMenu({
       {canEdit && (
         <button onClick={() => (onClose(), void trash(page.id))}>Mettre à la corbeille</button>
       )}
+      <hr />
+      <ViewStats pageId={page.id} />
     </Popover>
+  )
+}
+
+const when = (ms: number): string =>
+  new Date(ms).toLocaleString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+
+/** Openings of the page over the last four weeks, and who opened it lately. */
+function ViewStats({ pageId }: { pageId: string }): React.JSX.Element {
+  const people = useStore((s) => s.people)
+  const [stats, setStats] = useState<PageStats | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    window.api.pages
+      .stats(pageId)
+      .then((s) => !cancelled && setStats(s))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [pageId])
+  if (!stats) return <div className="page-stats muted">Statistiques…</div>
+  const max = Math.max(1, ...stats.days)
+  const name = (id: string): string => people.find((p) => p.id === id)?.name ?? 'Ancien compte'
+  return (
+    <div className="page-stats">
+      <div className="page-stats-head">
+        <strong>{stats.views}</strong> vue{stats.views > 1 ? 's' : ''}
+        {people.length > 0 && (
+          <>
+            {' · '}
+            <strong>{stats.viewers}</strong> personne{stats.viewers > 1 ? 's' : ''}
+          </>
+        )}
+      </div>
+      <div className="page-stats-bars" title="Vues des 28 derniers jours">
+        {stats.days.map((n, i) => (
+          <span key={i} style={{ height: `${(n / max) * 100}%` }} title={`${n}`} />
+        ))}
+      </div>
+      {people.length > 0 &&
+        stats.recent.slice(0, 5).map((r) => (
+          <div key={r.userId} className="page-stats-viewer">
+            <span>{name(r.userId)}</span>
+            <small>{when(r.at)}</small>
+          </div>
+        ))}
+    </div>
   )
 }

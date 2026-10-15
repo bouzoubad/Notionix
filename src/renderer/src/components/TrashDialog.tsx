@@ -1,4 +1,5 @@
 import { useStore } from '../store'
+import { PageIcon } from './PageIcon'
 
 export function TrashDialog(): React.JSX.Element {
   const pages = useStore((s) => s.pages)
@@ -23,7 +24,7 @@ export function TrashDialog(): React.JSX.Element {
           {trashed.map((p) => (
             <div key={p.id} className="hit trash-item">
               <span>
-                {p.icon ?? '📄'} {p.title || 'Sans titre'}
+                <PageIcon icon={p.icon} fallback="📄" /> {p.title || 'Sans titre'}
               </span>
               <span>
                 <button onClick={() => void restore(p.id)}>Restaurer</button>

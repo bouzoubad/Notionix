@@ -120,7 +120,7 @@ export async function exportPagesAsMarkdown(
     props: PropertyDef[],
     folder: string,
     fromDir: string
-  ) => {
+  ): Promise<Map<string, string>> => {
     const links = new Map<string, string>()
     for (const row of rows)
       for (const prop of props)

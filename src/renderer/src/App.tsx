@@ -9,6 +9,7 @@ import { PageEditor } from './editor/PageEditor'
 import { DatabasePage } from './database/DatabasePage'
 import { Logo } from './components/Logo'
 import { InboxDialog } from './components/InboxDialog'
+import { platform } from './platform'
 
 export default function App(): React.JSX.Element {
   const load = useStore((s) => s.load)
@@ -29,6 +30,22 @@ export default function App(): React.JSX.Element {
     void refreshInbox()
     return window.api.inbox.onChange(() => void refreshInbox())
   }, [refreshInbox])
+
+  // Server workspace: presence of the others, connection state, and this person's open page.
+  const connected = useStore((s) => s.connected)
+  useEffect(() => {
+    const session = platform().session
+    if (!session) return
+    const stopPresence = session.onPresence((presence) => useStore.setState({ presence }))
+    const stopStatus = session.onStatus((connected) => useStore.setState({ connected }))
+    return () => {
+      stopPresence()
+      stopStatus()
+    }
+  }, [])
+  useEffect(() => {
+    platform().session?.setPage(currentId)
+  }, [currentId])
 
   useEffect(() => {
     void load()
@@ -64,6 +81,11 @@ export default function App(): React.JSX.Element {
       {inboxOpen && <InboxDialog onClose={() => setInboxOpen(false)} />}
       {mathEdit && <MathDialog key={mathEdit.latex + String(mathEdit.inline)} />}
       {notice && <div className="notice">{notice}</div>}
+      {!connected && (
+        <div className="offline-banner">
+          Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.
+        </div>
+      )}
     </div>
   )
 }

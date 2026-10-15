@@ -17,6 +17,11 @@ export function PageTopBar({
   const pages = useStore((s) => s.pages)
   const open = useStore((s) => s.open)
   const [menu, setMenu] = useState<'share' | 'history' | null>(null)
+  const presence = useStore((s) => s.presence)
+  // One avatar per person, even with several tabs open.
+  const here = [
+    ...new Map(presence.filter((p) => p.pageId === page.id).map((p) => [p.userId, p])).values()
+  ]
   const commentsOpen = useStore((s) => s.comments.open)
   const openComments = useStore((s) => s.openComments)
   const closeComments = useStore((s) => s.closeComments)
@@ -35,6 +40,7 @@ export function PageTopBar({
         {page.icon ?? (page.kind === 'database' ? '🗃️' : '')} {title || 'Sans titre'}
       </span>
       <div className="topbar-actions">
+        <Avatars people={here} />
         {page.kind === 'page' && (
           <button
             className={commentsOpen ? 'active' : ''}
@@ -63,5 +69,38 @@ export function PageTopBar({
         )}
       </div>
     </div>
+  )
+}
+
+/** Initials of the people on the page, in their caret color. */
+export function Avatars({
+  people,
+  small = false
+}: {
+  people: { userId: string; name: string; color: string }[]
+  small?: boolean
+}): React.JSX.Element | null {
+  if (people.length === 0) return null
+  const initials = (name: string): string =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join('')
+  return (
+    <span className={`avatars${small ? ' small' : ''}`}>
+      {people.slice(0, 4).map((p) => (
+        <span
+          key={p.userId}
+          className="avatar"
+          style={{ background: p.color }}
+          title={`${p.name} est sur cette page`}
+        >
+          {initials(p.name)}
+        </span>
+      ))}
+      {people.length > 4 && <span className="avatar more">+{people.length - 4}</span>}
+    </span>
   )
 }

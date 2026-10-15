@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { childrenOf, useStore } from '../store'
 import { Logo } from './Logo'
 import { platform } from '../platform'
+import { Avatars } from './PageTopBar'
 import type { PageSummary } from '../../../shared/types'
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
@@ -208,6 +209,10 @@ function Row(props: RowProps): React.JSX.Element {
   const createRow = useStore((s) => s.createRow)
   const exportPage = useStore((s) => s.exportPage)
   const [menu, setMenu] = useState(false)
+  const presence = useStore((s) => s.presence)
+  const here = [
+    ...new Map(presence.filter((p) => p.pageId === page.id).map((p) => [p.userId, p])).values()
+  ]
   const kids = flat ? [] : childrenOf(pages, page.id)
 
   const where = (e: React.DragEvent<HTMLDivElement>): 'before' | 'inside' | 'after' => {
@@ -255,6 +260,7 @@ function Row(props: RowProps): React.JSX.Element {
         )}
         <span className="icon">{page.icon ?? (page.kind === 'database' ? '🗃️' : '📄')}</span>
         <span className="label">{page.title || 'Sans titre'}</span>
+        <Avatars people={here} small />
         {!flat && (
           <span className="row-actions" onClick={(e) => e.stopPropagation()}>
             <button title="Plus" onClick={() => setMenu(!menu)}>

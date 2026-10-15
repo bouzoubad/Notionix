@@ -11,8 +11,23 @@ export interface SharedPage {
   destroy: () => void
 }
 
+/** Someone connected to the workspace, and the page they have open. */
+export interface Presence {
+  clientId: number
+  userId: string
+  name: string
+  color: string
+  pageId: string | null
+}
+
 /** The connection to a Notionix server (web client). */
 export interface ServerSession {
+  /** Tells the others which page this person has open */
+  setPage: (pageId: string | null) => void
+  /** People connected (this person excluded); called on every change */
+  onPresence: (listener: (people: Presence[]) => void) => () => void
+  /** Whether the real-time connection is up; called on every change */
+  onStatus: (listener: (connected: boolean) => void) => () => void
   user: SessionUser
   /** Joins the shared document of a page */
   openPage: (pageId: string) => SharedPage

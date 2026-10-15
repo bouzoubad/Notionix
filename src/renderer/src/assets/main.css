@@ -2465,3 +2465,49 @@ button:focus:not(:focus-visible) {
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* Presence */
+.avatars {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -5px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.avatar.more {
+  background: var(--text-muted);
+}
+.avatars.small {
+  margin: 0 2px 0 auto;
+}
+.avatars.small .avatar {
+  width: 16px;
+  height: 16px;
+  font-size: 7px;
+  border-width: 1px;
+  border-color: var(--bg-sidebar);
+}
+.offline-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 60;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #e03e3e;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+}

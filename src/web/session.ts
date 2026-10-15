@@ -8,7 +8,7 @@ import {
   type ChangeNotice,
   type SessionUser
 } from '../shared/collab'
-import type { ServerSession } from '../renderer/src/platform'
+import type { Presence, ServerSession } from '../renderer/src/platform'
 import { request } from './http'
 import { inboxChanged } from './api'
 
@@ -59,9 +59,50 @@ export function connect(
   })
   workspace.attach()
 
+  // Presence: who is connected, on which page (awareness of the workspace channel).
+  const color = colorOf(user.id)
+  workspace.setAwarenessField('user', { id: user.id, name: user.name || user.email, color })
+  workspace.setAwarenessField('pageId', null)
+  const presenceListeners = new Set<(people: Presence[]) => void>()
+  const others = (): Presence[] => {
+    const states = workspace.awareness?.getStates() ?? new Map()
+    const out: Presence[] = []
+    for (const [clientId, state] of states) {
+      if (clientId === workspace.awareness?.clientID) continue
+      const u = (state as { user?: { id?: string; name?: string; color?: string } }).user
+      if (!u?.id) continue
+      out.push({
+        clientId,
+        userId: u.id,
+        name: u.name ?? '',
+        color: u.color ?? '#999',
+        pageId: ((state as { pageId?: string | null }).pageId as string | null) ?? null
+      })
+    }
+    return out
+  }
+  workspace.on('awarenessChange', () => {
+    const people = others()
+    presenceListeners.forEach((l) => l(people))
+  })
+  const statusListeners = new Set<(connected: boolean) => void>()
+  socket.on('status', ({ status }: { status: string }) => {
+    statusListeners.forEach((l) => l(status === 'connected'))
+  })
+
   return {
     user,
     Settings,
+    setPage: (pageId) => workspace.setAwarenessField('pageId', pageId),
+    onPresence: (listener) => {
+      presenceListeners.add(listener)
+      listener(others())
+      return () => presenceListeners.delete(listener)
+    },
+    onStatus: (listener) => {
+      statusListeners.add(listener)
+      return () => statusListeners.delete(listener)
+    },
     openPage: (pageId) => {
       const provider = new HocuspocusProvider({
         websocketProvider: socket,
@@ -79,7 +120,7 @@ export function connect(
           Collaboration.configure({ document: provider.document, field: PAGE_FIELD }),
           CollaborationCaret.configure({
             provider,
-            user: { name: user.name || user.email, color: colorOf(user.id) }
+            user: { name: user.name || user.email, color }
           })
         ],
         destroy: () => provider.destroy()

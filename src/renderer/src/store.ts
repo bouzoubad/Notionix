@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { PageAccess, PageId, PagePatch, PageSummary, Person } from '../../shared/types'
+import type { Presence } from './platform'
 
 interface State {
   pages: PageSummary[]
@@ -13,6 +14,10 @@ interface State {
   notice: string | null
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
+  /** Other people connected to the server workspace, with their open page */
+  presence: Presence[]
+  /** Real-time connection to the server (always true in the desktop app) */
+  connected: boolean
   /** Unread notifications */
   inboxUnread: number
   refreshInbox: () => Promise<void>
@@ -80,6 +85,8 @@ export const useStore = create<State>((set, get) => ({
   revision: 0,
   contentReload: 0,
   comments: { open: false, focus: null, draft: null },
+  presence: [],
+  connected: true,
   inboxUnread: 0,
   refreshInbox: async () => {
     try {

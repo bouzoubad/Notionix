@@ -160,7 +160,7 @@ export function registerTransferHandlers(
   ipc.handle(
     'transfer:exportMarkdown',
     async (_e, pageId: string | null): Promise<ExportSummary | null> => {
-      const archive = await buildMarkdownArchive(repo, dbs, assets, pageId)
+      const archive = await buildMarkdownArchive(repo, dbs, assets, pageId, [LOCAL_PERSON])
       const md = archive.fileName.endsWith('.md')
       const options = {
         title: 'Exporter en Markdown',
@@ -198,7 +198,7 @@ export function registerTransferHandlers(
   ipc.handle(
     'transfer:exportHtml',
     async (_e, pageId: string | null): Promise<ExportSummary | null> => {
-      const archive = await buildHtmlArchive(repo, dbs, assets, pageId)
+      const archive = await buildHtmlArchive(repo, dbs, assets, pageId, [LOCAL_PERSON])
       const html = archive.fileName.endsWith('.html')
       const path = await save(
         'Exporter en HTML',

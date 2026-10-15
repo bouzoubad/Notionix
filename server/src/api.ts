@@ -307,7 +307,8 @@ export function createApi({
           },
           workspace.databases,
           workspace.assets,
-          page || null
+          page || null,
+          ctx.people()
         )
         res.writeHead(200, {
           'Content-Type': archive.fileName.endsWith('.md')

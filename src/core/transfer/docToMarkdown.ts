@@ -11,6 +11,21 @@ interface Resolvers {
   page: PageLinkResolver
   image: ImageResolver
   title: (pageId: string) => string | undefined
+  /** Headings of the whole page, for a table of contents */
+  headings: { level: number; text: string }[]
+}
+
+/** Text of every heading of a document, in order. */
+function collectHeadings(
+  node: JsonNode,
+  out: { level: number; text: string }[] = []
+): { level: number; text: string }[] {
+  if (node.type === 'heading') {
+    const text = (node.content ?? []).map((n) => n.text ?? '').join('')
+    if (text.trim()) out.push({ level: Number(node.attrs?.level ?? 1), text })
+  }
+  for (const child of node.content ?? []) collectHeadings(child, out)
+  return out
 }
 
 // "$" is escaped so that text is not read back as an equation.
@@ -29,7 +44,12 @@ export function docToMarkdown(
   imageTo: ImageResolver = () => null,
   titleOf: (pageId: string) => string | undefined = () => undefined
 ): string {
-  return blocks(doc.content ?? [], { page: linkTo, image: imageTo, title: titleOf })
+  return blocks(doc.content ?? [], {
+    page: linkTo,
+    image: imageTo,
+    title: titleOf,
+    headings: collectHeadings(doc)
+  })
     .join('\n\n')
     .trimEnd()
 }
@@ -118,8 +138,15 @@ function block(node: JsonNode, r: Resolvers, alternate = false): string {
       return path ? `[${title}](${path})` : title
     }
     case 'tableOfContents':
-    case 'syncedBlock':
+      // The headings of the page, indented by level.
+      return r.headings
+        .map((h) => `${'  '.repeat(Math.max(0, h.level - 1))}- ${escapeInline(h.text)}`)
+        .join('\n')
     case 'buttonBlock':
+      // A button does nothing outside Notionix: its label is kept.
+      return `**${escapeInline(String(node.attrs?.label ?? 'Bouton'))}**`
+    case 'syncedBlock':
+      // Replaced by its content before export; nothing left when the content is missing.
       return ''
     case 'blockMath':
       return `$$\n${String(node.attrs?.latex ?? '')}\n$$`

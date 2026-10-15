@@ -130,5 +130,5 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 
 - Le contenu d'une page est un seul document JSON (côté serveur : un document Yjs par page) : pas de bloc adressable individuellement.
 - Serveur : une même cellule modifiée au même moment par deux personnes garde la dernière valeur (comme dans Notion) ; les modifications de structure (propriétés, vues) sont fusionnées. En HTTP simple, mots de passe et contenus circulent en clair sur le réseau.
-- Les blocs synchronisés et les boutons ne sont pas repris dans l'export Markdown ; les vues liées exportent la base d'origine.
+- Export Markdown : les blocs synchronisés sont écrits avec leur contenu, la table des matières en liste des titres, un bouton par son libellé ; les vues liées exportent la base d'origine ; couleurs et colonnes ne survivent pas au Markdown (comme dans l'export de Notion).
 - `node:sqlite` est expérimental dans Node 22 (avertissement au lancement).

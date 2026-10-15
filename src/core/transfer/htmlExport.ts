@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from 'fflate'
 import MarkdownIt from 'markdown-it'
-import type { PageId } from '../../shared/types'
+import type { PageId, Person } from '../../shared/types'
 import type { PageRepository } from '../db/pageRepository'
 import type { DatabaseRepository } from '../db/databaseRepository'
 import type { AssetStore } from '../assets'
@@ -49,14 +49,16 @@ export async function buildHtmlArchive(
   repo: Pick<PageRepository, 'list' | 'get'>,
   dbs: Pick<DatabaseRepository, 'get'>,
   assets: Pick<AssetStore, 'read'>,
-  pageId: PageId | null
+  pageId: PageId | null,
+  people: Person[] = []
 ): Promise<MarkdownArchive> {
   const { files, attachments } = await exportPagesAsMarkdown(
     repo.list(),
     (id) => repo.get(id),
     (src) => assets.read(src),
     pageId,
-    (id) => dbs.get(id)
+    (id) => dbs.get(id),
+    people
   )
   if (files.length === 0) throw new Error('Aucune page à exporter.')
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {}

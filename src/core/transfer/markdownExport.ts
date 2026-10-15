@@ -1,10 +1,11 @@
 import { zipSync, strToU8 } from 'fflate'
-import type { DatabaseData, Page, PageId, PageSummary } from '../../shared/types'
+import type { DatabaseData, Page, PageId, PageSummary, Person } from '../../shared/types'
 import { assetNameFromSrc } from '../../shared/assets'
 import { docToMarkdown } from './docToMarkdown'
 import { stringifyCsv } from './csv'
 import {
   displayValue,
+  fileEntry,
   rowValue,
   type DatabaseRow,
   type PropertyDef,
@@ -57,7 +58,8 @@ export async function exportPagesAsMarkdown(
   load: (id: PageId) => Page | null,
   readAsset: (src: string) => Promise<Uint8Array | null>,
   rootId: PageId | null,
-  loadDatabase: (id: PageId) => DatabaseData | null = () => null
+  loadDatabase: (id: PageId) => DatabaseData | null = () => null,
+  people: Person[] = []
 ): Promise<MarkdownExport> {
   // Hidden pages of synced blocks are not pages of their own.
   const live = summaries.filter((p) => !p.trashedAt && p.kind !== 'synced')
@@ -92,6 +94,9 @@ export async function exportPagesAsMarkdown(
   for (const page of roots) place(page, '')
 
   const titles = new Map(summaries.map((p) => [p.id, p.title]))
+  // Person values and "created by" show the people's names.
+  const names = new Map(people.map((p) => [p.id, p.name]))
+  const nameOf = (id: string): string | undefined => titles.get(id) ?? names.get(id)
   const databases = new Map<PageId, DatabaseData | null>()
   const databaseOf = (id: PageId | null): DatabaseData | null => {
     if (id === null) return null
@@ -101,6 +106,32 @@ export async function exportPagesAsMarkdown(
 
   const attachments = new Map<string, Uint8Array>()
   const files: ExportedFile[] = []
+  /** Copies a stored file into `folder`; returns its path in the export, or null. */
+  const attach = async (src: string, folder: string): Promise<string | null> => {
+    const name = assetNameFromSrc(src)
+    const bytes = name ? await readAsset(src) : null
+    if (!name || !bytes) return null
+    attachments.set(folder + name, bytes)
+    return folder + name
+  }
+  /** Files of a files property, copied next to the database; link text per value. */
+  const fileLinks = async (
+    rows: DatabaseRow[],
+    props: PropertyDef[],
+    folder: string,
+    fromDir: string
+  ) => {
+    const links = new Map<string, string>()
+    for (const row of rows)
+      for (const prop of props)
+        if (prop.type === 'files')
+          for (const v of (row.properties[prop.id] as string[] | undefined) ?? []) {
+            const { src, name } = fileEntry(v)
+            const path = await attach(src, folder)
+            links.set(v, path ? `${name} (${relativeLink(fromDir, path)})` : name)
+          }
+    return links
+  }
   for (const summary of order) {
     const path = paths.get(summary.id)!
     if (summary.kind === 'database') {
@@ -113,21 +144,26 @@ export async function exportPagesAsMarkdown(
         if (title === undefined) return undefined
         return target ? `${title || 'Sans titre'} (${relativeLink(fromDir, target)})` : title
       }
-      if (data) files.push({ path, markdown: databaseCsv(data, linkOf) })
+      if (data) {
+        const folder = path.replace(/\.csv$/, '') + '/'
+        const links = await fileLinks(data.rows, data.schema.properties, folder, fromDir)
+        files.push({
+          path,
+          markdown: databaseCsv(data, (id) => linkOf(id) ?? names.get(id), links)
+        })
+      }
       continue
     }
     const page = load(summary.id)
-    const doc = page ? (JSON.parse(page.content) as JsonNode) : { type: 'doc' }
+    // Synced blocks are written out with their content, wherever they appear.
+    const doc = expandSynced(page ? (JSON.parse(page.content) as JsonNode) : { type: 'doc' }, load)
     const fromDir = path.slice(0, path.lastIndexOf('/') + 1)
     const pageFolder = path.replace(/\.(md|csv)$/, '') + '/'
 
     const imagePaths = new Map<string, string>()
     for (const src of imageSources(doc)) {
-      const name = assetNameFromSrc(src)
-      const bytes = name ? await readAsset(src) : null
-      if (!name || !bytes) continue
-      attachments.set(pageFolder + name, bytes)
-      imagePaths.set(src, relativeLink(fromDir, pageFolder + name))
+      const target = await attach(src, pageFolder)
+      if (target) imagePaths.set(src, relativeLink(fromDir, target))
     }
 
     const body = docToMarkdown(
@@ -142,7 +178,11 @@ export async function exportPagesAsMarkdown(
     const heading = `# ${summary.title || 'Sans titre'}`
     const parentDb = databaseOf(summary.parentId)
     const row = parentDb?.rows.find((r) => r.id === summary.id)
-    const props = parentDb && row ? propertyLines(parentDb, row, (id) => titles.get(id)) : ''
+    const rowLinks =
+      parentDb && row
+        ? await fileLinks([row], parentDb.schema.properties, pageFolder, fromDir)
+        : new Map()
+    const props = parentDb && row ? propertyLines(parentDb, row, nameOf, rowLinks) : ''
     const head = props ? `${heading}\n\n${props}` : heading
     files.push({ path, markdown: body ? `${head}\n\n${body}\n` : `${head}\n` })
   }
@@ -155,29 +195,66 @@ export async function exportPagesAsMarkdown(
 const cellText = (
   prop: PropertyDef,
   value: PropertyValue,
-  titleOf: (id: string) => string | undefined
+  titleOf: (id: string) => string | undefined,
+  fileLinks: Map<string, string> = new Map()
 ): string =>
-  prop.type === 'checkbox' ? (value === true ? 'Yes' : 'No') : displayValue(prop, value, titleOf)
+  prop.type === 'checkbox'
+    ? value === true
+      ? 'Yes'
+      : 'No'
+    : prop.type === 'files' && Array.isArray(value)
+      ? value.map((v) => fileLinks.get(v) ?? fileEntry(v).name).join(', ')
+      : displayValue(prop, value, titleOf)
 
 /** Notion's CSV layout: the title column first, then one column per property. */
-function databaseCsv(data: DatabaseData, titleOf: (id: string) => string | undefined): string {
+function databaseCsv(
+  data: DatabaseData,
+  titleOf: (id: string) => string | undefined,
+  fileLinks: Map<string, string> = new Map()
+): string {
   const props = data.schema.properties
   const rows = data.rows
     .filter((r) => !r.isTemplate)
     .sort((a, b) => a.position - b.position)
-    .map((r) => props.map((p) => cellText(p, rowValue(r, p), titleOf)))
+    .map((r) => props.map((p) => cellText(p, rowValue(r, p), titleOf, fileLinks)))
   return stringifyCsv([props.map((p) => p.name), ...rows])
+}
+
+/**
+ * Replaces each synced block by the blocks of its hidden page (a synced
+ * block inside its own content is left out instead of looping).
+ */
+function expandSynced(
+  node: JsonNode,
+  load: (id: PageId) => Page | null,
+  seen: Set<string> = new Set()
+): JsonNode {
+  if (!node.content) return node
+  const content: JsonNode[] = []
+  for (const child of node.content) {
+    if (child.type !== 'syncedBlock') {
+      content.push(expandSynced(child, load, seen))
+      continue
+    }
+    const id = String(child.attrs?.sourceId ?? '')
+    const source = id && !seen.has(id) ? load(id) : null
+    if (!source) continue
+    const inner = JSON.parse(source.content) as JsonNode
+    content.push(...(expandSynced(inner, load, new Set([...seen, id])).content ?? []))
+  }
+  return { ...node, content }
 }
 
 /** "Name: value" lines under a row's title, as in Notion's Markdown export. */
 function propertyLines(
   data: DatabaseData,
   row: DatabaseRow,
-  titleOf: (id: string) => string | undefined
+  titleOf: (id: string) => string | undefined,
+  fileLinks: Map<string, string> = new Map()
 ): string {
   return data.schema.properties
     .filter((p) => p.type !== 'title' && p.type !== 'created_time' && p.type !== 'last_edited_time')
-    .map((p) => [p.name, cellText(p, rowValue(row, p), titleOf)] as const)
+    .map((p) => [p.name, cellText(p, rowValue(row, p), titleOf, fileLinks)] as const)
     .filter(([, text]) => text !== '' && text !== 'No')
     .map(([name, text]) => `${name}: ${text.replace(/\n/g, ' ')}`)
     .join('\n')
@@ -230,14 +307,16 @@ export async function buildMarkdownArchive(
   repo: Pick<PageRepository, 'list' | 'get'>,
   dbs: Pick<DatabaseRepository, 'get'>,
   assets: Pick<AssetStore, 'read'>,
-  pageId: PageId | null
+  pageId: PageId | null,
+  people: Person[] = []
 ): Promise<MarkdownArchive> {
   const { files, attachments } = await exportPagesAsMarkdown(
     repo.list(),
     (id) => repo.get(id),
     (src) => assets.read(src),
     pageId,
-    (id) => dbs.get(id)
+    (id) => dbs.get(id),
+    people
   )
   if (files.length === 0) throw new Error('Aucune page à exporter.')
   const single = files.length === 1 && attachments.length === 0

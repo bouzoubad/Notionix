@@ -57,6 +57,7 @@ const api: NotionixApi = {
     updateSchema: (id, schema, base) => call('databases:updateSchema', id, schema, base),
     linkRelation: (id, propertyId) => call('databases:linkRelation', id, propertyId),
     enableNesting: (id, kind) => call('databases:enableNesting', id, kind),
+    importCsv: (id, csv) => call('databases:importCsv', id, csv),
     createRow: (id, init) => call('databases:createRow', id, init),
     updateRow: (rowId, values) => call('databases:updateRow', rowId, values),
     setTemplate: (rowId, flag) => call('databases:setTemplate', rowId, flag),

@@ -89,6 +89,7 @@ export const webApi: NotionixApi = {
     updateSchema: (id, schema, base) => rpc('databases.updateSchema', id, schema, base),
     linkRelation: (id, propertyId) => rpc('databases.linkRelation', id, propertyId),
     enableNesting: (id, kind) => rpc('databases.enableNesting', id, kind),
+    importCsv: (id, csv) => rpc('databases.importCsv', id, csv),
     createRow: (id, init) => rpc('databases.createRow', id, init),
     updateRow: (rowId, values) => rpc('databases.updateRow', rowId, values),
     setTemplate: (rowId, flag) => rpc('databases.setTemplate', rowId, flag),

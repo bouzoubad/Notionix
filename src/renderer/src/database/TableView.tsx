@@ -1,22 +1,29 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import {
+  CALC_LABELS,
   PROPERTY_TYPE_LABELS,
   TITLE_PROPERTY_ID,
+  calculate,
+  calculationsFor,
+  defaultStatusOptions,
   groupRows,
   newId,
-  defaultStatusOptions,
+  type CalcKind,
   type DatabaseRow,
   type PropertyDef,
   type PropertyType,
   type PropertyValue,
-  type RowGroup
+  type RowGroup,
+  type ViewDef
 } from '../../../shared/database'
 import { Cell } from './Cell'
 import {
   TYPE_ICONS,
   canReorder,
   groupProperty,
+  groupValues,
   nameOf,
+  subGroupProperty,
   visibleProperties,
   type ViewProps
 } from './viewTypes'
@@ -25,25 +32,66 @@ import { useRowDrag } from './rowDrag'
 import { Popover } from './Popover'
 import { PropertyMenu } from './PropertyMenu'
 
+const DEFAULT_WIDTH = 180
+const TITLE_WIDTH = 260
+
 export function TableView(props: ViewProps): React.JSX.Element {
   const { schema, view, rows } = props
   const [menu, setMenu] = useState<string | null>(null)
+  const [calcMenu, setCalcMenu] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const columns = visibleProperties(schema, view)
   const reorder = canReorder(view)
   const drag = useRowDrag(reorder, props.onMoveRow)
   const groupProp = groupProperty(schema, view)
-  const groups = groupProp ? groupRows(rows, groupProp, nameOf) : null
-  const [collapsed, setCollapsed] = useState<Set<string | null>>(new Set())
-  const toggleGroup = (key: string | null): void =>
+  const subProp = groupProp ? subGroupProperty(schema, view) : undefined
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleGroup = (key: string): void =>
     setCollapsed((c) => {
       const next = new Set(c)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
     })
-  const groupValues = (g: RowGroup): Record<string, PropertyValue> | undefined =>
-    groupProp ? { [groupProp.id]: g.value } : undefined
+  const patchView = (next: Partial<ViewDef>): void =>
+    props.onSchema({
+      ...schema,
+      views: schema.views.map((v) => (v.id === view.id ? { ...v, ...next } : v))
+    })
+
+  // Column widths: dragged live, saved in the view on release.
+  const [liveWidths, setLiveWidths] = useState<Record<string, number>>({})
+  const resizing = useRef<{ id: string; startX: number; start: number } | null>(null)
+  const widthOf = (p: PropertyDef): number =>
+    liveWidths[p.id] ??
+    view.widths?.[p.id] ??
+    (p.id === TITLE_PROPERTY_ID ? TITLE_WIDTH : DEFAULT_WIDTH)
+  const startResize = (e: React.PointerEvent, p: PropertyDef): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizing.current = { id: p.id, startX: e.clientX, start: widthOf(p) }
+    const move = (ev: PointerEvent): void => {
+      const r = resizing.current
+      if (!r) return
+      setLiveWidths({ [r.id]: Math.min(800, Math.max(60, r.start + ev.clientX - r.startX)) })
+    }
+    const up = (ev: PointerEvent): void => {
+      const r = resizing.current
+      resizing.current = null
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      setLiveWidths({})
+      if (r)
+        patchView({
+          widths: {
+            ...view.widths,
+            [r.id]: Math.min(800, Math.max(60, Math.round(r.start + ev.clientX - r.startX)))
+          }
+        })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
 
   // Sub-items: rows nest under their parent (when the view is not grouped).
   const nesting = groupProp ? null : (schema.subItems ?? null)
@@ -71,6 +119,17 @@ export function TableView(props: ViewProps): React.JSX.Element {
     for (const r of list) if (!parentOf(r)) visit(r, 0)
     return out
   }
+
+  const cell = (p: PropertyDef, row: DatabaseRow): React.JSX.Element => (
+    <Cell
+      prop={p}
+      row={row}
+      onChange={(value) =>
+        props.onUpdateRow(row.id, p.id === TITLE_PROPERTY_ID ? { title: value } : { [p.id]: value })
+      }
+      onCreateOption={props.onCreateOption}
+    />
+  )
 
   const rowsOf = (
     list: DatabaseRow[],
@@ -118,36 +177,58 @@ export function TableView(props: ViewProps): React.JSX.Element {
                     </button>
                   )}
                 </span>
-                <Cell
-                  prop={p}
-                  row={row}
-                  onChange={(value) =>
-                    props.onUpdateRow(
-                      row.id,
-                      p.id === TITLE_PROPERTY_ID ? { title: value } : { [p.id]: value }
-                    )
-                  }
-                  onCreateOption={props.onCreateOption}
-                />
+                {cell(p, row)}
               </div>
             ) : (
-              <Cell
-                prop={p}
-                row={row}
-                onChange={(value) =>
-                  props.onUpdateRow(
-                    row.id,
-                    p.id === TITLE_PROPERTY_ID ? { title: value } : { [p.id]: value }
-                  )
-                }
-                onCreateOption={props.onCreateOption}
-              />
+              cell(p, row)
             )}
           </td>
         ))}
         <td />
       </tr>
     ))
+
+  /** A group header, then its rows (or its sub-groups). */
+  const groupBlock = (
+    g: RowGroup,
+    prop: PropertyDef,
+    key: string,
+    depth: number,
+    parentValues?: Record<string, PropertyValue>
+  ): React.JSX.Element => {
+    const values = { ...parentValues, ...groupValues(prop, g) }
+    const hasValues = Object.keys(values).length > 0 ? values : undefined
+    return (
+      <Fragment key={key}>
+        <tr className={`group-row depth-${depth}`} {...drag.end(hasValues)}>
+          <td colSpan={columns.length + 2} style={{ paddingLeft: 8 + depth * 22 }}>
+            <button
+              className="group-toggle"
+              aria-expanded={!collapsed.has(key)}
+              onClick={() => toggleGroup(key)}
+            >
+              {collapsed.has(key) ? '▸' : '▾'}
+            </button>
+            {g.option ? (
+              <OptionTag option={g.option} />
+            ) : (
+              <span className="group-label">{g.label}</span>
+            )}
+            <span className="muted">{g.rows.length}</span>
+            <button className="group-add" onClick={() => props.onAddRow(hasValues)}>
+              +
+            </button>
+          </td>
+        </tr>
+        {!collapsed.has(key) &&
+          (subProp && depth === 0
+            ? groupRows(g.rows, subProp, nameOf)
+                .filter((sg) => sg.rows.length > 0)
+                .map((sg) => groupBlock(sg, subProp, `${key}/${sg.key ?? 'none'}`, 1, hasValues))
+            : rowsOf(g.rows, hasValues))}
+      </Fragment>
+    )
+  }
 
   const addProperty = (type: PropertyType): void => {
     setAdding(false)
@@ -159,9 +240,23 @@ export function TableView(props: ViewProps): React.JSX.Element {
     setMenu(prop.id)
   }
 
+  const calcs = view.calculations ?? {}
+  const shownRows = rows.filter((r) => !r.isTemplate)
+  const totalWidth = 32 + columns.reduce((s, p) => s + widthOf(p), 0) + 48
+  const classes = ['db-table', view.wrap ? 'wrap' : '', view.freezeTitle ? 'freeze' : '']
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div className="table-view">
-      <table className="db-table">
+      <table className={classes} style={{ width: totalWidth, tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: 32 }} />
+          {columns.map((p) => (
+            <col key={p.id} style={{ width: widthOf(p) }} />
+          ))}
+          <col style={{ width: 48 }} />
+        </colgroup>
         <thead>
           <tr>
             <th className="drag-col" aria-hidden />
@@ -170,6 +265,11 @@ export function TableView(props: ViewProps): React.JSX.Element {
                 <button className="col-head" onClick={() => setMenu(p.id)}>
                   <span className="type-icon">{TYPE_ICONS[p.type]}</span> {p.name}
                 </button>
+                <span
+                  className="col-resize"
+                  title="Glisser pour changer la largeur"
+                  onPointerDown={(e) => startResize(e, p)}
+                />
                 {menu === p.id && (
                   <PropertyMenu
                     prop={p}
@@ -203,34 +303,65 @@ export function TableView(props: ViewProps): React.JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {groups === null
-            ? rowsOf(rows)
-            : groups.map((g) => (
-                <Fragment key={g.key ?? 'none'}>
-                  <tr className="group-row" {...drag.end(groupValues(g))}>
-                    <td colSpan={columns.length + 2}>
-                      <button
-                        className="group-toggle"
-                        aria-expanded={!collapsed.has(g.key)}
-                        onClick={() => toggleGroup(g.key)}
-                      >
-                        {collapsed.has(g.key) ? '▸' : '▾'}
-                      </button>
-                      {g.option ? (
-                        <OptionTag option={g.option} />
-                      ) : (
-                        <span className="group-label">{g.label}</span>
-                      )}
-                      <span className="muted">{g.rows.length}</span>
-                      <button className="group-add" onClick={() => props.onAddRow(groupValues(g))}>
-                        +
-                      </button>
-                    </td>
-                  </tr>
-                  {!collapsed.has(g.key) && rowsOf(g.rows, groupValues(g))}
-                </Fragment>
-              ))}
+          {groupProp
+            ? groupRows(rows, groupProp, nameOf).map((g) =>
+                groupBlock(g, groupProp, g.key ?? 'none', 0)
+              )
+            : rowsOf(rows)}
         </tbody>
+        <tfoot>
+          <tr className="calc-row">
+            <td className="drag-col" />
+            {columns.map((p) => {
+              const kind = calcs[p.id]
+              return (
+                <td key={p.id} className={p.id === TITLE_PROPERTY_ID ? 'title-col' : ''}>
+                  <button
+                    className={`calc-cell${kind ? ' set' : ''}`}
+                    onClick={() => setCalcMenu(p.id)}
+                  >
+                    {kind ? (
+                      <>
+                        <span className="calc-label">{CALC_LABELS[kind]}</span>{' '}
+                        {calculate(shownRows, p, kind, nameOf)}
+                      </>
+                    ) : (
+                      <span className="calc-label">Calculer</span>
+                    )}
+                  </button>
+                  {calcMenu === p.id && (
+                    <Popover onClose={() => setCalcMenu(null)}>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          const next = { ...calcs }
+                          delete next[p.id]
+                          patchView({ calculations: next })
+                          setCalcMenu(null)
+                        }}
+                      >
+                        Aucun calcul
+                      </button>
+                      {calculationsFor(p.type).map((k: CalcKind) => (
+                        <button
+                          key={k}
+                          className={`menu-item${kind === k ? ' active' : ''}`}
+                          onClick={() => {
+                            patchView({ calculations: { ...calcs, [p.id]: k } })
+                            setCalcMenu(null)
+                          }}
+                        >
+                          {CALC_LABELS[k]}
+                        </button>
+                      ))}
+                    </Popover>
+                  )}
+                </td>
+              )
+            })}
+            <td />
+          </tr>
+        </tfoot>
       </table>
       <button className="add-row" onClick={() => props.onAddRow()} {...drag.end()}>
         + Nouvelle ligne

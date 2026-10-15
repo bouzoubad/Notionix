@@ -11,6 +11,7 @@ import {
 } from '../../src/shared/types'
 import { resolveLevels } from '../../src/core/access'
 import { canonicalDoc } from '../../src/core/transfer/canonicalDoc'
+import { importCsvRows } from '../../src/core/transfer/csvImport'
 import type { JsonNode } from '../../src/core/transfer/markdownToDoc'
 import type { User } from './auth'
 import type { Workspace } from './workspace'
@@ -460,6 +461,12 @@ const METHODS: Record<string, Method> = {
     // The other database gets a property too: editing it is needed.
     if (prop?.relationDatabaseId) ctx.need(prop.relationDatabaseId, 'edit')
     return ctx.ws.databases.linkRelation(id(p), text(property))
+  }),
+  'databases.importCsv': write((ctx, [p, csv]) => {
+    ctx.need(id(p), 'edit')
+    return ctx.ws.pages.transaction(() =>
+      importCsvRows(ctx.ws.databases, id(p), text(csv), ctx.people())
+    )
   }),
   'databases.enableNesting': write((ctx, [p, kind]) => {
     ctx.need(id(p), 'edit')

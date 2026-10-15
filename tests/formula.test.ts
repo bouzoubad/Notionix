@@ -196,3 +196,37 @@ describe('repository with computed properties', () => {
     expect(JSON.parse(stored.properties)).toEqual({ q: 5 })
   })
 })
+
+describe('formulas on lists and variables', () => {
+  const run = (src: string, props: Record<string, FormulaValue> = {}): FormulaValue =>
+    evaluate(parseFormula(src), {
+      prop: (n) => {
+        if (!(n in props)) throw new Error(`unknown ${n}`)
+        return props[n]
+      },
+      now: () => new Date(2026, 0, 1)
+    })
+  it('maps, filters and reduces lists', () => {
+    expect(run('map([1, 2, 3], current * 10)')).toEqual([10, 20, 30])
+    expect(run('filter([1, 5, 8], current > 3)')).toEqual([5, 8])
+    expect(run('map(["a", "b"], current + index)')).toEqual(['a0', 'b1'])
+    expect(run('find(prop("Tâches"), contains(current, "b"))', { Tâches: ['abc', 'xbz'] })).toBe(
+      'abc'
+    )
+    expect(run('some([1, 2], current == 2)')).toBe(true)
+    expect(run('every([1, 2], current > 1)')).toBe(false)
+    expect(run('count([1, 2, 3], current >= 2)')).toBe(2)
+    expect(run('sum(map(split("1, 2, 3"), toNumber(current)))')).toBe(6)
+    expect(run('first(sort([3, 1, 2]))')).toBe(1)
+    expect(run('join(unique(["a", "b", "a"]), "-")')).toBe('a-b')
+    expect(run('slice([1, 2, 3, 4], 1, 3)')).toEqual([2, 3])
+    expect(run('sort(["bb", "a", "ccc"], length(current))')).toEqual(['a', 'bb', 'ccc'])
+  })
+  it('names values with let and lets, and chooses with ifs', () => {
+    expect(run('let(x, 4, x * x)')).toBe(16)
+    expect(run('lets(a, 2, b, a + 1, a * b)')).toBe(6)
+    expect(run('ifs(1 > 2, "a", 2 > 1, "b", "c")')).toBe('b')
+    expect(() => run('let("x", 1, x)')).toThrow(/nom de variable/)
+    expect(() => run('inconnu + 1')).toThrow(/prop\("inconnu"\)/)
+  })
+})

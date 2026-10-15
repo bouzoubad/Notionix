@@ -6,10 +6,13 @@ import {
   type DatabaseRow,
   type DatabaseSchema,
   type Filter,
+  type FilterGroup,
+  RELATIVE_DATES,
   type PropertyDef,
   type ViewDef
 } from '../../../shared/database'
 import { Popover } from './Popover'
+import { useStore } from '../store'
 
 /** Filters, sorts, visible properties and the "new row" button of a view. */
 export function Toolbar({
@@ -32,99 +35,106 @@ export function Toolbar({
       ...schema,
       views: schema.views.map((v) => (v.id === view.id ? { ...v, ...next } : v))
     })
-  const propOf = (id: string): PropertyDef | undefined => schema.properties.find((p) => p.id === id)
-  const setFilter = (id: string, next: Partial<Filter>): void =>
-    patchView({ filters: view.filters.map((f) => (f.id === id ? { ...f, ...next } : f)) })
+  const groups = view.filterGroups ?? []
+  const setGroup = (id: string, next: Partial<FilterGroup>): void =>
+    patchView({ filterGroups: groups.map((g) => (g.id === id ? { ...g, ...next } : g)) })
 
   return (
     <div className="db-toolbar">
       <span className="toolbar-anchor">
-        <button className={view.filters.length ? 'active' : ''} onClick={() => setOpen('filter')}>
-          Filtrer{view.filters.length ? ` (${view.filters.length})` : ''}
+        <button
+          className={view.filters.length + groups.length ? 'active' : ''}
+          onClick={() => setOpen('filter')}
+        >
+          Filtrer
+          {view.filters.length + groups.length ? ` (${view.filters.length + groups.length})` : ''}
         </button>
         {open === 'filter' && (
           <Popover onClose={close} align="right" className="filter-popover">
-            {view.filters.length > 1 && (
+            {view.filters.length + groups.length > 1 && (
               <label className="menu-row">
                 Lignes qui respectent
                 <select
                   value={view.filterMode}
                   onChange={(e) => patchView({ filterMode: e.target.value as 'and' | 'or' })}
                 >
-                  <option value="and">tous les filtres</option>
-                  <option value="or">au moins un filtre</option>
+                  <option value="and">toutes les conditions</option>
+                  <option value="or">au moins une condition</option>
                 </select>
               </label>
             )}
-            {view.filters.map((f) => {
-              const prop = propOf(f.propertyId)
-              if (!prop) return null
-              return (
-                <div key={f.id} className="filter-row">
+            {view.filters.map((f) => (
+              <FilterRow
+                key={f.id}
+                schema={schema}
+                filter={f}
+                onChange={(next) =>
+                  patchView({
+                    filters: view.filters.map((x) => (x.id === f.id ? { ...x, ...next } : x))
+                  })
+                }
+                onRemove={() => patchView({ filters: view.filters.filter((x) => x.id !== f.id) })}
+              />
+            ))}
+            {groups.map((g) => (
+              <div key={g.id} className="filter-group">
+                <div className="filter-group-head">
                   <select
-                    aria-label="Propriété"
-                    value={f.propertyId}
-                    onChange={(e) => {
-                      const next = propOf(e.target.value)!
-                      setFilter(f.id, {
-                        propertyId: next.id,
-                        operator: operatorsFor(next.type)[0].op,
-                        value: null
-                      })
-                    }}
+                    aria-label="Groupe"
+                    value={g.mode}
+                    onChange={(e) => setGroup(g.id, { mode: e.target.value as 'and' | 'or' })}
                   >
-                    {schema.properties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
+                    <option value="and">Groupe : toutes ces conditions</option>
+                    <option value="or">Groupe : au moins une de ces conditions</option>
                   </select>
-                  <select
-                    aria-label="Condition"
-                    value={f.operator}
-                    onChange={(e) =>
-                      setFilter(f.id, { operator: e.target.value as Filter['operator'] })
-                    }
-                  >
-                    {operatorsFor(prop.type).map((o) => (
-                      <option key={o.op} value={o.op}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <FilterValue
-                    prop={prop}
-                    filter={f}
-                    onValue={(value) => setFilter(f.id, { value })}
-                  />
                   <button
-                    title="Retirer le filtre"
-                    onClick={() =>
-                      patchView({ filters: view.filters.filter((x) => x.id !== f.id) })
-                    }
+                    title="Retirer le groupe"
+                    onClick={() => patchView({ filterGroups: groups.filter((x) => x.id !== g.id) })}
                   >
                     ×
                   </button>
                 </div>
-              )
-            })}
+                {g.filters.map((f) => (
+                  <FilterRow
+                    key={f.id}
+                    schema={schema}
+                    filter={f}
+                    onChange={(next) =>
+                      setGroup(g.id, {
+                        filters: g.filters.map((x) => (x.id === f.id ? { ...x, ...next } : x))
+                      })
+                    }
+                    onRemove={() =>
+                      setGroup(g.id, { filters: g.filters.filter((x) => x.id !== f.id) })
+                    }
+                  />
+                ))}
+                <button
+                  className="menu-item"
+                  onClick={() => setGroup(g.id, { filters: [...g.filters, blankFilter()] })}
+                >
+                  + Condition dans le groupe
+                </button>
+              </div>
+            ))}
+            <button
+              className="menu-item"
+              onClick={() => patchView({ filters: [...view.filters, blankFilter()] })}
+            >
+              + Ajouter un filtre
+            </button>
             <button
               className="menu-item"
               onClick={() =>
                 patchView({
-                  filters: [
-                    ...view.filters,
-                    {
-                      id: newId(),
-                      propertyId: TITLE_PROPERTY_ID,
-                      operator: 'contains',
-                      value: null
-                    }
+                  filterGroups: [
+                    ...groups,
+                    { id: newId(), mode: 'or', filters: [blankFilter(), blankFilter()] }
                   ]
                 })
               }
             >
-              + Ajouter un filtre
+              + Ajouter un groupe de filtres
             </button>
           </Popover>
         )}
@@ -246,6 +256,62 @@ export function Toolbar({
   )
 }
 
+const blankFilter = (): Filter => ({
+  id: newId(),
+  propertyId: TITLE_PROPERTY_ID,
+  operator: 'contains',
+  value: null
+})
+
+/** One condition: property, operator, value. */
+function FilterRow({
+  schema,
+  filter,
+  onChange,
+  onRemove
+}: {
+  schema: DatabaseSchema
+  filter: Filter
+  onChange: (next: Partial<Filter>) => void
+  onRemove: () => void
+}): React.JSX.Element | null {
+  const prop = schema.properties.find((p) => p.id === filter.propertyId)
+  if (!prop) return null
+  return (
+    <div className="filter-row">
+      <select
+        aria-label="Propriété"
+        value={filter.propertyId}
+        onChange={(e) => {
+          const next = schema.properties.find((p) => p.id === e.target.value)!
+          onChange({ propertyId: next.id, operator: operatorsFor(next.type)[0].op, value: null })
+        }}
+      >
+        {schema.properties.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="Condition"
+        value={filter.operator}
+        onChange={(e) => onChange({ operator: e.target.value as Filter['operator'] })}
+      >
+        {operatorsFor(prop.type).map((o) => (
+          <option key={o.op} value={o.op}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <FilterValue prop={prop} filter={filter} onValue={(value) => onChange({ value })} />
+      <button title="Retirer le filtre" onClick={onRemove}>
+        ×
+      </button>
+    </div>
+  )
+}
+
 function FilterValue({
   prop,
   filter,
@@ -257,7 +323,23 @@ function FilterValue({
 }): React.JSX.Element | null {
   if (['is_empty', 'is_not_empty', 'is_checked', 'is_not_checked'].includes(filter.operator))
     return null
-  if (prop.type === 'select' || prop.type === 'multi_select') {
+  if (['person', 'created_by', 'last_edited_by'].includes(prop.type)) {
+    return (
+      <select
+        aria-label="Valeur"
+        value={String(filter.value ?? '')}
+        onChange={(e) => onValue(e.target.value || null)}
+      >
+        <option value="">Choisir…</option>
+        {useStore.getState().people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  if (prop.type === 'select' || prop.type === 'multi_select' || prop.type === 'status') {
     return (
       <select
         aria-label="Valeur"
@@ -274,6 +356,34 @@ function FilterValue({
     )
   }
   const isDate = ['date', 'created_time', 'last_edited_time'].includes(prop.type)
+  if (isDate) {
+    // A relative date (this week…) or an exact one.
+    const relative = typeof filter.value === 'string' && filter.value.startsWith('@')
+    return (
+      <span className="filter-date">
+        <select
+          aria-label="Date"
+          value={relative ? String(filter.value) : 'exact'}
+          onChange={(e) => onValue(e.target.value === 'exact' ? null : e.target.value)}
+        >
+          <option value="exact">Date précise</option>
+          {Object.entries(RELATIVE_DATES).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+        {!relative && (
+          <input
+            aria-label="Valeur"
+            type="date"
+            value={filter.value ?? ''}
+            onChange={(e) => onValue(e.target.value || null)}
+          />
+        )}
+      </span>
+    )
+  }
   return (
     <input
       aria-label="Valeur"

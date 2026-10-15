@@ -6,7 +6,11 @@ import {
   type PropertyType,
   type PropertyValue,
   type SelectOption,
-  type ViewDef
+  type ViewDef,
+  GROUPABLE_TYPES,
+  READ_ONLY_TYPES,
+  isComputed,
+  type RowGroup
 } from '../../../shared/database'
 import { useStore } from '../store'
 
@@ -56,13 +60,28 @@ export interface ViewProps {
 /** Rows keep the manual order only when the view has no sort. */
 export const canReorder = (view: ViewDef): boolean => view.sorts.length === 0
 
-/** Property a table or list view is grouped by (select, status, person or checkbox), if any. */
+/** Property a view is grouped by, if any. */
 export const groupProperty = (schema: DatabaseSchema, view: ViewDef): PropertyDef | undefined =>
+  schema.properties.find((p) => p.id === view.groupBy && GROUPABLE_TYPES.includes(p.type))
+
+/** Property of the second grouping (table and list), if any. */
+export const subGroupProperty = (schema: DatabaseSchema, view: ViewDef): PropertyDef | undefined =>
   schema.properties.find(
-    (p) =>
-      p.id === view.groupBy &&
-      (p.type === 'select' || p.type === 'checkbox' || p.type === 'status' || p.type === 'person')
+    (p) => p.id === view.subGroupBy && p.id !== view.groupBy && GROUPABLE_TYPES.includes(p.type)
   )
+
+/**
+ * Values a row takes when moved into a group; none for groups it cannot
+ * change (dates of creation, authors, months of a date without a value).
+ */
+export function groupValues(
+  prop: PropertyDef | undefined,
+  group: RowGroup
+): Record<string, PropertyValue> | undefined {
+  if (!prop || READ_ONLY_TYPES.has(prop.type) || isComputed(prop.type)) return undefined
+  if (group.value === null && group.key !== null) return undefined
+  return { [prop.id]: group.value }
+}
 
 /** Name of a page or a person, for relation, person and "created by" values. */
 export const nameOf = (id: string): string | undefined => {

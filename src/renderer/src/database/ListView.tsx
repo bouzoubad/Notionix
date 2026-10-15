@@ -3,7 +3,14 @@ import { groupRows, type DatabaseRow, type PropertyValue } from '../../../shared
 import { OptionTag } from './OptionTag'
 import { RowSummary } from './RowSummary'
 import { useRowDrag } from './rowDrag'
-import { canReorder, groupProperty, nameOf, type ViewProps } from './viewTypes'
+import {
+  canReorder,
+  groupProperty,
+  groupValues,
+  nameOf,
+  subGroupProperty,
+  type ViewProps
+} from './viewTypes'
 
 export function ListView({
   schema,
@@ -51,7 +58,9 @@ export function ListView({
     <div className="list-view">
       {groupProp
         ? groupRows(rows, groupProp, nameOf).map((g) => {
-            const values = { [groupProp.id]: g.value }
+            const values = groupValues(groupProp, g)
+            // Sub-groups: the rows of each group, grouped again.
+            const sub = subGroupProperty(schema, view)
             return (
               <Fragment key={g.key ?? 'none'}>
                 <div className="list-group" {...drag.end(values)}>
@@ -62,7 +71,26 @@ export function ListView({
                   )}
                   <span className="muted">{g.rows.length}</span>
                 </div>
-                {items(g.rows, values)}
+                {sub
+                  ? groupRows(g.rows, sub, nameOf)
+                      .filter((sg) => sg.rows.length > 0)
+                      .map((sg) => {
+                        const subValues = { ...values, ...groupValues(sub, sg) }
+                        return (
+                          <Fragment key={sg.key ?? 'none'}>
+                            <div className="list-group sub" {...drag.end(subValues)}>
+                              {sg.option ? (
+                                <OptionTag option={sg.option} />
+                              ) : (
+                                <span className="group-label">{sg.label}</span>
+                              )}
+                              <span className="muted">{sg.rows.length}</span>
+                            </div>
+                            {items(sg.rows, subValues)}
+                          </Fragment>
+                        )
+                      })
+                  : items(g.rows, values)}
               </Fragment>
             )
           })

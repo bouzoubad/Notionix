@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   VIEW_TYPE_LABELS,
+  GROUPABLE_TYPES,
   applyView,
   parseSchema,
   defaultView,
@@ -55,6 +56,31 @@ export function DatabaseViewer({
   const [addingView, setAddingView] = useState(false)
   const [viewMenu, setViewMenu] = useState<string | null>(null)
   const [settings, setSettings] = useState(false)
+  /** Adds the rows of a CSV file chosen by the person. */
+  const importCsv = async (): Promise<void> => {
+    setSettings(false)
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv,text/csv'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const notice = useStore.getState().showNotice
+      try {
+        const result = await window.api.databases.importCsv(databaseId, await file.text())
+        await source.reload()
+        notice(
+          `${result.rows} ligne(s) importée(s)` +
+            (result.propertiesAdded.length
+              ? `, propriétés ajoutées : ${result.propertiesAdded.join(', ')}`
+              : '.')
+        )
+      } catch (e) {
+        notice(`Import impossible : ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    input.click()
+  }
   const nest = async (kind: 'subItems' | 'dependencies'): Promise<void> => {
     setSettings(false)
     await window.api.databases.enableNesting(databaseId, kind)
@@ -238,6 +264,10 @@ export function DatabaseViewer({
                 Dépendances (« Bloqué par » / « Bloque »)
               </label>
               <p className="hint">Pour les retirer, supprimez leurs deux propriétés de relation.</p>
+              <div className="menu-sep" />
+              <button className="menu-item" onClick={() => void importCsv()}>
+                Importer un fichier CSV…
+              </button>
             </Popover>
           )}
         </span>
@@ -265,23 +295,62 @@ function ViewSettings({
   onPatch: (next: Partial<ViewDef>) => void
 }): React.JSX.Element | null {
   if (view.type === 'board' || view.type === 'table' || view.type === 'list') {
+    const groupable = schema.properties.filter((p) => GROUPABLE_TYPES.includes(p.type))
     return (
-      <label className="menu-row">
-        Grouper par
-        <select
-          value={view.groupBy ?? ''}
-          onChange={(e) => onPatch({ groupBy: e.target.value || null })}
-        >
-          <option value="">{view.type === 'board' ? 'Choisir…' : 'Aucun groupe'}</option>
-          {schema.properties
-            .filter((p) => ['select', 'checkbox', 'status', 'person'].includes(p.type))
-            .map((p) => (
+      <>
+        <label className="menu-row">
+          Grouper par
+          <select
+            value={view.groupBy ?? ''}
+            onChange={(e) => onPatch({ groupBy: e.target.value || null })}
+          >
+            <option value="">{view.type === 'board' ? 'Choisir…' : 'Aucun groupe'}</option>
+            {groupable.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
-        </select>
-      </label>
+          </select>
+        </label>
+        {view.type !== 'board' && view.groupBy && (
+          <label className="menu-row">
+            Sous-groupes par
+            <select
+              value={view.subGroupBy ?? ''}
+              onChange={(e) => onPatch({ subGroupBy: e.target.value || null })}
+            >
+              <option value="">Aucun</option>
+              {groupable
+                .filter((p) => p.id !== view.groupBy)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+        {view.type === 'table' && (
+          <>
+            <label className="menu-row">
+              <input
+                type="checkbox"
+                checked={!!view.wrap}
+                onChange={(e) => onPatch({ wrap: e.target.checked })}
+              />
+              Retour à la ligne dans les cellules
+            </label>
+            <label className="menu-row">
+              <input
+                type="checkbox"
+                checked={!!view.freezeTitle}
+                onChange={(e) => onPatch({ freezeTitle: e.target.checked })}
+              />
+              Figer la colonne du titre
+            </label>
+          </>
+        )}
+      </>
     )
   }
   if (view.type === 'calendar' || view.type === 'timeline') {

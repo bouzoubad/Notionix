@@ -13,8 +13,10 @@ export function CalendarView({
   rows,
   onAddRow,
   onOpenRow,
-  onSchema
+  onSchema,
+  onUpdateRow
 }: ViewProps): React.JSX.Element {
+  const [over, setOver] = useState<string | null>(null)
   const [month, setMonth] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -78,6 +80,24 @@ export function CalendarView({
   const shift = (n: number): void =>
     setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1))
   const editable = prop.type === 'date'
+  /** Moves a row so that it starts on `day`, keeping its length and its time of day. */
+  const moveTo = (rowId: string, day: string): void => {
+    const row = rows.find((r) => r.id === rowId)
+    const value = row ? (rowValue(row, prop) as DateValue | null) : null
+    if (!row || !value || value.start.slice(0, 10) === day) return
+    const shift = (s: string): string => {
+      const [y, m, d] = s.slice(0, 10).split('-').map(Number)
+      const [ty, tm, td] = day.split('-').map(Number)
+      const [fy, fm, fd] = value.start.slice(0, 10).split('-').map(Number)
+      const delta = Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000)
+      return `${iso(new Date(y, m - 1, d + delta))}${s.slice(10)}`
+    }
+    onUpdateRow(row.id, {
+      [prop.id]: value.end
+        ? { start: shift(value.start), end: shift(value.end) }
+        : { start: shift(value.start) }
+    })
+  }
 
   return (
     <div className="calendar">
@@ -114,7 +134,20 @@ export function CalendarView({
             <div
               key={key}
               data-date={key}
-              className={`calendar-day ${d.getMonth() !== month.getMonth() ? 'other' : ''} ${key === today ? 'today' : ''}`}
+              className={`calendar-day ${d.getMonth() !== month.getMonth() ? 'other' : ''} ${key === today ? 'today' : ''}${over === key ? ' drop' : ''}`}
+              onDragOver={(e) => {
+                if (!editable || !e.dataTransfer.types.includes('application/x-notionix-row'))
+                  return
+                e.preventDefault()
+                setOver(key)
+              }}
+              onDragLeave={() => setOver((o) => (o === key ? null : o))}
+              onDrop={(e) => {
+                e.preventDefault()
+                setOver(null)
+                const rowId = e.dataTransfer.getData('application/x-notionix-row')
+                if (rowId) moveTo(rowId, key)
+              }}
             >
               <span className="calendar-date">
                 {d.getDate()}
@@ -129,7 +162,16 @@ export function CalendarView({
                 )}
               </span>
               {(byDay.get(key) ?? []).map((row) => (
-                <button key={row.id} className="calendar-item" onClick={() => onOpenRow(row.id)}>
+                <button
+                  key={row.id}
+                  className="calendar-item"
+                  draggable={editable}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/x-notionix-row', row.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onClick={() => onOpenRow(row.id)}
+                >
                   {row.icon ? `${row.icon} ` : ''}
                   {row.title || 'Sans titre'}
                 </button>

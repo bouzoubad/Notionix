@@ -140,6 +140,45 @@ export type ViewType =
 
 export type ChartType = 'bar' | 'line' | 'donut'
 
+export type CalcKind =
+  | 'count_all'
+  | 'count_values'
+  | 'count_empty'
+  | 'count_unique'
+  | 'percent_empty'
+  | 'percent_not_empty'
+  | 'sum'
+  | 'average'
+  | 'median'
+  | 'min'
+  | 'max'
+  | 'range'
+  | 'earliest'
+  | 'latest'
+  | 'checked'
+  | 'unchecked'
+  | 'percent_checked'
+
+export const CALC_LABELS: Record<CalcKind, string> = {
+  count_all: 'Tout compter',
+  count_values: 'Compter les valeurs',
+  count_empty: 'Compter les vides',
+  count_unique: 'Valeurs uniques',
+  percent_empty: 'Pourcentage vide',
+  percent_not_empty: 'Pourcentage rempli',
+  sum: 'Somme',
+  average: 'Moyenne',
+  median: 'Médiane',
+  min: 'Minimum',
+  max: 'Maximum',
+  range: 'Écart',
+  earliest: 'Date la plus ancienne',
+  latest: 'Date la plus récente',
+  checked: 'Cochées',
+  unchecked: 'Non cochées',
+  percent_checked: 'Pourcentage coché'
+}
+
 export interface ChartConfig {
   type: ChartType
   /** property whose values make the bars or slices */
@@ -173,6 +212,74 @@ export interface Filter {
   value?: string | number | null
 }
 
+/** Filters combined together, then with the view's other filters (nested conditions). */
+export interface FilterGroup {
+  id: string
+  mode: 'and' | 'or'
+  filters: Filter[]
+}
+
+/** Dates relative to today, written '@today', '@this_week'… as a filter value. */
+export const RELATIVE_DATES: Record<string, string> = {
+  '@today': 'Aujourd’hui',
+  '@tomorrow': 'Demain',
+  '@yesterday': 'Hier',
+  '@this_week': 'Cette semaine',
+  '@last_week': 'La semaine dernière',
+  '@next_week': 'La semaine prochaine',
+  '@this_month': 'Ce mois-ci',
+  '@last_month': 'Le mois dernier',
+  '@next_month': 'Le mois prochain',
+  '@past_7': 'Les 7 derniers jours',
+  '@next_7': 'Les 7 prochains jours',
+  '@past_30': 'Les 30 derniers jours',
+  '@next_30': 'Les 30 prochains jours'
+}
+
+/** First and last day ('YYYY-MM-DD') a relative date stands for, today being `now`. */
+export function relativeRange(token: string, now = new Date()): [string, string] | null {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  const iso = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const day = (offset: number): Date =>
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset)
+  // Weeks start on Monday.
+  const monday = (weeks: number): Date => day(-((now.getDay() + 6) % 7) + weeks * 7)
+  const month = (offset: number): [string, string] => [
+    iso(new Date(now.getFullYear(), now.getMonth() + offset, 1)),
+    iso(new Date(now.getFullYear(), now.getMonth() + offset + 1, 0))
+  ]
+  switch (token) {
+    case '@today':
+      return [iso(day(0)), iso(day(0))]
+    case '@tomorrow':
+      return [iso(day(1)), iso(day(1))]
+    case '@yesterday':
+      return [iso(day(-1)), iso(day(-1))]
+    case '@this_week':
+      return [iso(monday(0)), iso(new Date(monday(0).getTime() + 6 * 86_400_000))]
+    case '@last_week':
+      return [iso(monday(-1)), iso(new Date(monday(-1).getTime() + 6 * 86_400_000))]
+    case '@next_week':
+      return [iso(monday(1)), iso(new Date(monday(1).getTime() + 6 * 86_400_000))]
+    case '@this_month':
+      return month(0)
+    case '@last_month':
+      return month(-1)
+    case '@next_month':
+      return month(1)
+    case '@past_7':
+      return [iso(day(-7)), iso(day(0))]
+    case '@next_7':
+      return [iso(day(0)), iso(day(7))]
+    case '@past_30':
+      return [iso(day(-30)), iso(day(0))]
+    case '@next_30':
+      return [iso(day(0)), iso(day(30))]
+    default:
+      return null
+  }
+}
+
 export interface Sort {
   propertyId: string
   direction: 'asc' | 'desc'
@@ -184,6 +291,8 @@ export interface ViewDef {
   type: ViewType
   filters: Filter[]
   filterMode: 'and' | 'or'
+  /** Groups of filters, each one counting as one condition of the view */
+  filterGroups?: FilterGroup[]
   sorts: Sort[]
   /** board: select property used for the columns */
   groupBy?: string | null
@@ -191,6 +300,18 @@ export interface ViewDef {
   dateProperty?: string | null
   /** timeline: width of a day */
   timelineScale?: 'week' | 'month'
+  /** table: calculation shown under each column */
+  calculations?: Record<string, CalcKind>
+  /** table: column widths in pixels */
+  widths?: Record<string, number>
+  /** table: long values wrap instead of being cut */
+  wrap?: boolean
+  /** table: the title column stays visible when scrolling sideways */
+  freezeTitle?: boolean
+  /** form: public link letting anyone fill the form without an account (server) */
+  formToken?: string | null
+  /** board, table and list: second grouping inside each group (table and list) */
+  subGroupBy?: string | null
   chart?: ChartConfig
   /** properties hidden in this view (the title is always shown) */
   hidden: string[]
@@ -360,6 +481,25 @@ export function parseSchema(raw: unknown): DatabaseSchema {
   }
   const views: ViewDef[] = []
   const ids = new Set(properties.map((p) => p.id))
+  // A filter whose operator does not suit the property type (e.g. after a type
+  // change) is dropped instead of silently matching every row.
+  const parseFilters = (raw: unknown): Filter[] =>
+    (Array.isArray(raw) ? raw : []).flatMap((f) =>
+      isRecord(f) &&
+      ids.has(str(f.propertyId)) &&
+      operatorsFor(properties.find((p) => p.id === str(f.propertyId))!.type).some(
+        (o) => o.op === f.operator
+      )
+        ? [
+            {
+              id: str(f.id) || newId(),
+              propertyId: str(f.propertyId),
+              operator: f.operator as FilterOperator,
+              value: typeof f.value === 'string' || typeof f.value === 'number' ? f.value : null
+            }
+          ]
+        : []
+    )
   const viewIds = new Set<string>()
   for (const v of Array.isArray(input.views) ? input.views : []) {
     if (!isRecord(v)) continue
@@ -376,24 +516,18 @@ export function parseSchema(raw: unknown): DatabaseSchema {
       name: str(v.name, VIEW_TYPE_LABELS[type]),
       type,
       filterMode: v.filterMode === 'or' ? 'or' : 'and',
-      filters: (Array.isArray(v.filters) ? v.filters : []).flatMap((f) =>
-        // A filter whose operator does not suit the property type (e.g. after a type
-        // change) is dropped instead of silently matching every row.
-        isRecord(f) &&
-        ids.has(str(f.propertyId)) &&
-        operatorsFor(properties.find((p) => p.id === str(f.propertyId))!.type).some(
-          (o) => o.op === f.operator
-        )
+      filterGroups: (Array.isArray(v.filterGroups) ? v.filterGroups : []).flatMap((g) =>
+        isRecord(g)
           ? [
               {
-                id: str(f.id) || newId(),
-                propertyId: str(f.propertyId),
-                operator: f.operator as FilterOperator,
-                value: typeof f.value === 'string' || typeof f.value === 'number' ? f.value : null
+                id: str(g.id) || newId(),
+                mode: g.mode === 'or' ? ('or' as const) : ('and' as const),
+                filters: parseFilters(g.filters)
               }
             ]
           : []
       ),
+      filters: parseFilters(v.filters),
       sorts: (Array.isArray(v.sorts) ? v.sorts : []).flatMap((s) =>
         isRecord(s) && ids.has(str(s.propertyId))
           ? [
@@ -404,9 +538,21 @@ export function parseSchema(raw: unknown): DatabaseSchema {
             ]
           : []
       ),
-      groupBy: byType(v.groupBy, ['select', 'checkbox', 'status', 'person']),
+      groupBy: byType(v.groupBy, GROUPABLE_TYPES),
       dateProperty: byType(v.dateProperty, ['date', 'created_time', 'last_edited_time']),
       timelineScale: v.timelineScale === 'month' ? 'month' : 'week',
+      calculations: parseCalculations(v.calculations, properties),
+      widths: parseWidths(v.widths, ids),
+      wrap: v.wrap === true,
+      formToken:
+        type === 'form' && typeof v.formToken === 'string' && /^[a-z0-9]{16,64}$/.test(v.formToken)
+          ? v.formToken
+          : null,
+      freezeTitle: v.freezeTitle === true,
+      subGroupBy:
+        byType(v.subGroupBy, GROUPABLE_TYPES) !== byType(v.groupBy, GROUPABLE_TYPES)
+          ? byType(v.subGroupBy, GROUPABLE_TYPES)
+          : null,
       ...(type === 'chart' ? { chart: parseChart(v.chart, properties) } : {}),
       hidden: (Array.isArray(v.hidden) ? v.hidden : []).filter(
         (h): h is string => typeof h === 'string' && ids.has(h) && h !== TITLE_PROPERTY_ID
@@ -430,6 +576,133 @@ export function parseSchema(raw: unknown): DatabaseSchema {
       schema.dependencies = { blockedByPropertyId: blockedBy, blockingPropertyId: blocking }
   }
   return schema
+}
+
+/** Types a view can be grouped by. */
+export const GROUPABLE_TYPES: PropertyType[] = [
+  'select',
+  'status',
+  'multi_select',
+  'checkbox',
+  'person',
+  'relation',
+  'date',
+  'created_time',
+  'last_edited_time',
+  'created_by',
+  'last_edited_by'
+]
+
+/** Calculations a property offers under its column. */
+export function calculationsFor(type: PropertyType): CalcKind[] {
+  const common: CalcKind[] = [
+    'count_all',
+    'count_values',
+    'count_empty',
+    'count_unique',
+    'percent_empty',
+    'percent_not_empty'
+  ]
+  if (type === 'checkbox') return ['count_all', 'checked', 'unchecked', 'percent_checked']
+  if (type === 'number' || type === 'formula' || type === 'rollup' || type === 'unique_id')
+    return [...common, 'sum', 'average', 'median', 'min', 'max', 'range']
+  if (type === 'date' || type === 'created_time' || type === 'last_edited_time')
+    return [...common, 'earliest', 'latest', 'range']
+  return common
+}
+
+function parseCalculations(raw: unknown, properties: PropertyDef[]): Record<string, CalcKind> {
+  const out: Record<string, CalcKind> = {}
+  if (!isRecord(raw)) return out
+  for (const prop of properties) {
+    const kind = raw[prop.id]
+    if (typeof kind === 'string' && calculationsFor(prop.type).includes(kind as CalcKind))
+      out[prop.id] = kind as CalcKind
+  }
+  return out
+}
+
+function parseWidths(raw: unknown, ids: Set<string>): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!isRecord(raw)) return out
+  for (const [id, w] of Object.entries(raw))
+    if (ids.has(id) && typeof w === 'number' && Number.isFinite(w))
+      out[id] = Math.min(800, Math.max(60, Math.round(w)))
+  return out
+}
+
+/**
+ * Result shown under a column: a count, a percentage, a number or a date.
+ * Empty when there is nothing to compute.
+ */
+export function calculate(
+  rows: DatabaseRow[],
+  prop: PropertyDef,
+  kind: CalcKind,
+  nameOf: (id: string) => string | undefined = () => undefined
+): string {
+  const values = rows.map((r) => rowValue(r, prop))
+  const filled = values.filter((v) => !isEmpty(v) || (prop.type === 'checkbox' && v === true))
+  const pct = (n: number): string =>
+    rows.length ? `${Math.round((n / rows.length) * 100)} %` : '0 %'
+  const fmt = (n: number): string => (Math.round(n * 100) / 100).toLocaleString('fr-FR')
+  const numbers = values
+    .map((v) => (typeof v === 'number' ? v : null))
+    .filter((v): v is number => v !== null)
+    .sort((a, b) => a - b)
+  const days = values.flatMap((v) => (isDateValue(v) ? [v.start] : [])).sort()
+  switch (kind) {
+    case 'count_all':
+      return String(rows.length)
+    case 'count_values':
+      return String(filled.length)
+    case 'count_empty':
+      return String(rows.length - filled.length)
+    case 'count_unique':
+      return String(new Set(filled.map((v) => displayValue(prop, v, nameOf))).size)
+    case 'percent_empty':
+      return pct(rows.length - filled.length)
+    case 'percent_not_empty':
+      return pct(filled.length)
+    case 'checked':
+      return String(values.filter((v) => v === true).length)
+    case 'unchecked':
+      return String(values.filter((v) => v !== true).length)
+    case 'percent_checked':
+      return pct(values.filter((v) => v === true).length)
+    case 'earliest':
+      return days.length ? dateText(days[0]) : ''
+    case 'latest':
+      return days.length ? dateText(days[days.length - 1]) : ''
+    default:
+      break
+  }
+  if (kind === 'range' && days.length && !numbers.length) {
+    const ms =
+      new Date(days[days.length - 1].slice(0, 10)).getTime() -
+      new Date(days[0].slice(0, 10)).getTime()
+    return `${Math.round(ms / 86_400_000)} j`
+  }
+  if (!numbers.length) return ''
+  const sum = numbers.reduce((s, n) => s + n, 0)
+  switch (kind) {
+    case 'sum':
+      return fmt(sum)
+    case 'average':
+      return fmt(sum / numbers.length)
+    case 'median': {
+      const mid = Math.floor(numbers.length / 2)
+      return fmt(numbers.length % 2 ? numbers[mid] : (numbers[mid - 1] + numbers[mid]) / 2)
+    }
+    case 'min':
+      return fmt(numbers[0])
+    case 'max':
+      return fmt(numbers[numbers.length - 1])
+    case 'range':
+      return fmt(numbers[numbers.length - 1] - numbers[0])
+    default:
+      return ''
+  }
 }
 
 function parseChart(raw: unknown, properties: PropertyDef[]): ChartConfig {
@@ -858,10 +1131,12 @@ export function matchesFilter(prop: PropertyDef, value: PropertyValue, filter: F
       if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
       const day = (value as DateValue).start.slice(0, 10)
       const end = ((value as DateValue).end ?? (value as DateValue).start).slice(0, 10)
-      const t = String(target).slice(0, 10)
-      if (op === 'before') return day < t
-      if (op === 'after') return end > t
-      return day <= t && t <= end
+      // A relative date ('@this_week'…) is a range of days; an exact date, one day.
+      const range = relativeRange(String(target))
+      const [from, to] = range ?? [String(target).slice(0, 10), String(target).slice(0, 10)]
+      if (op === 'before') return day < from
+      if (op === 'after') return end > to
+      return day <= to && from <= end
     }
     default: {
       const text = fold(displayValue(prop, value))
@@ -917,12 +1192,23 @@ export function applyView(
 ): DatabaseRow[] {
   const props = new Map(schema.properties.map((p) => [p.id, p]))
   const filters = view.filters.filter((f) => props.has(f.propertyId))
+  const groups = (view.filterGroups ?? [])
+    .map((g) => ({ ...g, filters: g.filters.filter((f) => props.has(f.propertyId)) }))
+    .filter((g) => g.filters.length > 0)
+  const match = (row: DatabaseRow, f: Filter): boolean =>
+    matchesFilter(props.get(f.propertyId)!, rowValue(row, props.get(f.propertyId)!), f)
   const visible = rows.filter((row) => {
     if (row.isTemplate) return false
-    if (filters.length === 0) return true
-    const results = filters.map((f) =>
-      matchesFilter(props.get(f.propertyId)!, rowValue(row, props.get(f.propertyId)!), f)
-    )
+    // Each group counts as one condition, combined with the view's own filters.
+    const results = [
+      ...filters.map((f) => match(row, f)),
+      ...groups.map((g) =>
+        g.mode === 'or'
+          ? g.filters.some((f) => match(row, f))
+          : g.filters.every((f) => match(row, f))
+      )
+    ]
+    if (results.length === 0) return true
     return view.filterMode === 'or' ? results.some(Boolean) : results.every(Boolean)
   })
   const sorts = view.sorts.filter((s) => props.has(s.propertyId))
@@ -953,61 +1239,104 @@ export interface RowGroup {
 }
 
 /**
- * Groups of a board or of a grouped table/list: one per option of a select or
- * status property ("no value" first), checked / not checked for a checkbox,
- * or one per person (`nameOf` gives their names).
+ * Groups of a board or of a grouped table/list: one per option (select,
+ * status, multi-select), checked / not checked, one per person or linked
+ * page, or one per month for dates. A row with several values (multi-select,
+ * people, relations) appears in each of their groups. `nameOf` names people
+ * and pages.
  */
 export function groupRows(
   rows: DatabaseRow[],
   prop: PropertyDef,
   nameOf: (id: string) => string | undefined = () => undefined
 ): RowGroup[] {
-  if (prop.type === 'person') {
-    const ids = [
-      ...new Set(rows.flatMap((r) => (r.properties[prop.id] as string[] | undefined) ?? []))
-    ]
+  const empty: RowGroup = {
+    key: null,
+    option: null,
+    label: `Sans ${prop.name}`,
+    value: null,
+    rows: []
+  }
+  if (prop.type === 'checkbox') {
     const groups: RowGroup[] = [
-      { key: null, option: null, label: `Sans ${prop.name}`, value: null, rows: [] },
-      ...ids.map((id) => ({
-        key: id as string | null,
-        option: null,
-        label: nameOf(id) ?? 'Inconnu',
-        value: [id] as PropertyValue,
+      { key: 'true', option: null, label: `${prop.name} : oui`, value: true, rows: [] },
+      { key: 'false', option: null, label: `${prop.name} : non`, value: false, rows: [] }
+    ]
+    for (const row of rows) groups[row.properties[prop.id] === true ? 0 : 1].rows.push(row)
+    return groups
+  }
+  if (prop.type === 'select' || prop.type === 'status' || prop.type === 'multi_select') {
+    const groups: RowGroup[] = [
+      empty,
+      ...(prop.options ?? []).map((option) => ({
+        key: option.id as string | null,
+        option,
+        label: option.name,
+        value: (prop.type === 'multi_select' ? [option.id] : option.id) as PropertyValue,
         rows: [] as DatabaseRow[]
       }))
     ]
     const byKey = new Map(groups.map((g) => [g.key, g]))
     for (const row of rows) {
       const v = row.properties[prop.id]
-      const first = Array.isArray(v) && v.length ? v[0] : null
-      ;(byKey.get(first) ?? groups[0]).rows.push(row)
+      const keys = Array.isArray(v) ? v : typeof v === 'string' ? [v] : []
+      const targets = keys.map((k) => byKey.get(k)).filter((g): g is RowGroup => !!g)
+      for (const g of targets.length ? targets : [empty]) g.rows.push(row)
     }
-    return groups
+    // A status without value has no "no value" column when every row has one.
+    return prop.type === 'status' && empty.rows.length === 0 ? groups.slice(1) : groups
   }
-  const groups: RowGroup[] =
-    prop.type === 'checkbox'
-      ? [
-          { key: 'true', option: null, label: `${prop.name} : oui`, value: true, rows: [] },
-          { key: 'false', option: null, label: `${prop.name} : non`, value: false, rows: [] }
-        ]
-      : [
-          { key: null, option: null, label: `Sans ${prop.name}`, value: null, rows: [] },
-          ...(prop.options ?? []).map((option) => ({
-            key: option.id as string | null,
-            option,
-            label: option.name,
-            value: option.id as PropertyValue,
-            rows: [] as DatabaseRow[]
-          }))
-        ]
+  if (prop.type === 'date' || prop.type === 'created_time' || prop.type === 'last_edited_time') {
+    // One group per month, in order; moving a row sets the 1st of the month (dates only).
+    const months = new Map<string, RowGroup>()
+    for (const row of rows) {
+      const v = rowValue(row, prop)
+      if (!isDateValue(v)) {
+        empty.rows.push(row)
+        continue
+      }
+      const key = v.start.slice(0, 7)
+      if (!months.has(key)) {
+        const [y, m] = key.split('-').map(Number)
+        months.set(key, {
+          key,
+          option: null,
+          label: new Date(y, m - 1, 1).toLocaleDateString('fr-FR', {
+            month: 'long',
+            year: 'numeric'
+          }),
+          value: prop.type === 'date' ? { start: `${key}-01` } : null,
+          rows: []
+        })
+      }
+      months.get(key)!.rows.push(row)
+    }
+    const sorted = [...months.values()].sort((x, y) => (x.key! < y.key! ? -1 : 1))
+    return [...sorted, empty]
+  }
+  // People, "created by", relations: one group per person or linked page.
+  const lists = rows.map((r) => {
+    const v = rowValue(r, prop)
+    return Array.isArray(v) ? (v as string[]) : []
+  })
+  const ids = [...new Set(lists.flat())]
+  const editable = prop.type === 'person' || prop.type === 'relation'
+  const groups: RowGroup[] = [
+    empty,
+    ...ids.map((id) => ({
+      key: id as string | null,
+      option: null,
+      label: nameOf(id) ?? 'Inconnu',
+      value: (editable ? [id] : null) as PropertyValue,
+      rows: [] as DatabaseRow[]
+    }))
+  ]
   const byKey = new Map(groups.map((g) => [g.key, g]))
-  for (const row of rows) {
-    const v = row.properties[prop.id]
-    const key = prop.type === 'checkbox' ? String(v === true) : typeof v === 'string' ? v : null
-    ;(byKey.get(key) ?? groups[0]).rows.push(row)
-  }
-  // A status without value has no "no value" column when every row has one.
-  return prop.type === 'status' && groups[0].rows.length === 0 ? groups.slice(1) : groups
+  rows.forEach((row, i) => {
+    if (!lists[i].length) empty.rows.push(row)
+    for (const id of lists[i]) byKey.get(id)!.rows.push(row)
+  })
+  return groups
 }
 
 /**

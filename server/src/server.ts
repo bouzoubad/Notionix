@@ -104,10 +104,13 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   const purgeTrash = (): void => {
     if (workspace.pages.purgeTrash() > 0 && server) documents.forgetDeletedPages(server.hocuspocus)
   }
-  const purge = setInterval(() => {
-    accounts.purgeExpired()
-    purgeTrash()
-  }, 60 * 60 * 1000)
+  const purge = setInterval(
+    () => {
+      accounts.purgeExpired()
+      purgeTrash()
+    },
+    60 * 60 * 1000
+  )
   purgeTrash()
   purge.unref()
   // Reminders become notifications when their time comes.

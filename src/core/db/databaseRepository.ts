@@ -36,7 +36,7 @@ const ROW_COLUMNS =
 
 /** Databases are pages of kind 'database'; their non-trashed child pages are the rows. */
 export class DatabaseRepository {
-  constructor(private readonly pages: PageRepository) {}
+  constructor(readonly pages: PageRepository) {}
 
   private get db(): PageRepository['db'] {
     return this.pages.db

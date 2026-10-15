@@ -3455,3 +3455,108 @@ button:focus:not(:focus-visible) {
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* Table: widths, wrap, frozen title, calculations */
+.db-table th {
+  position: relative;
+}
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+}
+.col-resize:hover {
+  background: var(--accent);
+  opacity: 0.5;
+}
+.db-table td > .cell,
+.db-table .col-head {
+  min-width: 0;
+}
+.db-table .title-col > .cell,
+.db-table .title-col .col-head {
+  min-width: 0;
+}
+.db-table .cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-table.wrap .cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.db-table.freeze .title-col {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg);
+}
+.calc-row td {
+  border-bottom: 0;
+}
+.calc-cell {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  text-align: right;
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calc-cell:not(.set) {
+  visibility: hidden;
+}
+.calc-row:hover .calc-cell {
+  visibility: visible;
+}
+.calc-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.group-row.depth-1 td {
+  background: transparent;
+}
+.list-group.sub {
+  padding-left: 22px;
+  font-size: 13px;
+}
+
+.calendar-day.drop {
+  background: rgba(35, 131, 226, 0.1);
+}
+.filter-group {
+  margin: 6px 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-sidebar);
+}
+.filter-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.filter-date {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.form-share {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.form-share .share-public-link button {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}

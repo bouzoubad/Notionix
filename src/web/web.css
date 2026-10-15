@@ -332,3 +332,51 @@
   border-radius: 6px;
   background: var(--bg-sidebar);
 }
+
+/* Public forms */
+.public-form {
+  max-width: 560px;
+  margin: 40px auto;
+  padding: 24px;
+  color: var(--text);
+}
+.public-form h1 {
+  margin: 0 0 20px;
+}
+.public-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.public-field input:not([type='checkbox']),
+.public-field select,
+.public-field textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.public-field input[type='checkbox'] {
+  align-self: flex-start;
+}
+.public-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text);
+}
+.public-form button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.public-form button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}

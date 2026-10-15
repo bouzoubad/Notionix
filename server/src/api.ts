@@ -14,6 +14,7 @@ import { buildHtmlArchive } from '../../src/core/transfer/htmlExport'
 import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
 import type { Workspace } from './workspace'
 import { PublicPages } from './publicPages'
+import { PublicForms } from './publicForms'
 import { FeedbackError, FeedbackRepository } from './feedback'
 import { FEEDBACK_STATUS_LABELS } from '../../src/shared/collab'
 
@@ -165,6 +166,7 @@ export function createApi({
   const members = (): User[] => accounts.list()
   const publicPages = new PublicPages(workspace)
   const feedback = new FeedbackRepository(accounts.db)
+  const publicForms = new PublicForms(workspace)
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://localhost')
@@ -174,6 +176,33 @@ export function createApi({
       const method = req.method ?? 'GET'
       if (path === '/api/health' && method === 'GET') {
         send(res, 200, { ok: true, version: SERVER_VERSION })
+      } else if (path.startsWith('/api/form/')) {
+        // Public forms: no session, the link is the key.
+        const token = decodeURIComponent(path.slice('/api/form/'.length))
+        if (method === 'GET') {
+          const form = publicForms.form(token)
+          if (!form) throw new HttpError(404, 'Formulaire introuvable ou plus partagé.')
+          send(res, 200, { form })
+        } else if (method === 'POST') {
+          const result = publicForms.answer(
+            token,
+            await readJson(req),
+            req.socket.remoteAddress ?? ''
+          )
+          if (result === 'unknown')
+            throw new HttpError(404, 'Formulaire introuvable ou plus partagé.')
+          if (result === 'busy')
+            throw new HttpError(429, 'Trop de réponses. Réessayez dans une minute.')
+          collab.changed({
+            id: 'form',
+            email: '',
+            name: 'Formulaire public',
+            role: 'guest',
+            disabled: false,
+            createdAt: 0
+          })
+          send(res, 201, { ok: true })
+        } else throw new HttpError(405, 'Méthode non autorisée.')
       } else if (path.startsWith('/api/public/') && (method === 'GET' || method === 'HEAD')) {
         // Published pages: no session, the link is the key.
         const [token, kind, rest] = path.slice('/api/public/'.length).split('/')

@@ -16,6 +16,7 @@ import type { DatabaseRepository } from '../core/db/databaseRepository'
 import { buildMarkdownArchive, safeName } from '../core/transfer/markdownExport'
 import { importNotionExport } from '../core/transfer/notionImport'
 import { buildHtmlArchive } from '../core/transfer/htmlExport'
+import { importCsvRows } from '../core/transfer/csvImport'
 
 export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   ipc.handle('pages:list', () => repo.list())
@@ -96,6 +97,9 @@ export function registerDatabaseHandlers(ipc: IpcMain, dbs: DatabaseRepository):
   )
   ipc.handle('databases:linkRelation', (_e, id: string, propertyId: string) =>
     dbs.linkRelation(id, propertyId)
+  )
+  ipc.handle('databases:importCsv', (_e, id: string, csv: string) =>
+    dbs.pages.transaction(() => importCsvRows(dbs, id, String(csv), [LOCAL_PERSON]))
   )
   ipc.handle('databases:enableNesting', (_e, id: string, kind: string) =>
     dbs.enableNesting(id, kind === 'dependencies' ? 'dependencies' : 'subItems')

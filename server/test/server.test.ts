@@ -543,6 +543,63 @@ describe('API tokens, publishing and exports', () => {
   })
 })
 
+describe('public forms', () => {
+  it('lets anyone answer a shared form, through its fields only', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const db = (await rpc<PageSummary>(admin, 'databases.create', null)).result
+    const base = (
+      await rpc<{ schema: { properties: unknown[]; views: unknown[] } }>(
+        admin,
+        'databases.get',
+        db.id
+      )
+    ).result.schema
+    const token = 'abcdefghij0123456789xyz0'
+    await rpc(admin, 'databases.updateSchema', db.id, {
+      ...base,
+      properties: [
+        ...base.properties,
+        { id: 'mail', name: 'E-mail', type: 'email' },
+        { id: 'secret', name: 'Note interne', type: 'text' }
+      ],
+      views: [
+        ...base.views,
+        {
+          id: 'f',
+          name: 'Demande',
+          type: 'form',
+          filters: [],
+          filterMode: 'and',
+          sorts: [],
+          hidden: ['secret'],
+          formToken: token
+        }
+      ]
+    })
+    const form = await api(`/api/form/${token}`)
+    expect(form.body.form).toMatchObject({ title: 'Demande' })
+    expect((form.body.form as { fields: { id: string }[] }).fields.map((f) => f.id)).toEqual([
+      'title',
+      'mail'
+    ])
+    const sent = await api(`/api/form/${token}`, {
+      json: { title: 'Nouvelle demande', mail: 'a@b.fr', secret: 'x' }
+    })
+    expect(sent.status).toBe(201)
+    const rows = (
+      await rpc<{ rows: { title: string; properties: Record<string, unknown> }[] }>(
+        admin,
+        'databases.get',
+        db.id
+      )
+    ).result.rows
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ title: 'Nouvelle demande', properties: { mail: 'a@b.fr' } })
+    expect(rows[0].properties.secret).toBeUndefined()
+    expect((await api('/api/form/inconnuinconnuinconnu')).status).toBe(404)
+  })
+})
+
 describe('feedback', () => {
   it('lets everyone report, and administrators follow up', async () => {
     const admin = await login(ADMIN.email, ADMIN.password)

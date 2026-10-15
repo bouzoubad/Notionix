@@ -282,6 +282,8 @@ export interface NotionixApi {
     updateSchema(id: PageId, schema: DatabaseSchema, base?: DatabaseSchema): Promise<DatabaseSchema>
     /** Makes a relation two-way */
     linkRelation(id: PageId, propertyId: string): Promise<DatabaseSchema>
+    /** Adds the rows of a CSV file; columns go to the properties of the same name */
+    importCsv(id: PageId, csv: string): Promise<{ rows: number; propertiesAdded: string[] }>
     /** Turns on sub-items or dependencies (two linked self-relations) */
     enableNesting(id: PageId, kind: 'subItems' | 'dependencies'): Promise<DatabaseSchema>
     createRow(databaseId: PageId, init: NewRow): Promise<DatabaseRow>

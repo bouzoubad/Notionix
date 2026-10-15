@@ -45,7 +45,13 @@ async function startApp(user: SessionUser): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // Published pages need no account.
+  // Public forms and published pages need no account.
+  const form = /^\/f\/([a-z0-9]+)\/?$/.exec(location.pathname)
+  if (form) {
+    const { PublicForm } = await import('./PublicForm')
+    root.render(<PublicForm token={form[1]} />)
+    return
+  }
   const published = /^\/p\/([A-Za-z0-9_-]+)(?:\/([A-Za-z0-9_-]+))?\/?$/.exec(location.pathname)
   if (published) {
     const token = published[1]

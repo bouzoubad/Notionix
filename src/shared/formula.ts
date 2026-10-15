@@ -18,6 +18,8 @@ type Node =
   | { kind: 'unary'; op: '-' | 'not'; arg: Node }
   | { kind: 'binary'; op: string; left: Node; right: Node }
   | { kind: 'call'; name: string; args: Node[] }
+  | { kind: 'var'; name: string }
+  | { kind: 'list'; items: Node[] }
 
 interface Token {
   type: 'number' | 'string' | 'ident' | 'op' | 'end'
@@ -75,7 +77,7 @@ function tokenize(src: string): Token[] {
       i += 2
       continue
     }
-    if ('+-*/%^()<>,!'.includes(c)) {
+    if ('+-*/%^()<>,![]'.includes(c)) {
       tokens.push({ type: 'op', value: c, pos: i })
       i += 1
       continue
@@ -131,6 +133,16 @@ export function parseFormula(src: string): Node {
       expect(')')
       return inner
     }
+    if (t.type === 'op' && t.value === '[') {
+      // A list: [1, 2, 3]
+      const items: Node[] = []
+      if (peek().value !== ']') {
+        do items.push(expression(0))
+        while (peek().value === ',' && next())
+      }
+      expect(']')
+      return { kind: 'list', items }
+    }
     if (t.type === 'op' && t.value === '-') return { kind: 'unary', op: '-', arg: expression(7) }
     if (t.type === 'op' && t.value === '!') return { kind: 'unary', op: 'not', arg: expression(7) }
     if (t.type === 'ident') {
@@ -147,9 +159,8 @@ export function parseFormula(src: string): Node {
         expect(')')
         return { kind: 'call', name: word, args }
       }
-      throw new FormulaError(
-        `« ${t.value} » inconnu : utilisez prop("${t.value}") pour une propriété.`
-      )
+      // A variable: current and index (map, filter…), or a name given by let().
+      return { kind: 'var', name: t.value }
     }
     if (t.type === 'end') throw new FormulaError('Formule incomplète.')
     throw new FormulaError(`« ${t.value} » inattendu à la position ${t.pos + 1}.`)
@@ -177,7 +188,11 @@ export interface FormulaContext {
   /** Value of the property named `name` for the current row; throws if unknown */
   prop(name: string): FormulaValue
   now(): Date
+  /** Variables in scope: current and index inside map()/filter(), names given by let() */
+  vars?: Map<string, FormulaValue>
 }
+
+const MAX_LIST = 10_000
 
 const isDate = (v: FormulaValue): v is Date => v instanceof Date
 
@@ -320,6 +335,23 @@ export const FORMULA_HELP: { syntax: string; description: string }[] = [
     syntax:
       'dateBetween(fin, début, "days"), formatDate(d, "DD/MM/YYYY"), year(d), month(d), day(d)',
     description: 'dates'
+  },
+  {
+    syntax: 'let(x, valeur, x * 2), lets(a, 1, b, 2, a + b), ifs(c1, v1, c2, v2, sinon)',
+    description: 'variables et conditions multiples'
+  },
+  {
+    syntax: '[1, 2, 3], split("a, b"), at(liste, 0), first, last, slice(liste, 1, 3)',
+    description: 'listes'
+  },
+  {
+    syntax:
+      'map(liste, current * 2), filter(liste, current > 1), find, findIndex, some, every, count(liste, condition)',
+    description: 'parcourir une liste (current, index)'
+  },
+  {
+    syntax: 'sort(liste), sort(liste, clé), reverse, unique, includes(liste, v), flat',
+    description: 'listes'
   }
 ]
 
@@ -375,9 +407,31 @@ export function evaluate(node: Node, ctx: FormulaContext): FormulaValue {
         }
       }
     }
+    case 'list':
+      return node.items.map(ev)
+    case 'var': {
+      const value = ctx.vars?.get(node.name)
+      if (value === undefined)
+        throw new FormulaError(
+          `« ${node.name} » inconnu : utilisez prop("${node.name}") pour une propriété.`
+        )
+      return value
+    }
     case 'call':
       return call(node.name, node.args, ev, ctx)
   }
+}
+
+/** Evaluates `node` with more variables in scope. */
+const withVars = (node: Node, ctx: FormulaContext, vars: [string, FormulaValue][]): FormulaValue =>
+  evaluate(node, { ...ctx, vars: new Map([...(ctx.vars ?? []), ...vars]) })
+
+const asList = (v: FormulaValue): FormulaValue[] => (Array.isArray(v) ? v : v === null ? [] : [v])
+
+function compareValues(a: FormulaValue, b: FormulaValue): number {
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  if (isDate(a) && isDate(b)) return a.getTime() - b.getTime()
+  return toText(a).localeCompare(toText(b), undefined, { numeric: true, sensitivity: 'base' })
 }
 
 function call(
@@ -394,7 +448,132 @@ function call(
     }
   }
   const values = (): FormulaValue[] => args.map(ev).flatMap((v) => (Array.isArray(v) ? v : [v]))
+  /** A variable's name, written as an identifier: let(x, …), not let("x", …). */
+  const nameOf = (n: Node): string => {
+    if (n.kind === 'var') return n.name
+    throw new FormulaError(`${name}() attend un nom de variable (sans guillemets).`)
+  }
+  /** Runs `body` for every item of a list, with current and index set. */
+  const each = <T>(
+    listNode: Node,
+    body: Node,
+    fn: (item: FormulaValue, result: FormulaValue, i: number) => T
+  ): T[] => {
+    const list = asList(ev(listNode))
+    if (list.length > MAX_LIST) throw new FormulaError('Liste trop longue.')
+    return list.map((item, i) =>
+      fn(
+        item,
+        withVars(body, ctx, [
+          ['current', item],
+          ['index', i]
+        ]),
+        i
+      )
+    )
+  }
   switch (name) {
+    case 'let':
+      arity(3)
+      return withVars(args[2], ctx, [[nameOf(args[0]), ev(args[1])]])
+    case 'lets': {
+      if (args.length < 3 || args.length % 2 === 0)
+        throw new FormulaError('lets() attend des paires nom, valeur puis une expression.')
+      const vars: [string, FormulaValue][] = []
+      for (let i = 0; i < args.length - 1; i += 2) {
+        const value = evaluate(args[i + 1], {
+          ...ctx,
+          vars: new Map([...(ctx.vars ?? []), ...vars])
+        })
+        vars.push([nameOf(args[i]), value])
+      }
+      return withVars(args[args.length - 1], ctx, vars)
+    }
+    case 'ifs': {
+      if (args.length < 3 || args.length % 2 === 0)
+        throw new FormulaError(
+          'ifs() attend des paires condition, valeur puis une valeur par défaut.'
+        )
+      for (let i = 0; i < args.length - 1; i += 2) if (truthy(ev(args[i]))) return ev(args[i + 1])
+      return ev(args[args.length - 1])
+    }
+    case 'map':
+      arity(2)
+      return each(args[0], args[1], (_item, result) => result)
+    case 'filter':
+      arity(2)
+      return each(args[0], args[1], (item, result) => [item, truthy(result)] as const)
+        .filter(([, keep]) => keep)
+        .map(([item]) => item)
+    case 'find': {
+      arity(2)
+      const found = each(args[0], args[1], (item, result) => [item, truthy(result)] as const).find(
+        ([, ok]) => ok
+      )
+      return found ? found[0] : null
+    }
+    case 'findindex': {
+      arity(2)
+      return each(args[0], args[1], (_item, result) => truthy(result)).findIndex(Boolean)
+    }
+    case 'some':
+      arity(2)
+      return each(args[0], args[1], (_item, result) => truthy(result)).some(Boolean)
+    case 'every':
+      arity(2)
+      return each(args[0], args[1], (_item, result) => truthy(result)).every(Boolean)
+    case 'count': {
+      arity(1, 2)
+      if (args.length === 1) return asList(ev(args[0])).length
+      return each(args[0], args[1], (_item, result) => truthy(result)).filter(Boolean).length
+    }
+    case 'at': {
+      arity(2)
+      const list = asList(ev(args[0]))
+      const i = Math.trunc(toNumber(ev(args[1])))
+      return list.at(i) ?? null
+    }
+    case 'first':
+      arity(1)
+      return asList(ev(args[0]))[0] ?? null
+    case 'last':
+      arity(1)
+      return asList(ev(args[0])).at(-1) ?? null
+    case 'sort': {
+      arity(1, 2)
+      const list = [...asList(ev(args[0]))]
+      if (args.length === 1) return list.sort(compareValues)
+      // sort(list, key): by the value of `key` for each item.
+      const keyed = each(args[0], args[1], (item, key) => ({ item, key }))
+      return keyed.sort((a, b) => compareValues(a.key, b.key)).map((k) => k.item)
+    }
+    case 'reverse':
+      arity(1)
+      return [...asList(ev(args[0]))].reverse()
+    case 'unique': {
+      arity(1)
+      const seen = new Set<string>()
+      return asList(ev(args[0])).filter((v) => {
+        const k = toText(v)
+        if (seen.has(k)) return false
+        seen.add(k)
+        return true
+      })
+    }
+    case 'includes':
+      arity(2)
+      return asList(ev(args[0])).some((v) => toText(v) === toText(ev(args[1])))
+    case 'flat':
+      arity(1)
+      return asList(ev(args[0])).flatMap((v) => (Array.isArray(v) ? v : [v]))
+    case 'split': {
+      arity(1, 2)
+      const sep = args[1] ? toText(ev(args[1])) : ','
+      return toText(ev(args[0]))
+        .split(sep)
+        .map((t) => t.trim())
+        .filter((t) => t !== '')
+    }
     case 'prop': {
       arity(1)
       const key = ev(args[0])
@@ -442,8 +621,11 @@ function call(
         .join(toText(ev(args[2])))
     case 'slice': {
       arity(2, 3)
-      const t = toText(ev(args[0]))
-      return t.slice(toNumber(ev(args[1])), args[2] ? toNumber(ev(args[2])) : undefined)
+      const v = ev(args[0])
+      const start = toNumber(ev(args[1]))
+      const end = args[2] ? toNumber(ev(args[2])) : undefined
+      // Lists are sliced as lists, everything else as text.
+      return Array.isArray(v) ? v.slice(start, end) : toText(v).slice(start, end)
     }
     case 'round': {
       arity(1, 2)

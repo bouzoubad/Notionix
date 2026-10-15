@@ -59,7 +59,8 @@ export async function exportPagesAsMarkdown(
   rootId: PageId | null,
   loadDatabase: (id: PageId) => DatabaseData | null = () => null
 ): Promise<MarkdownExport> {
-  const live = summaries.filter((p) => !p.trashedAt)
+  // Hidden pages of synced blocks are not pages of their own.
+  const live = summaries.filter((p) => !p.trashedAt && p.kind !== 'synced')
   const byParent = new Map<PageId | null, PageSummary[]>()
   for (const page of live) {
     const list = byParent.get(page.parentId) ?? []

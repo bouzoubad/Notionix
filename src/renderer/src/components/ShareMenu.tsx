@@ -151,6 +151,28 @@ export function ShareMenu({
         </div>
       )}
 
+      <h5>Publier sur le web</h5>
+      <label className="share-space publish">
+        <input
+          type="checkbox"
+          disabled={!manage}
+          checked={page.publicToken !== null}
+          onChange={(e) => void run(() => window.api.pages.publish(page.id, e.target.checked))}
+        />
+        Lien public en lecture seule (la page et ses sous-pages)
+      </label>
+      {page.publicToken && (
+        <div className="share-public-link">
+          <input
+            readOnly
+            value={`${location.origin}/p/${page.publicToken}`}
+            onFocus={(e) => e.target.select()}
+          />
+          <a href={`/p/${page.publicToken}`} target="_blank" rel="noreferrer">
+            Ouvrir
+          </a>
+        </div>
+      )}
       {top && manage && (
         <label className="share-space">
           <input

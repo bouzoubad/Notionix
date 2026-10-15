@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SearchHit } from '../../../shared/types'
-import { useStore } from '../store'
+import { recentPageIds, useStore } from '../store'
 
 const mark = (html: string): string =>
   html
@@ -16,8 +16,15 @@ export function SearchDialog(): React.JSX.Element {
   const [sel, setSel] = useState(0)
   const seq = useRef(0)
 
+  const pages = useStore((s) => s.pages)
+  // Without a query: the pages opened lately.
+  const recent: SearchHit[] = recentPageIds()
+    .map((id) => pages.find((p) => p.id === id && !p.trashedAt))
+    .filter((p): p is NonNullable<typeof p> => !!p)
+    .map((p) => ({ id: p.id, title: p.title, icon: p.icon, snippet: '' }))
   useEffect(() => {
     const n = ++seq.current
+    if (!q.trim()) return
     window.api.pages.search(q).then((h) => {
       if (n !== seq.current) return
       setHits(h)
@@ -25,6 +32,7 @@ export function SearchDialog(): React.JSX.Element {
     })
   }, [q])
 
+  const list = q.trim() ? hits : recent
   const go = (h?: SearchHit): void => {
     if (!h) return
     open(h.id)
@@ -43,17 +51,18 @@ export function SearchDialog(): React.JSX.Element {
             if (e.key === 'Escape') setOpen(false)
             if (e.key === 'ArrowDown') {
               e.preventDefault()
-              setSel(Math.min(sel + 1, hits.length - 1))
+              setSel(Math.min(sel + 1, list.length - 1))
             }
             if (e.key === 'ArrowUp') {
               e.preventDefault()
               setSel(Math.max(sel - 1, 0))
             }
-            if (e.key === 'Enter') go(hits[sel])
+            if (e.key === 'Enter') go(list[sel])
           }}
         />
         <div className="results">
-          {hits.map((h, i) => (
+          {!q.trim() && recent.length > 0 && <div className="menu-label">Récents</div>}
+          {list.map((h, i) => (
             <button
               key={h.id}
               className={i === sel ? 'hit active' : 'hit'}

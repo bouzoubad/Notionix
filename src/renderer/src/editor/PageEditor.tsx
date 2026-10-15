@@ -22,6 +22,7 @@ import { canEditPage, platform, type SharedPage } from '../platform'
 import { PageTopBar } from '../components/PageTopBar'
 import { pageOptionClasses } from '../pageOptions'
 import { CommentsPanel } from '../components/CommentsPanel'
+import { Backlinks } from '../components/Backlinks'
 
 const lowlight = createLowlight(common)
 
@@ -223,6 +224,7 @@ function LoadedEditor({
             }
           }}
         />
+        <Backlinks pageId={page.id} />
         {isRow && <RowProperties rowId={page.id} />}
         <EditorContent editor={editor} className="editor" />
         {editor && <TextBubbleMenu editor={editor} />}

@@ -70,6 +70,26 @@ interface State {
 
 const api = window.api.pages
 
+/** Pages opened lately on this device, newest first. */
+const RECENT_KEY = 'recentPages'
+const MAX_RECENT = 12
+export function recentPageIds(): PageId[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+function rememberRecent(id: PageId): void {
+  const next = [id, ...recentPageIds().filter((x) => x !== id)].slice(0, MAX_RECENT)
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+  } catch {
+    // a convenience only
+  }
+}
+
 let noticeTimer: number | undefined
 function notify(set: (partial: Partial<State>) => void, message: string): void {
   window.clearTimeout(noticeTimer)
@@ -125,8 +145,10 @@ export const useStore = create<State>((set, get) => ({
     set({ revision: get().revision + 1 })
   },
   open: (id) => {
-    if (id) localStorage.setItem('currentId', id)
-    else localStorage.removeItem('currentId')
+    if (id) {
+      localStorage.setItem('currentId', id)
+      rememberRecent(id)
+    } else localStorage.removeItem('currentId')
     // A discussion being written belongs to the page being left.
     const comments = get().comments
     set({ currentId: id, comments: { ...comments, draft: null, focus: null } })

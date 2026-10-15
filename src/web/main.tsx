@@ -43,6 +43,25 @@ async function startApp(user: SessionUser): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Published pages need no account.
+  const published = /^\/p\/([A-Za-z0-9_-]+)(?:\/([A-Za-z0-9_-]+))?\/?$/.exec(location.pathname)
+  if (published) {
+    const token = published[1]
+    setPlatform({
+      kind: 'web',
+      session: null,
+      imageSrc: {
+        display: (src) => {
+          const name = assetNameFromSrc(src)
+          return name ? `/api/public/${token}/assets/${name}` : src
+        },
+        stored: (url) => url
+      }
+    })
+    const { PublicView } = await import('./PublicView')
+    root.render(<PublicView token={token} pageId={published[2] ?? null} />)
+    return
+  }
   try {
     const { user } = await json<{ user: SessionUser }>('/api/me')
     await startApp(user)

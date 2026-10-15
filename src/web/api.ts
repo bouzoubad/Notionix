@@ -42,6 +42,7 @@ export const webApi: NotionixApi = {
     list: () => rpc('pages.list'),
     get: (id) => rpc('pages.get', id),
     create: (parentId, access, kind) => rpc('pages.create', parentId, access, kind),
+    createWith: (parentId, init) => rpc('pages.createWith', parentId, init),
     update: (id, patch) => rpc('pages.update', id, patch),
     move: (id, parentId, index) => rpc('pages.move', id, parentId, index),
     trash: (id) => rpc('pages.trash', id),
@@ -54,6 +55,7 @@ export const webApi: NotionixApi = {
     shares: (id) => rpc('pages.shares', id),
     setShare: (id, userId, level) => rpc('pages.setShare', id, userId, level),
     backlinks: (id) => rpc('pages.backlinks', id),
+    publish: (id, published) => rpc('pages.publish', id, published),
     versions: (id) => rpc('pages.versions', id),
     version: (versionId) => rpc('pages.version', versionId),
     restoreVersion: (id, versionId) => rpc('pages.restoreVersion', id, versionId)
@@ -129,13 +131,25 @@ export const webApi: NotionixApi = {
       })
       return result
     },
-    exportMarkdown: async (pageId): Promise<ExportSummary | null> => {
-      const res = await request(
-        `/api/transfer/export${pageId ? `?page=${encodeURIComponent(pageId)}` : ''}`
-      )
-      const fileName = attachmentName(res.headers.get('Content-Disposition'))
-      download(await res.blob(), fileName)
-      return { path: fileName, pages: Number(res.headers.get('X-Notionix-Pages') ?? 0) }
-    }
+    exportPdf: async () => {
+      // The browser's print dialog saves the page as PDF (print style sheet).
+      window.print()
+      return null
+    },
+    exportHtml: async (pageId) => exportArchive(pageId, 'html'),
+    exportMarkdown: async (pageId): Promise<ExportSummary | null> =>
+      exportArchive(pageId, 'markdown')
   }
+}
+
+async function exportArchive(
+  pageId: string | null,
+  format: 'markdown' | 'html'
+): Promise<ExportSummary | null> {
+  const query = new URLSearchParams({ format })
+  if (pageId) query.set('page', pageId)
+  const res = await request(`/api/transfer/export?${query}`)
+  const fileName = attachmentName(res.headers.get('Content-Disposition'))
+  download(await res.blob(), fileName)
+  return { path: fileName, pages: Number(res.headers.get('X-Notionix-Pages') ?? 0) }
 }

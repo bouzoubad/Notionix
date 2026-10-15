@@ -22,6 +22,20 @@ export function PageOptionsMenu({
   const duplicate = useStore((s) => s.duplicate)
   const trash = useStore((s) => s.trash)
   const canEdit = atLeast(page.level, 'edit')
+  const showNotice = useStore((s) => s.showNotice)
+  const exportAs = async (format: 'html' | 'pdf'): Promise<void> => {
+    try {
+      // The menu closes first so that it is not in the PDF.
+      await new Promise((r) => setTimeout(r, 50))
+      const result =
+        format === 'html'
+          ? await window.api.transfer.exportHtml(page.id)
+          : await window.api.transfer.exportPdf(page.id)
+      if (result) showNotice(`Exporté : ${result.path}`)
+    } catch (e) {
+      showNotice(`Export impossible : ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
   const options = page.options
   const set = (next: Partial<PageOptions>): void =>
     void patch(page.id, { options: { ...options, ...next } })
@@ -70,12 +84,23 @@ export function PageOptionsMenu({
           onChange={(e) => set({ locked: e.target.checked })}
         />
       </label>
+      <label className="option-row">
+        Enregistrer comme modèle
+        <input
+          type="checkbox"
+          disabled={!canEdit}
+          checked={!!options.template}
+          onChange={(e) => set({ template: e.target.checked })}
+        />
+      </label>
       <hr />
       <button onClick={() => (onClose(), void patch(page.id, { favorite: !page.favorite }))}>
         {page.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
       </button>
       <button onClick={() => (onClose(), void duplicate(page.id))}>Dupliquer</button>
       <button onClick={() => (onClose(), void exportPage(page.id))}>Exporter en Markdown</button>
+      <button onClick={() => (onClose(), void exportAs('html'))}>Exporter en HTML</button>
+      <button onClick={() => (onClose(), void exportAs('pdf'))}>Exporter en PDF</button>
       {canEdit && (
         <button onClick={() => (onClose(), void trash(page.id))}>Mettre à la corbeille</button>
       )}

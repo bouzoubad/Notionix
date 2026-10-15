@@ -27,7 +27,9 @@ export function SettingsDialog({
   user: SessionUser
   onClose: () => void
 }): React.JSX.Element {
-  const [tab, setTab] = useState<'me' | 'accounts'>(user.role === 'admin' ? 'accounts' : 'me')
+  const [tab, setTab] = useState<'me' | 'accounts' | 'tokens'>(
+    user.role === 'admin' ? 'accounts' : 'me'
+  )
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="dialog settings" onMouseDown={(e) => e.stopPropagation()}>
@@ -44,9 +46,18 @@ export function SettingsDialog({
           <button className={tab === 'me' ? 'active' : ''} onClick={() => setTab('me')}>
             Mon compte
           </button>
+          <button className={tab === 'tokens' ? 'active' : ''} onClick={() => setTab('tokens')}>
+            Jetons d’API
+          </button>
         </div>
         <div className="settings-body">
-          {tab === 'accounts' ? <Accounts self={user} /> : <MyAccount user={user} />}
+          {tab === 'accounts' ? (
+            <Accounts self={user} />
+          ) : tab === 'tokens' ? (
+            <Tokens />
+          ) : (
+            <MyAccount user={user} />
+          )}
         </div>
       </div>
     </div>
@@ -300,5 +311,105 @@ function NewAccount({
       </div>
       {error && <p className="error">{error}</p>}
     </form>
+  )
+}
+
+interface ApiToken {
+  id: string
+  name: string
+  createdAt: number
+  lastUsedAt: number | null
+}
+
+/** Personal API tokens: scripts and integrations act as this person. */
+function Tokens(): React.JSX.Element {
+  const [tokens, setTokens] = useState<ApiToken[] | null>(null)
+  const [name, setName] = useState('')
+  const [created, setCreated] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const reload = async (): Promise<void> => {
+    setTokens((await json<{ tokens: ApiToken[] }>('/api/tokens')).tokens)
+  }
+  useEffect(() => {
+    let cancelled = false
+    json<{ tokens: ApiToken[] }>('/api/tokens')
+      .then(({ tokens }) => !cancelled && setTokens(tokens))
+      .catch((e) => !cancelled && setError(message(e)))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const create = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    setError(null)
+    try {
+      const { token } = await json<{ token: string }>('/api/tokens', { json: { name } })
+      setCreated(token)
+      setName('')
+      await reload()
+    } catch (err) {
+      setError(message(err))
+    }
+  }
+  const when = (ms: number | null): string => (ms ? new Date(ms).toLocaleString('fr-FR') : 'jamais')
+  return (
+    <div className="accounts">
+      <p className="settings-note">
+        Un jeton permet à un script d’utiliser l’API de Notionix avec vos droits (en-tête «
+        Authorization: Bearer … »). Documentation : docs/api.md du dépôt.
+      </p>
+      <form className="new-account" onSubmit={(e) => void create(e)}>
+        <div className="new-account-fields">
+          <input
+            placeholder="Nom du jeton (ex. Import tableur)"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="primary" type="submit">
+            Créer un jeton
+          </button>
+        </div>
+      </form>
+      {created && (
+        <p className="settings-notice">
+          Copiez ce jeton maintenant, il ne sera plus affiché :{' '}
+          <code className="token">{created}</code>
+        </p>
+      )}
+      {error && <p className="error">{error}</p>}
+      <table className="accounts-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Créé le</th>
+            <th>Dernière utilisation</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {tokens?.map((t) => (
+            <tr key={t.id}>
+              <td>{t.name}</td>
+              <td>{when(t.createdAt)}</td>
+              <td>{when(t.lastUsedAt)}</td>
+              <td className="account-actions">
+                <span>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Révoquer le jeton « ${t.name} » ?`)) return
+                      await json(`/api/tokens/${encodeURIComponent(t.id)}`, { method: 'DELETE' })
+                      await reload()
+                    }}
+                  >
+                    Révoquer
+                  </button>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

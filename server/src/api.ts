@@ -10,8 +10,10 @@ import { MAX_ASSET_BYTES, MAX_FILE_BYTES } from '../../src/core/assets'
 import { ASSET_TYPES } from '../../src/shared/assets'
 import { importNotionExport } from '../../src/core/transfer/notionImport'
 import { buildMarkdownArchive } from '../../src/core/transfer/markdownExport'
+import { buildHtmlArchive } from '../../src/core/transfer/htmlExport'
 import { CallContext, ForbiddenError, resolveCall, RpcError, runCall } from './rpc'
 import type { Workspace } from './workspace'
+import { PublicPages } from './publicPages'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -159,6 +161,7 @@ export function createApi({
   }
   const editors: Role[] = ['admin', 'editor']
   const members = (): User[] => accounts.list()
+  const publicPages = new PublicPages(workspace)
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     const url = new URL(req.url ?? '/', 'http://localhost')
@@ -168,6 +171,31 @@ export function createApi({
       const method = req.method ?? 'GET'
       if (path === '/api/health' && method === 'GET') {
         send(res, 200, { ok: true, version: SERVER_VERSION })
+      } else if (path.startsWith('/api/public/') && (method === 'GET' || method === 'HEAD')) {
+        // Published pages: no session, the link is the key.
+        const [token, kind, rest] = path.slice('/api/public/'.length).split('/')
+        collab.flush()
+        if (kind === 'assets' && rest) {
+          const name = decodeURIComponent(rest)
+          if (!publicPages.servesAsset(token, name)) throw new HttpError(404, 'Introuvable.')
+          const asset = await workspace.assets.load(name)
+          if (!asset) throw new HttpError(404, 'Introuvable.')
+          res.writeHead(200, {
+            'Content-Type': asset.type,
+            'Content-Length': asset.bytes.length,
+            'Cache-Control': 'public, max-age=3600',
+            'X-Content-Type-Options': 'nosniff',
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+          })
+          res.end(method === 'HEAD' ? undefined : asset.bytes)
+        } else {
+          const page = publicPages.page(
+            token,
+            kind === 'pages' ? decodeURIComponent(rest ?? '') : undefined
+          )
+          if (!page) throw new HttpError(404, 'Page introuvable ou plus publiée.')
+          send(res, 200, { page })
+        }
       } else if (path === '/api/login' && method === 'POST') {
         const body = await readJson(req)
         const email = str(body.email) ?? ''
@@ -196,6 +224,17 @@ export function createApi({
           .login(user.email, str(body.current) ?? '')
           .then(({ token }) => accounts.logout(token))
         await accounts.update(user.id, { password: str(body.next) ?? '' })
+        send(res, 200, { ok: true })
+      } else if (path === '/api/tokens' && method === 'GET') {
+        const user = requireUser(req)
+        send(res, 200, { tokens: accounts.tokens(user.id) })
+      } else if (path === '/api/tokens' && method === 'POST') {
+        const user = requireUser(req)
+        const body = await readJson(req)
+        send(res, 201, accounts.createToken(user.id, str(body.name) ?? ''))
+      } else if (path.startsWith('/api/tokens/') && method === 'DELETE') {
+        const user = requireUser(req)
+        accounts.revokeToken(user.id, decodeURIComponent(path.slice('/api/tokens/'.length)))
         send(res, 200, { ok: true })
       } else if (path === '/api/users' && method === 'GET') {
         requireUser(req, ['admin'])
@@ -259,7 +298,9 @@ export function createApi({
         // Only the pages the person can read are exported.
         const ctx = new CallContext(workspace, user, members)
         if (page) ctx.need(page, 'read')
-        const archive = await buildMarkdownArchive(
+        const build =
+          url.searchParams.get('format') === 'html' ? buildHtmlArchive : buildMarkdownArchive
+        const archive = await build(
           {
             list: () => ctx.filter(workspace.pages.list()),
             get: (id) => (ctx.level(id) === 'none' ? null : workspace.pages.get(id))
@@ -271,7 +312,11 @@ export function createApi({
         res.writeHead(200, {
           'Content-Type': archive.fileName.endsWith('.md')
             ? 'text/markdown; charset=utf-8'
-            : 'application/zip',
+            : archive.fileName.endsWith('.html')
+              ? 'text/html; charset=utf-8'
+              : 'application/zip',
+          // Downloaded, never shown: the content is the workspace's own HTML.
+          'Content-Security-Policy': "default-src 'none'; sandbox",
           'Content-Length': archive.bytes.length,
           'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(archive.fileName)}`,
           'X-Notionix-Pages': String(archive.pages),

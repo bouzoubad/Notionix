@@ -1,12 +1,21 @@
 import { writeFile } from 'fs/promises'
 import type { BrowserWindow, Dialog, IpcMain } from 'electron'
-import type { ExportSummary, ImportSummary, NewComment, PageAccess, Person } from '../shared/types'
+import type {
+  ExportSummary,
+  ImportSummary,
+  NewComment,
+  PageAccess,
+  PageInit,
+  Person
+} from '../shared/types'
+import { canonicalDoc } from '../core/transfer/canonicalDoc'
 import type { TeamRepository } from '../core/db/teamRepository'
 import type { PageRepository } from '../core/db/pageRepository'
 import type { AssetStore } from '../core/assets'
 import type { DatabaseRepository } from '../core/db/databaseRepository'
 import { buildMarkdownArchive, safeName } from '../core/transfer/markdownExport'
 import { importNotionExport } from '../core/transfer/notionImport'
+import { buildHtmlArchive } from '../core/transfer/htmlExport'
 
 export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
   ipc.handle('pages:list', () => repo.list())
@@ -17,6 +26,12 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
       repo.create(parentId, access ?? 'inherit', kind === 'synced' ? 'synced' : 'page')
   )
   ipc.handle('pages:update', (_e, id: string, patch) => repo.update(id, patch))
+  ipc.handle('pages:createWith', (_e, parentId: string | null, init: PageInit) =>
+    repo.createWith(parentId, {
+      ...init,
+      content: init.content && canonicalDoc(JSON.parse(init.content)) ? init.content : undefined
+    })
+  )
   ipc.handle('pages:move', (_e, id: string, parentId: string | null, index: number) =>
     repo.move(id, parentId, index)
   )
@@ -33,6 +48,9 @@ export function registerPageHandlers(ipc: IpcMain, repo: PageRepository): void {
     throw new Error('Le partage se fait sur un serveur Notionix.')
   })
   ipc.handle('pages:backlinks', (_e, id: string) => repo.backlinks(id))
+  ipc.handle('pages:publish', () => {
+    throw new Error('La publication se fait depuis un serveur Notionix.')
+  })
   ipc.handle('pages:versions', (_e, id: string) => repo.versions(id))
   ipc.handle('pages:version', (_e, versionId: number) => repo.version(versionId))
   ipc.handle('pages:restoreVersion', (_e, id: string, versionId: number) =>
@@ -160,4 +178,50 @@ export function registerTransferHandlers(
       return { path: result.filePath, pages: archive.pages }
     }
   )
+
+  const save = async (
+    title: string,
+    defaultPath: string,
+    filters: { name: string; extensions: string[] }[],
+    bytes: Uint8Array | Buffer
+  ): Promise<string | null> => {
+    const options = { title, defaultPath, filters }
+    const win = deps.getWindow()
+    const result = win
+      ? await deps.dialog.showSaveDialog(win, options)
+      : await deps.dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return null
+    await writeFile(result.filePath, bytes)
+    return result.filePath
+  }
+
+  ipc.handle(
+    'transfer:exportHtml',
+    async (_e, pageId: string | null): Promise<ExportSummary | null> => {
+      const archive = await buildHtmlArchive(repo, dbs, assets, pageId)
+      const html = archive.fileName.endsWith('.html')
+      const path = await save(
+        'Exporter en HTML',
+        archive.fileName,
+        html
+          ? [{ name: 'Page web', extensions: ['html'] }]
+          : [{ name: 'Archive ZIP', extensions: ['zip'] }],
+        archive.bytes
+      )
+      return path ? { path, pages: archive.pages } : null
+    }
+  )
+
+  // PDF of the page as shown, laid out by the print style sheet.
+  ipc.handle('transfer:exportPdf', async (e, pageId: string): Promise<ExportSummary | null> => {
+    const pdf = await e.sender.printToPDF({ printBackground: true, pageSize: 'A4' })
+    const title = safeName(repo.get(pageId)?.title ?? '') || 'Page'
+    const path = await save(
+      'Exporter en PDF',
+      `${title}.pdf`,
+      [{ name: 'PDF', extensions: ['pdf'] }],
+      pdf
+    )
+    return path ? { path, pages: 1 } : null
+  })
 }

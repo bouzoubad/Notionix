@@ -4,6 +4,7 @@ import type {
   Page,
   PageAccess,
   PageId,
+  PageInit,
   PageOptions,
   PagePatch,
   PageShare,
@@ -67,6 +68,7 @@ export function parseOptions(raw: unknown): PageOptions {
   if (o.smallText === true) out.smallText = true
   if (o.font === 'serif' || o.font === 'mono') out.font = o.font
   if (o.locked === true) out.locked = true
+  if (o.template === true) out.template = true
   return out
 }
 
@@ -304,6 +306,19 @@ export class PageRepository {
     const row = this.db.prepare('SELECT * FROM page_versions WHERE id = ?').get(versionId) as
       (VersionRow & { content: string }) | undefined
     return row ? { ...toVersion(row), content: row.content } : null
+  }
+
+  /** A new page that starts with a title, icon and content. */
+  createWith(parentId: PageId | null, init: PageInit): Page {
+    return this.inTransaction(() => {
+      const page = this.create(parentId, init.access ?? 'inherit')
+      this.update(page.id, {
+        title: init.title,
+        icon: init.icon,
+        content: init.content
+      })
+      return this.get(page.id)!
+    })
   }
 
   /** Place `id` under `parentId` at `index` among its non-trashed siblings. */

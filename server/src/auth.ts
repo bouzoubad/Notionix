@@ -60,6 +60,16 @@ const toUser = (r: UserRow): User => ({
 
 const tokenHash = (token: string): string => createHash('sha256').update(token).digest('hex')
 
+/** API tokens are told apart from session tokens by their prefix. */
+export const API_TOKEN_PREFIX = 'nxk_'
+
+export interface ApiToken {
+  id: string
+  name: string
+  createdAt: number
+  lastUsedAt: number | null
+}
+
 export class AuthError extends Error {
   constructor(
     message: string,
@@ -181,16 +191,64 @@ export class Accounts {
     return { token, user: toUser(row) }
   }
 
-  /** The active user of a session token, or null. */
+  /** The active user of a session token or an API token, or null. */
   authenticate(token: string | null | undefined): User | null {
     if (!token) return null
+    const hash = tokenHash(token)
     const row = this.db
       .prepare(
         `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`
       )
-      .get(tokenHash(token), this.now()) as UserRow | undefined
-    return row ? toUser(row) : null
+      .get(hash, this.now()) as UserRow | undefined
+    if (row) return toUser(row)
+    if (!token.startsWith(API_TOKEN_PREFIX)) return null
+    const api = this.db
+      .prepare(
+        `SELECT u.*, t.id AS token_id FROM api_tokens t JOIN users u ON u.id = t.user_id
+         WHERE t.token_hash = ? AND u.disabled = 0`
+      )
+      .get(hash) as (UserRow & { token_id: string }) | undefined
+    if (!api) return null
+    this.db
+      .prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?')
+      .run(this.now(), api.token_id)
+    return toUser(api)
+  }
+
+  // ---------------------------------------------------------------------------
+  // API tokens: long-lived, for scripts and integrations, acting as their owner
+
+  createToken(userId: string, name: string): { token: string; info: ApiToken } {
+    const label = name.trim().slice(0, 80)
+    if (!label) throw new AuthError('Nommez le jeton.', 400)
+    const token = `${API_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`
+    const id = randomUUID()
+    this.db
+      .prepare(
+        'INSERT INTO api_tokens (id, user_id, name, token_hash, created_at) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(id, userId, label, tokenHash(token), this.now())
+    return { token, info: this.tokens(userId).find((t) => t.id === id)! }
+  }
+
+  tokens(userId: string): ApiToken[] {
+    return (
+      this.db
+        .prepare(
+          'SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY created_at'
+        )
+        .all(userId) as {
+        id: string
+        name: string
+        created_at: number
+        last_used_at: number | null
+      }[]
+    ).map((r) => ({ id: r.id, name: r.name, createdAt: r.created_at, lastUsedAt: r.last_used_at }))
+  }
+
+  revokeToken(userId: string, id: string): void {
+    this.db.prepare('DELETE FROM api_tokens WHERE id = ? AND user_id = ?').run(id, userId)
   }
 
   logout(token: string): void {

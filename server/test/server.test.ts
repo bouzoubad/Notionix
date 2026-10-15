@@ -458,6 +458,91 @@ describe('comments, mentions and notifications', () => {
   })
 })
 
+describe('API tokens, publishing and exports', () => {
+  it('lets scripts act with a personal token, until it is revoked', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const created = await api('/api/tokens', { token: admin, json: { name: 'Script' } })
+    expect(created.status).toBe(201)
+    const token = created.body.token as string
+    expect(token.startsWith('nxk_')).toBe(true)
+    const page = await rpc<Page>(token, 'pages.create', null)
+    expect(page.status).toBe(200)
+    const list = (await api('/api/tokens', { token: admin })).body.tokens as {
+      id: string
+      lastUsedAt: number
+    }[]
+    expect(list[0].lastUsedAt).toBeGreaterThan(0)
+    await api(`/api/tokens/${list[0].id}`, { method: 'DELETE', token: admin })
+    expect((await rpc(token, 'pages.list')).status).toBe(401)
+  })
+
+  it('creates pages from templates with checked content', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const content = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Modèle' }] }]
+    })
+    const page = await rpc<Page>(admin, 'pages.createWith', null, {
+      title: 'Réunion',
+      icon: '📝',
+      content
+    })
+    expect(page.result).toMatchObject({ title: 'Réunion', icon: '📝', content })
+    const bad = await rpc(admin, 'pages.createWith', null, {
+      content: '{"type":"doc","content":[{"type":"inconnu"}]}'
+    })
+    expect(bad.status).toBe(400)
+  })
+
+  it('serves a published page and its sub-pages to anyone with the link, and nothing else', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const name = `${createHash('sha256').update(PNG).digest('hex')}.png`
+    await api(`/api/assets/${name}`, { method: 'PUT', token: admin, body: PNG })
+    const page = (
+      await rpc<Page>(admin, 'pages.createWith', null, {
+        title: 'Publique',
+        content: JSON.stringify({
+          type: 'doc',
+          content: [{ type: 'image', attrs: { src: `notionix-asset://file/${name}` } }]
+        })
+      })
+    ).result
+    const child = (await rpc<Page>(admin, 'pages.create', page.id)).result
+    const other = (await rpc<Page>(admin, 'pages.create', null)).result
+    const published = (await rpc<PageSummary>(admin, 'pages.publish', page.id, true)).result
+    const link = published.publicToken!
+    expect(link.length).toBeGreaterThanOrEqual(16)
+    const seen = await api(`/api/public/${link}`)
+    expect(seen.body.page).toMatchObject({ title: 'Publique', children: [{ id: child.id }] })
+    expect((await api(`/api/public/${link}/pages/${child.id}`)).status).toBe(200)
+    expect((await api(`/api/public/${link}/pages/${other.id}`)).status).toBe(404)
+    expect((await call(`/api/public/${link}/assets/${name}`)).status).toBe(200)
+    await rpc(admin, 'pages.publish', page.id, false)
+    expect((await api(`/api/public/${link}`)).status).toBe(404)
+    expect((await call(`/api/public/${link}/assets/${name}`)).status).toBe(404)
+  })
+
+  it('exports pages as HTML', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const page = (
+      await rpc<Page>(admin, 'pages.createWith', null, {
+        title: 'Rapport',
+        content: JSON.stringify({
+          type: 'doc',
+          content: [
+            { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Bilan' }] }
+          ]
+        })
+      })
+    ).result
+    const res = await call(`/api/transfer/export?format=html&page=${page.id}`, { token: admin })
+    expect(res.headers.get('content-type')).toContain('text/html')
+    const html = await res.text()
+    expect(html).toContain('<h2>Bilan</h2>')
+    expect(html).toContain('<title>Rapport</title>')
+  })
+})
+
 describe('shared pages', () => {
   it('starts from the stored content, syncs editors, keeps readers read-only and writes content back', async () => {
     const admin = await login(ADMIN.email, ADMIN.password)

@@ -3,6 +3,7 @@ import { childrenOf, useStore } from '../store'
 import { Logo } from './Logo'
 import { platform } from '../platform'
 import { Avatars } from './PageTopBar'
+import { TemplatesDialog } from './TemplatesDialog'
 import type { PageSummary } from '../../../shared/types'
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
@@ -19,6 +20,7 @@ export function Sidebar(): React.JSX.Element {
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const unread = useStore((s) => s.inboxUnread)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
 
@@ -123,6 +125,8 @@ export function Sidebar(): React.JSX.Element {
         )}
       </div>
       <div className="sidebar-footer">
+        {canCreate && <button onClick={() => setTemplatesOpen(true)}>Modèles</button>}
+        {templatesOpen && <TemplatesDialog onClose={() => setTemplatesOpen(false)} />}
         <button onClick={() => setTransferOpen(true)}>Importer / Exporter</button>
         <button onClick={() => setTrashOpen(true)}>Corbeille</button>
         {session && (

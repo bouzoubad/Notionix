@@ -69,6 +69,17 @@ export function TransferDialog(): React.JSX.Element {
             </p>
             <button disabled={busy} onClick={() => void exportPage(null)}>
               Exporter toutes les pages…
+            </button>{' '}
+            <button
+              disabled={busy}
+              onClick={() =>
+                void window.api.transfer
+                  .exportHtml(null)
+                  .then((r) => r && setError(null))
+                  .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+              }
+            >
+              En HTML…
             </button>
           </section>
         </div>

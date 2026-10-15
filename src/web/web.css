@@ -170,3 +170,55 @@
   flex: none;
   gap: 2px;
 }
+
+.token {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* Published pages */
+.public-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+.public-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.public-bar a {
+  color: var(--text);
+}
+.public-badge {
+  margin-left: auto;
+}
+.public-icon {
+  font-size: 56px;
+  line-height: 1;
+}
+.public-title {
+  font-size: 40px;
+  margin: 8px 0 16px;
+}
+.public-children {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 24px;
+}
+.public-children a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}

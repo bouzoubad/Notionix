@@ -9,6 +9,7 @@ const api: NotionixApi = {
     list: () => call('pages:list'),
     get: (id) => call('pages:get', id),
     create: (parentId, access, kind) => call('pages:create', parentId, access, kind),
+    createWith: (parentId, init) => call('pages:createWith', parentId, init),
     update: (id, patch) => call('pages:update', id, patch),
     move: (id, parentId, index) => call('pages:move', id, parentId, index),
     trash: (id) => call('pages:trash', id),
@@ -21,6 +22,7 @@ const api: NotionixApi = {
     shares: (id) => call('pages:shares', id),
     setShare: (id, userId, level) => call('pages:setShare', id, userId, level),
     backlinks: (id) => call('pages:backlinks', id),
+    publish: (id, published) => call('pages:publish', id, published),
     versions: (id) => call('pages:versions', id),
     version: (versionId) => call('pages:version', versionId),
     restoreVersion: (id, versionId) => call('pages:restoreVersion', id, versionId)
@@ -68,7 +70,9 @@ const api: NotionixApi = {
   },
   transfer: {
     importNotion: () => call('transfer:importNotion'),
-    exportMarkdown: (pageId) => call('transfer:exportMarkdown', pageId)
+    exportMarkdown: (pageId) => call('transfer:exportMarkdown', pageId),
+    exportHtml: (pageId) => call('transfer:exportHtml', pageId),
+    exportPdf: (pageId) => call('transfer:exportPdf', pageId)
   }
 }
 

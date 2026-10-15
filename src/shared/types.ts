@@ -54,6 +54,17 @@ export interface PageOptions {
   font?: 'default' | 'serif' | 'mono'
   /** Locked pages are read-only until unlocked */
   locked?: boolean
+  /** Listed in the template gallery */
+  template?: boolean
+}
+
+/** What a page created from a template starts with. */
+export interface PageInit {
+  title?: string
+  icon?: string | null
+  /** ProseMirror JSON document */
+  content?: string
+  access?: PageAccess
 }
 
 /** A person of the workspace (server accounts; the desktop app has one local person). */
@@ -126,6 +137,22 @@ export interface ActivityItem {
   kind: ActivityKind
   detail: string | null
   at: number
+}
+
+/** A published page as anyone with its link sees it. */
+export interface PublicPage {
+  id: PageId
+  title: string
+  icon: string | null
+  cover: string | null
+  kind: PageKind
+  content: string
+  /** Sub-pages, reachable through the same link */
+  children: { id: PageId; title: string; icon: string | null }[]
+  /** For a database: its rows as text */
+  table: { columns: string[]; rows: { id: PageId; cells: string[] }[] } | null
+  /** The published page, at the top of the breadcrumbs */
+  root: { id: PageId; title: string }
 }
 
 export interface PageShare {
@@ -201,6 +228,8 @@ export interface NotionixApi {
     get(id: PageId): Promise<Page | null>
     /** `access` sets who sees a new top-level page ('restricted': private) */
     create(parentId: PageId | null, access?: PageAccess, kind?: 'page' | 'synced'): Promise<Page>
+    /** A new page with a title, icon and content (templates) */
+    createWith(parentId: PageId | null, init: PageInit): Promise<Page>
     update(id: PageId, patch: PagePatch): Promise<PageSummary>
     move(id: PageId, parentId: PageId | null, index: number): Promise<void>
     trash(id: PageId): Promise<void>
@@ -212,6 +241,8 @@ export interface NotionixApi {
     setSpace(id: PageId, isSpace: boolean): Promise<PageSummary>
     shares(id: PageId): Promise<PageShare[]>
     setShare(id: PageId, userId: string, level: PageShare['level'] | null): Promise<void>
+    /** Publishes the page (and its sub-pages) with a public read-only link, or stops it */
+    publish(id: PageId, published: boolean): Promise<PageSummary>
     /** Pages linking to this one */
     backlinks(id: PageId): Promise<PageSummary[]>
     /** Saved states of the page, newest first */
@@ -275,5 +306,9 @@ export interface NotionixApi {
     importNotion(): Promise<ImportSummary | null>
     /** Exports a page and its sub-pages, or every page when `pageId` is null; null if cancelled */
     exportMarkdown(pageId: PageId | null): Promise<ExportSummary | null>
+    /** Same tree as web pages (.html, or a zip with images); null if cancelled */
+    exportHtml(pageId: PageId | null): Promise<ExportSummary | null>
+    /** The open page as a PDF document; null if cancelled */
+    exportPdf(pageId: PageId): Promise<ExportSummary | null>
   }
 }

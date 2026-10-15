@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { isPropertyType, type PropertyType, type PropertyValue } from '../../src/shared/database'
 import {
   atLeast,
@@ -9,6 +10,8 @@ import {
   type Person
 } from '../../src/shared/types'
 import { resolveLevels } from '../../src/core/access'
+import { canonicalDoc } from '../../src/core/transfer/canonicalDoc'
+import type { JsonNode } from '../../src/core/transfer/markdownToDoc'
 import type { User } from './auth'
 import type { Workspace } from './workspace'
 
@@ -206,6 +209,31 @@ const METHODS: Record<string, Method> = {
     ctx.invalidate()
     return { ...page, level: ctx.level(page.id) }
   }),
+  'pages.createWith': write((ctx, [p, init]) => {
+    const parentId = parent(p)
+    ctx.needParent(parentId)
+    const r = record(init)
+    // Content is accepted only at creation, before the page has a shared document.
+    const content = optional(r.content, text)
+    if (content !== undefined) {
+      let doc: unknown
+      try {
+        doc = JSON.parse(content)
+      } catch {
+        throw new RpcError('Contenu invalide.')
+      }
+      if (!canonicalDoc(doc as JsonNode)) throw new RpcError('Contenu invalide.')
+    }
+    const page = ctx.ws.pages.createWith(parentId, {
+      title: optional(r.title, text),
+      icon: optional(r.icon, nullableText),
+      content,
+      access: r.access === undefined || r.access === null ? undefined : access(r.access)
+    })
+    ctx.log(page.id, 'created')
+    ctx.invalidate()
+    return { ...page, level: ctx.level(page.id) }
+  }),
   'pages.update': write((ctx, [p, patch]) => {
     ctx.need(id(p), 'edit')
     const r = record(patch)
@@ -257,6 +285,15 @@ const METHODS: Record<string, Method> = {
   'pages.setSpace': write((ctx, [p, flag]) => {
     ctx.need(id(p), 'full')
     return ctx.visible(ctx.ws.pages.setSpace(id(p), flag === true))
+  }),
+  'pages.publish': write((ctx, [p, flag]) => {
+    ctx.need(id(p), 'full')
+    // Unguessable: the link is the only key to the page.
+    const token = flag === true ? randomBytes(18).toString('base64url') : null
+    const current = ctx.ws.pages.summary(id(p)).publicToken
+    return ctx.visible(
+      ctx.ws.pages.setPublicToken(id(p), flag === true ? (current ?? token) : null)
+    )
   }),
   'pages.shares': read((ctx, [p]) => {
     ctx.need(id(p), 'read')

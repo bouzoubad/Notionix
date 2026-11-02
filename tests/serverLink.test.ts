@@ -10,6 +10,7 @@ const secrets: SecretBox = {
   open: (sealed) => [...sealed.slice(7)].reverse().join('')
 }
 const user = { id: 'u1', email: 'moi@example.com', name: 'Moi', role: 'editor' as const }
+const ACTIVATION = 'cle-activation-0123456789abcdef'
 
 /** A fake server: answers by path, records each request; `down` makes it unreachable. */
 interface FakeServer {
@@ -30,6 +31,15 @@ function fakeServer(): FakeServer {
         status,
         headers: { 'Content-Type': 'application/json' }
       })
+    if (path.startsWith('/api/activate/')) {
+      if (path !== `/api/activate/${ACTIVATION}`)
+        return json(404, { error: 'Lien d’activation invalide ou expiré.' })
+      if (init.method === 'GET') return json(200, { email: user.email, name: user.name })
+      const body = JSON.parse(String(init.body))
+      return body.password === 'choisi-par-moi'
+        ? json(200, { token: 'tok-new', user })
+        : json(400, { error: 'Mot de passe trop court.' })
+    }
     if (path === '/api/login') {
       const body = JSON.parse(String(init.body))
       return body.password === 'secret'
@@ -169,6 +179,27 @@ describe('desktop link to a server', () => {
     expect(
       cache.get(cacheKeyOf('https://s.local', 'main', 'POST', '/api/rpc', rpc('pages.list').body)!)
     ).toBeNull()
+  })
+
+  it('activates an account with the link shared through Keeper, and links the app', async () => {
+    const { file, link } = setup()
+    const address = `https://s.local:8443/activate/${ACTIVATION}`
+    expect(await link.activation(address)).toEqual({
+      ok: true,
+      info: { url: 'https://s.local:8443', email: 'moi@example.com', name: 'Moi' }
+    })
+    expect(await link.activation('https://s.local:8443/activate/inconnue-0123456789')).toEqual({
+      ok: false,
+      error: { kind: 'refused', message: 'Lien d’activation invalide ou expiré.' }
+    })
+    expect(await link.activate(address, 'court')).toMatchObject({ ok: false })
+    expect(link.status()).toBeNull()
+    expect(await link.activate(address, 'choisi-par-moi')).toMatchObject({
+      ok: true,
+      status: { url: 'https://s.local:8443', email: 'moi@example.com', signedIn: true }
+    })
+    expect(link.token()).toBe('tok-new')
+    expect(readFileSync(file, 'utf8')).not.toContain('tok-new')
   })
 
   it('tells a certificate problem from an unreachable server', async () => {

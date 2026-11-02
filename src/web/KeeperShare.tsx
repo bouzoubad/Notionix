@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { copyText } from '../renderer/src/clipboard'
 import { locale, t, tx } from '../shared/i18n'
 import { serverOrigin } from '../renderer/src/platform'
+import { useMacDownload } from './downloads'
 
 /** What a person needs to sign in the first time, shown once to the administrator. */
 export interface SignInKey {
@@ -28,6 +29,7 @@ export function KeeperShare({
   onClose: () => void
 }): React.JSX.Element {
   const [copied, setCopied] = useState<string | null>(null)
+  const download = useMacDownload()
   const { activation, password } = credentials
   const secret = activation ? activationUrl(activation.token) : (password ?? '')
   const fields: { label: string; value: string }[] = [
@@ -36,7 +38,8 @@ export function KeeperShare({
     activation
       ? { label: t('Lien d’activation'), value: secret }
       : { label: t('Mot de passe provisoire'), value: secret },
-    { label: t('Adresse du site'), value: serverOrigin() }
+    { label: t('Adresse du site'), value: serverOrigin() },
+    ...(download ? [{ label: t('App de bureau (Mac)'), value: download.shared }] : [])
   ]
   const until = activation
     ? new Date(activation.expiresAt).toLocaleDateString(locale(), {
@@ -44,18 +47,35 @@ export function KeeperShare({
         month: 'long'
       })
     : null
-  const note = activation
+  const first = activation
     ? t(
         'Ouvrez le lien d’activation et choisissez votre mot de passe (lien valable jusqu’au {until}, utilisable une fois).',
         { until: until ?? '' }
       )
     : t('Connectez-vous avec ce mot de passe provisoire : un nouveau vous sera demandé.')
+  // With the desktop app: everything happens in it, no certificate to install.
+  const note = !download
+    ? first
+    : activation
+      ? t(
+          'Installez l’app de bureau (lien ci-dessus), puis dans l’app « Se connecter à un serveur » : collez le lien d’activation et choisissez votre mot de passe (lien valable jusqu’au {until}, utilisable une fois).',
+          { until: until ?? '' }
+        )
+      : t(
+          'Installez l’app de bureau (lien ci-dessus), puis dans l’app « Se connecter à un serveur » : adresse du site, identifiant et ce mot de passe provisoire (un nouveau vous sera demandé).'
+        )
+  // Not notarized by Apple yet: macOS asks once to confirm.
+  const gatekeeper = download
+    ? t(
+        'Si macOS refuse d’ouvrir l’app : Réglages Système > Confidentialité et sécurité > « Ouvrir quand même ».'
+      )
+    : null
   const copy = async (label: string, value: string): Promise<void> => {
     setCopied((await copyText(value)) ? label : null)
   }
   const all = [
     ...fields.map((f) => t('{label} : {value}', { label: f.label, value: f.value })),
-    t('Note : {note}', { note })
+    t('Note : {note}', { note: gatekeeper ? `${note} ${gatekeeper}` : note })
   ].join('\n')
 
   return (
@@ -80,7 +100,15 @@ export function KeeperShare({
         ))}
         <div className="keeper-field">
           <dt>{t('Note')}</dt>
-          <dd>{note}</dd>
+          <dd>
+            {note}
+            {gatekeeper && (
+              <>
+                <br />
+                {gatekeeper}
+              </>
+            )}
+          </dd>
         </div>
       </dl>
       <div className="keeper-actions">

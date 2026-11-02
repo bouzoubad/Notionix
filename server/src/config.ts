@@ -14,6 +14,10 @@ export interface Config {
   reminderIntervalMs: number
   /** Built web client (index.html and its files), served at the root; null: API only */
   webDir: string | null
+  /** The desktop app's builds offered for download (scripts/publish-desktop.sh) */
+  downloadsDir: string
+  /** Port of the plain HTTP site in front of an HTTPS deployment (Caddy), for downloads; null: none */
+  plainPort: number | null
   /** Optional first administrator, created at start if no account exists */
   adminEmail: string | null
   adminPassword: string | null
@@ -32,6 +36,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sessionDays: number(env.NOTIONIX_SESSION_DAYS, 30),
     reminderIntervalMs: number(env.NOTIONIX_REMINDER_INTERVAL_MS, 30_000),
     webDir: env.NOTIONIX_WEB_DIR || join(dirname(fileURLToPath(import.meta.url)), 'web'),
+    downloadsDir:
+      env.NOTIONIX_DOWNLOADS_DIR ||
+      join(env.NOTIONIX_DATA_DIR ?? join(process.cwd(), 'data'), 'downloads'),
+    plainPort: env.NOTIONIX_PLAIN_PORT ? number(env.NOTIONIX_PLAIN_PORT, 0) || null : null,
     adminEmail: env.NOTIONIX_ADMIN_EMAIL || null,
     adminPassword: env.NOTIONIX_ADMIN_PASSWORD || null
   }

@@ -17,7 +17,13 @@ services:
       - '${NOTIONIX_PUBLISH:-8080}:8080'
     volumes:
       - notionix-data:/data
+      # The desktop app offered for download (scripts/publish-desktop.sh puts it there).
+      - ./downloads:/downloads:ro
     environment:
+      NOTIONIX_DOWNLOADS_DIR: /downloads
+      # The plain HTTP site of the https profile: the app is downloaded there
+      # before the computer knows the server's certificate.
+      NOTIONIX_PLAIN_PORT: ${NOTIONIX_HTTP_PORT:-80}
       NOTIONIX_ADMIN_EMAIL: ${NOTIONIX_ADMIN_EMAIL:-}
       NOTIONIX_ADMIN_PASSWORD: ${NOTIONIX_ADMIN_PASSWORD:-}
 

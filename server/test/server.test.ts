@@ -1083,3 +1083,30 @@ describe('images, transfer and web client', () => {
     expect((await api('/api/inconnu')).status).toBe(404)
   })
 })
+
+describe('desktop app downloads', () => {
+  it('serves the latest Mac app without a session, and nothing else', async () => {
+    expect((await api('/api/downloads')).body).toEqual({ mac: null, plainPort: null })
+    expect((await call('/download/mac')).status).toBe(404)
+
+    const dir = join(dataDir, 'downloads')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'notionix-1.0.0-universal.dmg'), 'ancienne')
+    writeFileSync(join(dir, 'autre.dmg'), 'pas une version')
+    const { utimesSync } = await import('fs')
+    utimesSync(join(dir, 'notionix-1.0.0-universal.dmg'), 1_000, 1_000)
+    writeFileSync(join(dir, 'notionix-1.1.0-universal.dmg'), 'nouvelle')
+
+    expect((await api('/api/downloads')).body).toEqual({
+      mac: { name: 'notionix-1.1.0-universal.dmg', version: '1.1.0', size: 8 },
+      plainPort: null
+    })
+    const res = await call('/download/mac')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-disposition')).toContain('notionix-1.1.0-universal.dmg')
+    expect(await res.text()).toBe('nouvelle')
+    expect((await call('/download/mac', { method: 'HEAD' })).status).toBe(200)
+    // Only the latest is reachable, by its fixed address.
+    expect(await (await call('/download/autre.dmg')).text()).not.toBe('pas une version')
+  })
+})

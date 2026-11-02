@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
 import type { SessionUser } from '../shared/collab'
-import type { ServerLinkStatus, ServerLoginError } from '../shared/desktop'
+import {
+  parseActivationLink,
+  type ActivationInfo,
+  type ServerLinkStatus,
+  type ServerLoginError
+} from '../shared/desktop'
 import { t } from '../shared/i18n'
+
+/** The server's rule (auth.ts), checked here first. */
+const MIN_PASSWORD = 10
 
 const messageOf = (error: ServerLoginError): string =>
   error.kind === 'certificate'
     ? t(
-        'Cet ordinateur ne reconnaît pas le certificat du serveur : installez le certificat de son autorité (notionix-ca.crt, fourni par le serveur), puis réessayez.'
+        'Cet ordinateur ne reconnaît pas le certificat du serveur. Si c’est bien le serveur de votre équipe, demandez une version de l’app qui le connaît, ou installez le certificat de son autorité (notionix-ca.crt).'
       )
     : error.kind === 'unreachable'
       ? t('Serveur injoignable : vérifiez l’adresse et le réseau.')
@@ -29,8 +37,20 @@ export function ConnectDialog({ onClose }: { onClose: () => void }): React.JSX.E
   const [url, setUrl] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [again, setAgain] = useState('')
+  // An activation link (from Keeper) instead of an address: the person chooses a password.
+  const activationLink = parseActivationLink(url) ? url.trim() : null
+  // What the server told about a link (only the current link's answer counts).
+  const [checked, setChecked] = useState<{
+    link: string
+    info: ActivationInfo | null
+    error: string | null
+  } | null>(null)
+  const current = checked && checked.link === activationLink ? checked : null
+  const activation = current?.info ?? null
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [submitError, setError] = useState<string | null>(null)
+  const error = submitError ?? current?.error ?? null
   // Signed in with a provisional password: it is replaced first.
   const [provisional, setProvisional] = useState<{
     user: SessionUser
@@ -46,13 +66,39 @@ export function ConnectDialog({ onClose }: { onClose: () => void }): React.JSX.E
     })
   }, [server])
 
+  useEffect(() => {
+    if (!activationLink) return
+    let cancelled = false
+    void server
+      .activation(activationLink)
+      .catch(() => ({ ok: false as const, error: { kind: 'unreachable' as const } }))
+      .then((r) => {
+        if (cancelled) return
+        setChecked(
+          r.ok
+            ? { link: activationLink, info: r.info, error: null }
+            : { link: activationLink, info: null, error: messageOf(r.error) }
+        )
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [server, activationLink])
+
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
+    if (activationLink && !activation) return
+    if (activationLink && password !== again) {
+      setError(t('Les deux mots de passe diffèrent.'))
+      return
+    }
     setBusy(true)
     setError(null)
-    const result = await server
-      .login(url, email, password)
-      .catch(() => ({ ok: false as const, error: { kind: 'unreachable' as const } }))
+    const result = await (
+      activationLink
+        ? server.activate(activationLink, password)
+        : server.login(url, email, password)
+    ).catch(() => ({ ok: false as const, error: { kind: 'unreachable' as const } }))
     if (!result.ok) {
       setError(messageOf(result.error))
       setBusy(false)
@@ -106,30 +152,73 @@ export function ConnectDialog({ onClose }: { onClose: () => void }): React.JSX.E
             autoFocus={!status}
             required
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value)
+              setError(null)
+            }}
           />
         </label>
-        <label>
-          {t('E-mail')}
-          <input
-            type="email"
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label>
-          {t('Mot de passe')}
-          <input
-            type="password"
-            autoComplete="current-password"
-            autoFocus={status !== null}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        {!status && !activationLink && (
+          <p className="server-connect-hint">
+            {t('Nouveau compte : collez ici le lien d’activation reçu dans Keeper.')}
+          </p>
+        )}
+        {activationLink ? (
+          activation && (
+            <>
+              <p className="server-connect-hint">
+                {t('Bienvenue {name}. Choisissez le mot de passe de', { name: activation.name })}{' '}
+                <strong>{activation.email}</strong>.
+              </p>
+              <label>
+                {t('Mot de passe ({n} caractères minimum)', { n: MIN_PASSWORD })}
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  autoFocus
+                  required
+                  minLength={MIN_PASSWORD}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                {t('Mot de passe, à nouveau')}
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  value={again}
+                  onChange={(e) => setAgain(e.target.value)}
+                />
+              </label>
+            </>
+          )
+        ) : (
+          <>
+            <label>
+              {t('E-mail')}
+              <input
+                type="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+            <label>
+              {t('Mot de passe')}
+              <input
+                type="password"
+                autoComplete="current-password"
+                autoFocus={status !== null}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+          </>
+        )}
         {unencrypted(url) && (
           <p className="server-connect-warning">
             {t('Connexion non chiffrée (HTTP) : réservée aux essais sur le réseau local.')}
@@ -144,8 +233,18 @@ export function ConnectDialog({ onClose }: { onClose: () => void }): React.JSX.E
           <button type="button" onClick={onClose}>
             {t('Annuler')}
           </button>
-          <button className="primary" type="submit" disabled={busy}>
-            {busy ? t('Connexion…') : t('Se connecter')}
+          <button
+            className="primary"
+            type="submit"
+            disabled={busy || (activationLink !== null && !activation)}
+          >
+            {activationLink
+              ? busy
+                ? t('Activation…')
+                : t('Activer mon compte')
+              : busy
+                ? t('Connexion…')
+                : t('Se connecter')}
           </button>
         </div>
       </form>

@@ -117,7 +117,7 @@ Caddy signe le certificat du serveur avec sa propre autorité, créée au premie
 2. L'installer :
    - **Windows** : double-clic sur le fichier > _Installer le certificat_ > _Ordinateur local_ (ou _Utilisateur actuel_) > _Placer tous les certificats dans le magasin suivant_ > **Autorités de certification racines de confiance**. Chrome et Edge l'utilisent aussitôt ; Firefox : _Paramètres > Vie privée et sécurité > Certificats > Afficher les certificats > Autorités > Importer_.
    - **macOS** : double-clic > trousseau **Système** > ouvrir le certificat « Caddy Local Authority » > _Se fier_ > **Toujours approuver**.
-     En ligne de commande (trousseau de session, mot de passe demandé) : `security add-trusted-cert -r trustRoot -k ~/Library/Keychains/login.keychain-db notionix-ca.crt`. L'app de bureau Notionix utilise ce même trousseau pour se connecter au serveur.
+     En ligne de commande (trousseau de session, mot de passe demandé) : `security add-trusted-cert -r trustRoot -k ~/Library/Keychains/login.keychain-db notionix-ca.crt`.
    - **Linux** : `sudo cp notionix-ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates` (Firefox : import comme sous Windows).
    - **iPhone/iPad** : ouvrir le lien dans Safari > _Réglages > Profil téléchargé > Installer_, puis _Réglages > Général > Informations > Réglages des certificats_ > activer la confiance.
    - **Android** : _Paramètres > Sécurité > Chiffrement et identifiants > Installer un certificat > Certificat CA_.
@@ -126,6 +126,19 @@ Caddy signe le certificat du serveur avec sa propre autorité, créée au premie
 Le service informatique peut aussi déployer ce certificat sur tous les postes du domaine (stratégie de groupe), ou fournir un certificat de l'entreprise à la place.
 
 Vérifier que le fichier téléchargé est bien celui du serveur : sur le serveur, `docker compose -f server/docker-compose.yml exec https cat /data/caddy/pki/authorities/local/root.crt` affiche le même contenu. Le certificat de l'autorité est valable 10 ans ; celui du serveur est renouvelé automatiquement.
+
+### 4.2 bis App de bureau : l'autorité livrée avec l'app
+
+L'app de bureau n'a pas besoin du trousseau : elle accepte aussi les serveurs dont le certificat vient d'une autorité livrée avec elle (`resources/authorities/*.crt`, vérification complète de la chaîne, des dates et de l'adresse). Pour un nouveau serveur avec l'autorité interne de Caddy :
+
+1. Récupérer `notionix-ca.crt` (ci-dessus) et vérifier son empreinte SHA-256 avec celle affichée sur le serveur (`docker compose -f server/docker-compose.yml exec https cat /data/caddy/pki/authorities/local/root.crt | openssl x509 -noout -fingerprint -sha256`).
+2. Le copier dans `resources/authorities/<nom>.crt`, puis construire et publier l'app : `sh scripts/publish-desktop.sh <hôte ssh>`.
+
+Le volume `caddy-data` garde l'autorité : s'il est perdu, Caddy en crée une autre et l'app doit être reconstruite avec la nouvelle.
+
+### 4.2 ter Distribuer l'app de bureau (Mac)
+
+`sh scripts/publish-desktop.sh [hôte ssh] [dossier du dépôt]` (sur un Mac, défaut : `Gamma` et `notionix`) construit l'app universelle (Apple Silicon et Intel) et la dépose dans `server/downloads/` du serveur (monté en lecture seule dans le conteneur). Le serveur la sert sans connexion à `/download/mac` (toujours la dernière version), y compris en HTTP sur le port du site Caddy (`http://<adresse>:<port HTTP>/download/mac`) pour un poste qui ne connaît pas encore l'autorité. Le lien apparaît dans la fiche Keeper créée avec un compte et dans _Mon compte_. L'app n'étant pas notarisée par Apple, macOS demande à la première ouverture de chaque version : _Réglages Système > Confidentialité et sécurité > Ouvrir quand même_.
 
 ### 4.3 Avec un certificat de l'entreprise
 

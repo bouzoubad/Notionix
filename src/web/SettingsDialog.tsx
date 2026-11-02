@@ -3,6 +3,7 @@ import type { SessionUser } from '../shared/collab'
 import { json } from './http'
 import { Groups, Workspaces } from './TeamSettings'
 import { KeeperShare, type SignInKey } from './KeeperShare'
+import { useMacDownload } from './downloads'
 import { AdminDashboard } from './AdminDashboard'
 import { locale, t } from '../shared/i18n'
 
@@ -171,7 +172,24 @@ export function MyAccount({
       <button className="primary" type="submit" disabled={busy}>
         {t('Changer le mot de passe')}
       </button>
+      {!required && <DesktopAppOffer />}
     </form>
+  )
+}
+
+/** In the browser: the desktop app, when the server offers it. */
+function DesktopAppOffer(): React.JSX.Element | null {
+  const download = useMacDownload()
+  if (!download || window.desktop) return null
+  return (
+    <p className="settings-note desktop-offer">
+      {t(
+        'App de bureau pour Mac (Apple Silicon et Intel) : vos pages privées restent sur votre ordinateur, et vous travaillez hors ligne.'
+      )}{' '}
+      <a href={download.direct} download>
+        {t('Télécharger l’app')}
+      </a>
+    </p>
   )
 }
 

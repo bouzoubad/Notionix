@@ -15,8 +15,10 @@ const dictionary: Record<string, string> = {
   'Se connecter à un serveur': 'Connect to a server',
   'Une page ne peut pas encore passer de cet ordinateur au serveur, ni du serveur à cet ordinateur.':
     'A page cannot move from this computer to the server, or from the server to this computer, yet.',
-  'Cet ordinateur ne reconnaît pas le certificat du serveur : installez le certificat de son autorité (notionix-ca.crt, fourni par le serveur), puis réessayez.':
-    'This computer does not recognize the server’s certificate: install its authority’s certificate (notionix-ca.crt, provided by the server), then try again.',
+  'Cet ordinateur ne reconnaît pas le certificat du serveur. Si c’est bien le serveur de votre équipe, demandez une version de l’app qui le connaît, ou installez le certificat de son autorité (notionix-ca.crt).':
+    'This computer does not recognize the server’s certificate. If it is your team’s server, ask for a version of the app that knows it, or install its authority’s certificate (notionix-ca.crt).',
+  'Nouveau compte : collez ici le lien d’activation reçu dans Keeper.':
+    'New account: paste here the activation link received in Keeper.',
   'Serveur injoignable : vérifiez l’adresse et le réseau.':
     'Server unreachable: check the address and the network.',
   'Se connecter à un serveur Notionix': 'Connect to a Notionix server',
@@ -27,6 +29,8 @@ const dictionary: Record<string, string> = {
   'Adresse du serveur': 'Server address',
   // Messages of the main process, shown like the server's
   'Adresse invalide.': 'Invalid address.',
+  'Lien invalide.': 'Invalid link.',
+  'Réponse invalide du serveur.': 'Invalid answer from the server.',
   'Serveur injoignable : vous êtes hors ligne.': 'Server unreachable: you are offline.'
 }
 export default dictionary

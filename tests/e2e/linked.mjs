@@ -1,11 +1,16 @@
 // E2E of the desktop app linked to a Notionix server: private pages stay on this
 // computer, the team's go to the server; without network the team pages kept
 // here still open and can be edited, and what was written merges on reconnection.
+// The server is behind HTTPS with its own authority (like Caddy's), which the
+// computer does not trust but the app does (NOTIONIX_TEST_AUTHORITY stands for
+// the authorities shipped in resources/authorities). A new account is then
+// activated in the app with its link.
 // Run after `npm run build && npm run build:server`: node tests/e2e/linked.mjs
 import { _electron as electron } from 'playwright-core'
 import { spawn } from 'child_process'
-import { mkdtempSync } from 'fs'
-import { createServer } from 'net'
+import { mkdtempSync, readFileSync } from 'fs'
+import { connect, createServer } from 'net'
+import { createServer as createTlsServer } from 'tls'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import assert from 'assert'
@@ -13,16 +18,58 @@ import { CHROMIUM_FLAGS } from './flags.mjs'
 
 const tmp = mkdtempSync(join(tmpdir(), 'notionix-e2e-linked-'))
 const ADMIN = { email: 'admin@example.com', password: 'motdepasse-admin' }
-const port = await new Promise((resolve) => {
-  const probe = createServer().listen(0, '127.0.0.1', () => {
-    const { port } = probe.address()
-    probe.close(() => resolve(port))
+const freePort = () =>
+  new Promise((resolve) => {
+    const probe = createServer().listen(0, '127.0.0.1', () => {
+      const { port } = probe.address()
+      probe.close(() => resolve(port))
+    })
   })
-})
-const url = `http://127.0.0.1:${port}`
+const port = await freePort()
+const tlsPort = await freePort()
+/** The server itself (the test reads it directly), and its HTTPS address (the app's). */
+const api = `http://127.0.0.1:${port}`
+const url = `https://127.0.0.1:${tlsPort}`
+const TLS = join(process.cwd(), 'tests/fixtures/tls')
+
+/** HTTPS in front of the server, like Caddy: certificate from a test authority. */
+let tls = null
+const sockets = new Set()
+const startTls = () =>
+  new Promise((resolve) => {
+    tls = createTlsServer(
+      {
+        key: readFileSync(join(TLS, 'leaf.key')),
+        cert:
+          readFileSync(join(TLS, 'leaf.crt'), 'utf8') +
+          readFileSync(join(TLS, 'intermediate.crt'), 'utf8')
+      },
+      (client) => {
+        const upstream = connect(port, '127.0.0.1')
+        for (const s of [client, upstream]) {
+          sockets.add(s)
+          s.on('close', () => sockets.delete(s))
+          s.on('error', () => {
+            client.destroy()
+            upstream.destroy()
+          })
+        }
+        client.pipe(upstream).pipe(client)
+      }
+    )
+    tls.on('tlsClientError', () => {})
+    tls.listen(tlsPort, '127.0.0.1', resolve)
+  })
+const stopTls = () => {
+  if (!tls) return
+  tls.close()
+  tls = null
+  for (const s of sockets) s.destroy()
+}
 
 let server = null
 const startServer = async () => {
+  await startTls()
   server = spawn(process.execPath, ['out/server/main.mjs'], {
     env: {
       ...process.env,
@@ -40,6 +87,7 @@ const startServer = async () => {
   })
 }
 const stopServer = async () => {
+  stopTls()
   const s = server
   server = null
   if (!s) return
@@ -54,14 +102,14 @@ const stopServer = async () => {
 let token = null
 const call = async (method, ...args) => {
   if (!token) {
-    const res = await fetch(`${url}/api/login`, {
+    const res = await fetch(`${api}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ADMIN)
     })
     token = (await res.json()).token
   }
-  const res = await fetch(`${url}/api/rpc`, {
+  const res = await fetch(`${api}/api/rpc`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ method, args })
@@ -81,7 +129,8 @@ const until = async (check, what, timeout = 15_000) => {
 
 await startServer()
 const app = await electron.launch({
-  args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'desktop')}`]
+  args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${join(tmp, 'desktop')}`],
+  env: { ...process.env, NOTIONIX_TEST_AUTHORITY: join(TLS, 'root.crt') }
 })
 const cleanup = async () => {
   await app.close().catch(() => {})
@@ -170,6 +219,33 @@ try {
   await win.getByRole('button', { name: 'Se connecter à un serveur' }).waitFor()
   await win.locator('.sidebar').getByText('Secret local').waitFor()
   assert.equal(await win.locator('.sidebar').getByText('Page équipe').count(), 0)
+
+  // A new account, activated in the app with the link shared through Keeper
+  await call('pages.list')
+  const created = await fetch(`${api}/api/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ email: 'nouvelle@example.com', name: 'Nouvelle', role: 'editor' })
+  }).then((r) => r.json())
+  assert.ok(created.activation?.token, 'activation link issued')
+  await win.getByRole('button', { name: 'Se connecter à un serveur' }).click()
+  await win.getByLabel('Adresse du serveur').fill(`${url}/activate/${created.activation.token}`)
+  await win.locator('.server-connect').getByText('nouvelle@example.com').waitFor()
+  assert.equal(await win.getByLabel('E-mail').count(), 0)
+  await win.getByLabel('Mot de passe (10 caractères minimum)').fill('nouveau-mot-de-passe')
+  await win.getByLabel('Mot de passe, à nouveau').fill('nouveau-mot-de-passe')
+  await win.getByRole('button', { name: 'Activer mon compte' }).click()
+  await win.locator('.sidebar-account', { hasText: 'Nouvelle' }).waitFor()
+  await win
+    .getByRole('tree', { name: 'Privé (cet ordinateur)' })
+    .getByText('Secret local')
+    .waitFor()
+  const signedIn = await fetch(`${api}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'nouvelle@example.com', password: 'nouveau-mot-de-passe' })
+  })
+  assert.equal(signedIn.status, 200, 'the chosen password works')
 
   assert.deepEqual(errors, [])
   console.log('linked desktop e2e: OK')

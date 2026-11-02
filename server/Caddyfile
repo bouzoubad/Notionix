@@ -19,14 +19,18 @@
 	reverse_proxy notionix:8080
 }
 
-# Plain HTTP: the authority's certificate to install on the computers, and
-# a redirect to HTTPS for everything else.
+# Plain HTTP: the authority's certificate to install on the computers, the
+# desktop app (it knows the authority itself), and a redirect to HTTPS for
+# everything else.
 http:// {
 	handle /notionix-ca.crt {
 		root * /data/caddy/pki/authorities/local
 		rewrite * /root.crt
 		header Content-Type application/x-x509-ca-cert
 		file_server
+	}
+	handle /download/* {
+		reverse_proxy notionix:8080
 	}
 	handle {
 		redir https://{host}:{$NOTIONIX_HTTPS_PORT:443}{uri} permanent

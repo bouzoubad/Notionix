@@ -9,6 +9,8 @@ import {
 import {
   normalizeServerUrl,
   OFFLINE_HEADER,
+  parseActivationLink,
+  type ActivationInfo,
   type ProxyRequest,
   type ProxyResponse,
   type ServerLinkStatus,
@@ -113,30 +115,86 @@ export class ServerLink {
   ): Promise<{ ok: true; status: ServerLinkStatus } | { ok: false; error: ServerLoginError }> {
     const url = normalizeServerUrl(address)
     if (!url) return { ok: false, error: { kind: 'refused', message: 'Adresse invalide.' } }
+    return this.signIn(url, '/api/login', { email, password }, email)
+  }
+
+  /** Who an activation link (shared through Keeper) is for, as its server tells. */
+  async activation(
+    link: string
+  ): Promise<{ ok: true; info: ActivationInfo } | { ok: false; error: ServerLoginError }> {
+    const parsed = parseActivationLink(link)
+    if (!parsed) return { ok: false, error: { kind: 'refused', message: 'Lien invalide.' } }
+    const answer = await this.call(
+      `${parsed.url}/api/activate/${encodeURIComponent(parsed.token)}`,
+      { method: 'GET' }
+    )
+    if (!answer.ok) return answer
+    const { email, name } = answer.body as { email?: unknown; name?: unknown }
+    if (typeof email !== 'string' || typeof name !== 'string')
+      return { ok: false, error: { kind: 'refused', message: 'Réponse invalide du serveur.' } }
+    return { ok: true, info: { url: parsed.url, email, name } }
+  }
+
+  /** Activates the account of the link with its chosen password; the app is then linked to it. */
+  async activate(
+    link: string,
+    password: string
+  ): Promise<{ ok: true; status: ServerLinkStatus } | { ok: false; error: ServerLoginError }> {
+    const parsed = parseActivationLink(link)
+    if (!parsed) return { ok: false, error: { kind: 'refused', message: 'Lien invalide.' } }
+    return this.signIn(
+      parsed.url,
+      `/api/activate/${encodeURIComponent(parsed.token)}`,
+      { password },
+      null
+    )
+  }
+
+  /** Opens a session on the server (password or activation), and keeps it. */
+  private async signIn(
+    url: string,
+    path: string,
+    payload: Record<string, string>,
+    email: string | null
+  ): Promise<{ ok: true; status: ServerLinkStatus } | { ok: false; error: ServerLoginError }> {
+    const answer = await this.call(`${url}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    if (!answer.ok) return answer
+    const body = answer.body as { token?: unknown; user?: SessionUser }
+    if (typeof body.token !== 'string' || !body.user || typeof body.user.id !== 'string')
+      return { ok: false, error: { kind: 'refused', message: 'Réponse invalide du serveur.' } }
+    // Another server (or another person): what was kept belongs to the previous one.
+    if (this.saved?.url !== url || this.saved.user.id !== body.user.id) this.cache.clear()
+    this.saved = {
+      url,
+      email: email ?? body.user.email,
+      user: body.user,
+      token: this.secrets.seal(body.token)
+    }
+    this.write()
+    return { ok: true, status: this.status()! }
+  }
+
+  /** A request made before any session: its JSON answer, or why it failed. */
+  private async call(
+    url: string,
+    init: RequestInit
+  ): Promise<{ ok: true; body: unknown } | { ok: false; error: ServerLoginError }> {
     let res: Response
     try {
-      res = await this.fetch(`${url}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      })
+      res = await this.fetch(url, init)
     } catch (e) {
       return { ok: false, error: { kind: isCertificateError(e) ? 'certificate' : 'unreachable' } }
     }
-    const body = (await res.json().catch(() => ({}))) as {
-      token?: unknown
-      user?: SessionUser
-      error?: unknown
-    }
-    if (!res.ok || typeof body.token !== 'string' || !body.user) {
+    const body = (await res.json().catch(() => ({}))) as { error?: unknown }
+    if (!res.ok) {
       const message = typeof body.error === 'string' ? body.error : `Erreur ${res.status}`
       return { ok: false, error: { kind: 'refused', message } }
     }
-    // Another server (or another person): what was kept belongs to the previous one.
-    if (this.saved?.url !== url || this.saved.user.id !== body.user.id) this.cache.clear()
-    this.saved = { url, email, user: body.user, token: this.secrets.seal(body.token) }
-    this.write()
-    return { ok: true, status: this.status()! }
+    return { ok: true, body }
   }
 
   async logout(): Promise<void> {
@@ -243,6 +301,15 @@ export function registerServerHandlers(ipc: IpcMain, link: ServerLink): void {
     if (typeof url !== 'string' || typeof email !== 'string' || typeof password !== 'string')
       throw new Error('Arguments invalides.')
     return link.login(url, email, password)
+  })
+  ipc.handle('server:activation', (_e, address: unknown) => {
+    if (typeof address !== 'string') throw new Error('Arguments invalides.')
+    return link.activation(address)
+  })
+  ipc.handle('server:activate', (_e, address: unknown, password: unknown) => {
+    if (typeof address !== 'string' || typeof password !== 'string')
+      throw new Error('Arguments invalides.')
+    return link.activate(address, password)
   })
   ipc.handle('server:logout', () => link.logout())
   ipc.handle('server:request', (_e, path: unknown, init: unknown) => {

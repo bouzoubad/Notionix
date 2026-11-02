@@ -16,6 +16,7 @@ import type { Config } from './config'
 import { WORKSPACE_DOCUMENT } from '../../src/shared/collab'
 import { openDatabase } from './db'
 import { createStatic } from './static'
+import { createDownloads } from './downloads'
 import type { Workspace } from './workspace'
 import { Workspaces } from './workspaces'
 import { Groups } from './groups'
@@ -115,6 +116,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     }
   })
   const serveStatic = createStatic(config.webDir)
+  const downloads = createDownloads(config.downloadsDir, config.plainPort)
   server = new Server<CollabContext>({
     port: config.port,
     address: config.host,
@@ -128,6 +130,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     ),
     async onRequest({ request, response }) {
       // A thrown null tells Hocuspocus the request is answered.
+      if (await downloads(request, response)) throw null
       if (await api(request, response)) throw null
       if (await serveStatic(request, response)) throw null
     }

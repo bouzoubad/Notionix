@@ -9,8 +9,10 @@ import {
   Notification,
   protocol,
   safeStorage,
+  session,
   type MenuItemConstructorOptions
 } from 'electron'
+import { readFileSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -33,6 +35,24 @@ import { ASSET_SCHEME } from '../shared/assets'
 import { setLanguage, t, type Language } from '../shared/i18n'
 import { registerServerHandlers, ServerLink, type SecretBox } from './server'
 import { ServerCache } from '../core/serverCache'
+import { loadAuthorities, trustServerAuthorities } from './trust'
+
+/**
+ * Authorities of the team's servers shipped with the app (resources/authorities/*.crt):
+ * a server whose certificate comes from one of them is trusted without installing
+ * anything on the computer. The end-to-end tests add theirs (never a packaged app).
+ */
+const authorities = (): string[] => {
+  const shipped = Object.values(
+    import.meta.glob<string>('../../resources/authorities/*.crt', {
+      query: '?raw',
+      import: 'default',
+      eager: true
+    })
+  )
+  const test = !app.isPackaged ? process.env.NOTIONIX_TEST_AUTHORITY : undefined
+  return test ? [...shipped, readFileSync(test, 'utf8')] : shipped
+}
 
 /** The session token is sealed with the system keychain when there is one. */
 const secrets: SecretBox = {
@@ -126,6 +146,7 @@ app.whenReady().then(() => {
     buildMenu()
   })
   if (process.platform === 'darwin') app.dock?.setIcon(icon)
+  trustServerAuthorities(session.defaultSession, loadAuthorities(authorities()))
 
   const db = openDatabase(join(app.getPath('userData'), 'notionix.db'))
   const repo = new PageRepository(db)

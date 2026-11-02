@@ -237,6 +237,16 @@ const dictionary: Record<string, string> = {
   'Créé le': 'Created',
   'Dernière utilisation': 'Last used',
   'Révoquer le jeton « {name} » ?': 'Revoke the token “{name}”?',
-  Révoquer: 'Revoke'
+  Révoquer: 'Revoke',
+  'App de bureau (Mac)': 'Desktop app (Mac)',
+  'Installez l’app de bureau (lien ci-dessus), puis dans l’app « Se connecter à un serveur » : collez le lien d’activation et choisissez votre mot de passe (lien valable jusqu’au {until}, utilisable une fois).':
+    'Install the desktop app (link above), then in the app “Connect to a server”: paste the activation link and choose your password (link valid until {until}, usable once).',
+  'Installez l’app de bureau (lien ci-dessus), puis dans l’app « Se connecter à un serveur » : adresse du site, identifiant et ce mot de passe provisoire (un nouveau vous sera demandé).':
+    'Install the desktop app (link above), then in the app “Connect to a server”: site address, login and this provisional password (you will be asked for a new one).',
+  'Si macOS refuse d’ouvrir l’app : Réglages Système > Confidentialité et sécurité > « Ouvrir quand même ».':
+    'If macOS refuses to open the app: System Settings > Privacy & Security > “Open Anyway”.',
+  'App de bureau pour Mac (Apple Silicon et Intel) : vos pages privées restent sur votre ordinateur, et vous travaillez hors ligne.':
+    'Desktop app for Mac (Apple Silicon and Intel): your private pages stay on your computer, and you can work offline.',
+  'Télécharger l’app': 'Download the app'
 }
 export default dictionary

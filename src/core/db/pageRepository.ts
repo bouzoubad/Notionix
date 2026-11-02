@@ -5,6 +5,7 @@ import type {
   PageAccess,
   PageId,
   PageInit,
+  PageTreeNode,
   PageOptions,
   PagePatch,
   PageShare,
@@ -481,6 +482,93 @@ export class PageRepository {
       )
       .run(value, this.now(), this.actor, id)
     if (res.changes === 0) throw new Error(`Page not found: ${id}`)
+  }
+
+  /** A page and its live sub-pages as stored, parents first (to move them elsewhere). */
+  exportTree(rootId: PageId): PageTreeNode[] {
+    const root = this.db
+      .prepare('SELECT * FROM pages WHERE id = ? AND trashed_at IS NULL')
+      .get(rootId) as (Row & { db_schema: string | null; properties: string | null }) | undefined
+    if (!root) return []
+    const children = this.db.prepare(
+      'SELECT * FROM pages WHERE parent_id = ? AND trashed_at IS NULL ORDER BY position'
+    )
+    const out: PageTreeNode[] = []
+    const queue = [root]
+    while (queue.length) {
+      const row = queue.shift()!
+      out.push({
+        id: row.id,
+        parentId: row.id === rootId ? null : row.parent_id,
+        title: row.title,
+        icon: row.icon,
+        cover: row.cover,
+        content: row.content,
+        kind: row.kind === 'database' || row.kind === 'synced' ? row.kind : 'page',
+        dbSchema: row.db_schema,
+        properties: row.properties,
+        isTemplate: row.is_template === 1,
+        options: row.options
+      })
+      queue.push(
+        ...(children.all(row.id) as unknown as (Row & {
+          db_schema: string | null
+          properties: string | null
+        })[])
+      )
+    }
+    return out
+  }
+
+  /**
+   * Inserts a tree of pages made elsewhere, keeping their ids, under
+   * `parentId` (at the end); the root takes `access` when given. The pages
+   * become this place's own: authored by the current actor, first version now.
+   */
+  adoptTree(nodes: PageTreeNode[], parentId: PageId | null, access?: PageAccess): void {
+    if (nodes.length === 0) return
+    this.inTransaction(() => {
+      const insert = this.db.prepare(
+        `INSERT INTO pages (id, parent_id, title, icon, cover, content, position, created_at, updated_at, kind, db_schema, properties, is_template, options, access, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      const t = this.now()
+      const next = new Map<PageId | null, number>()
+      const position = (parent: PageId | null): number => {
+        let n = next.get(parent)
+        if (n === undefined) {
+          const last = this.db
+            .prepare('SELECT MAX(position) AS p FROM pages WHERE parent_id IS ?')
+            .get(parent) as { p: number | null }
+          n = (last.p ?? 0) + 1
+        }
+        next.set(parent, n + 1)
+        return n
+      }
+      for (const node of nodes) {
+        const parent = node.parentId ?? parentId
+        insert.run(
+          node.id,
+          parent,
+          node.title,
+          node.icon,
+          node.cover,
+          node.content,
+          position(parent),
+          t,
+          t,
+          node.kind,
+          node.dbSchema,
+          node.properties,
+          node.isTemplate ? 1 : 0,
+          node.options,
+          node.parentId === null && access ? access : 'inherit',
+          this.actor,
+          this.actor
+        )
+        this.reindex(node.id)
+      }
+    })
   }
 
   /** Trash the page and its whole subtree with one shared timestamp. */

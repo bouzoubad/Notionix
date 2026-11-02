@@ -135,9 +135,10 @@ export default function App(): React.JSX.Element {
       <main id="content" tabIndex={-1}>
         <TabBar />
         {current?.kind === 'database' ? (
-          <DatabasePage key={current.id} page={current} />
+          // A page written without network and then sent opens again from the server.
+          <DatabasePage key={`${current.id}:${isLocalPage(current.id)}`} page={current} />
         ) : currentId ? (
-          <PageEditor pageId={currentId} />
+          <PageEditor key={`${currentId}:${isLocalPage(currentId)}`} pageId={currentId} />
         ) : (
           <div className="blank">
             <Logo variant="wordmark" className="logo-hero" />
@@ -173,7 +174,7 @@ export default function App(): React.JSX.Element {
         <div className="offline-banner">
           {platform().kind === 'desktop'
             ? t(
-                'Hors ligne : vos pages privées et les pages d’équipe déjà ouvertes ici restent modifiables, le reste en lecture seule. Tout se synchronise au retour du réseau.'
+                'Hors ligne : vos pages privées et les pages déjà ouvertes ici restent modifiables (texte, titre, place, nouvelles pages) ; les bases et commentaires de l’équipe en lecture seule. Tout part sur le serveur au retour du réseau.'
               )
             : t(
                 'Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.'

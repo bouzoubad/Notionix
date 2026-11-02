@@ -1169,3 +1169,84 @@ describe('Git mirror of the team pages', () => {
     ).toBe('claire\n')
   })
 })
+
+describe('pages written without network on a desktop app', () => {
+  const doc = (text: string): string =>
+    JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+    })
+  const node = (id: string, parentId: string | null, extra: Record<string, unknown> = {}) => ({
+    id,
+    parentId,
+    title: id,
+    icon: null,
+    cover: null,
+    content: doc(`texte de ${id}`),
+    kind: 'page',
+    dbSchema: null,
+    properties: null,
+    isTemplate: false,
+    options: null,
+    ...extra
+  })
+
+  it('takes them with their ids, private to their author', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const root = '11111111-1111-4111-8111-111111111111'
+    const child = '22222222-2222-4222-8222-222222222222'
+    const base = '33333333-3333-4333-8333-333333333333'
+    const r = await rpc(
+      alice,
+      'pages.adopt',
+      null,
+      [
+        node(root, null),
+        node(child, root),
+        node(base, root, {
+          kind: 'database',
+          dbSchema: JSON.stringify({ properties: [], views: [] })
+        })
+      ],
+      'restricted'
+    )
+    expect(r.status).toBe(200)
+    const page = await rpc<{ title: string; content: string; parentId: string }>(
+      alice,
+      'pages.get',
+      child
+    )
+    expect(page.result).toMatchObject({ title: child, parentId: root })
+    expect(page.result.content).toContain(`texte de ${child}`)
+    expect((await rpc<{ kind: string }>(alice, 'pages.get', base)).result.kind).toBe('database')
+    // Private: nobody else sees them.
+    const seen = await rpc<{ id: string }[]>(bob, 'pages.list')
+    expect(seen.result.map((p) => p.id)).not.toContain(root)
+    expect(seen.result.map((p) => p.id)).not.toContain(child)
+
+    // Sent again (an attempt cut short): refused, the ids are taken.
+    expect((await rpc(alice, 'pages.adopt', null, [node(root, null)])).status).toBe(400)
+    // A child before its parent, or a reader: refused.
+    expect(
+      (
+        await rpc(alice, 'pages.adopt', null, [
+          node('44444444-4444-4444-8444-444444444444', 'ailleurs')
+        ])
+      ).status
+    ).toBe(400)
+    const reader = await createUser(admin, 'lecteur@example.com', 'reader')
+    expect(
+      (await rpc(reader, 'pages.adopt', null, [node('55555555-5555-4555-8555-555555555555', null)]))
+        .status
+    ).toBe(403)
+    // Under a page of the server the author can edit.
+    const team = await rpc<{ id: string }>(alice, 'pages.create', null)
+    const under = '66666666-6666-4666-8666-666666666666'
+    expect((await rpc(alice, 'pages.adopt', team.result.id, [node(under, null)])).status).toBe(200)
+    expect((await rpc<{ parentId: string }>(bob, 'pages.get', under)).result.parentId).toBe(
+      team.result.id
+    )
+  })
+})

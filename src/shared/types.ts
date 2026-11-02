@@ -65,6 +65,30 @@ export interface PageOptions {
 /** A menu command of the desktop app sent to the page. */
 export type AppCommand = 'tab:new' | 'tab:close' | 'tab:next' | 'tab:previous'
 
+/**
+ * A page and everything under it as stored, to move it to another place with
+ * the same ids (the desktop app sends the pages written without network to
+ * its server). Parents come before their children; the first node is the root.
+ */
+export interface PageTreeNode {
+  id: PageId
+  /** The parent within the tree; null for the root */
+  parentId: PageId | null
+  title: string
+  icon: string | null
+  cover: string | null
+  /** ProseMirror JSON document */
+  content: string
+  kind: 'page' | 'database' | 'synced'
+  /** Database schema (JSON), for kind 'database' */
+  dbSchema: string | null
+  /** Database row values (JSON) */
+  properties: string | null
+  isTemplate: boolean
+  /** Page options (JSON) */
+  options: string | null
+}
+
 export interface PageInit {
   /**
    * Id chosen in advance (a UUID), so that pages created together can link to

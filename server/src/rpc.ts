@@ -1,11 +1,17 @@
 import { randomBytes } from 'crypto'
-import { isPropertyType, type PropertyType, type PropertyValue } from '../../src/shared/database'
+import {
+  isPropertyType,
+  parseSchema,
+  type PropertyType,
+  type PropertyValue
+} from '../../src/shared/database'
 import {
   atLeast,
   type AccessLevel,
   type ActivityKind,
   type PageAccess,
   type PageShare,
+  type PageTreeNode,
   type PageSummary,
   type InboxItem,
   type Person,
@@ -268,6 +274,63 @@ const METHODS: Record<string, Method> = {
     ctx.log(page.id, 'created')
     ctx.invalidate()
     return { ...page, level: ctx.level(page.id) }
+  }),
+  'pages.adopt': write((ctx, [p, list, a]) => {
+    // Pages written without network on a desktop app: the same ids, under `p`.
+    const parentId = parent(p)
+    ctx.needParent(parentId)
+    if (!Array.isArray(list) || list.length === 0 || list.length > 5000)
+      throw new RpcError('Pages invalides.')
+    const seen = new Set<string>()
+    const json = (v: unknown): string | null => {
+      if (v === null || v === undefined) return null
+      try {
+        JSON.parse(text(v))
+      } catch {
+        throw new RpcError('Valeurs invalides.')
+      }
+      return v as string
+    }
+    const nodes: PageTreeNode[] = list.map((raw, i) => {
+      const r = record(raw)
+      const nodeId = id(r.id)
+      const nodeParent = r.parentId === null ? null : id(r.parentId)
+      // The root first, then each page after its parent.
+      if ((i === 0) !== (nodeParent === null) || (nodeParent !== null && !seen.has(nodeParent)))
+        throw new RpcError('Pages invalides.')
+      if (seen.has(nodeId) || !(ctx.server.pageIdFree?.(nodeId) ?? !ctx.ws.pages.get(nodeId)))
+        throw new RpcError('Identifiant de page déjà utilisé.')
+      seen.add(nodeId)
+      const content = text(r.content)
+      let doc: unknown
+      try {
+        doc = JSON.parse(content)
+      } catch {
+        throw new RpcError('Contenu invalide.')
+      }
+      if (!canonicalDoc(doc as JsonNode)) throw new RpcError('Contenu invalide.')
+      const kind = r.kind === 'database' || r.kind === 'synced' ? r.kind : 'page'
+      return {
+        id: nodeId,
+        parentId: nodeParent,
+        title: text(r.title),
+        icon: nullableText(r.icon ?? null),
+        cover: nullableText(r.cover ?? null),
+        content,
+        kind,
+        dbSchema:
+          kind === 'database'
+            ? JSON.stringify(parseSchema(JSON.parse(json(r.dbSchema) ?? '{}')))
+            : null,
+        properties: json(r.properties),
+        isTemplate: r.isTemplate === true,
+        options: json(r.options)
+      }
+    })
+    ctx.ws.pages.adoptTree(nodes, parentId, a === undefined || a === null ? undefined : access(a))
+    ctx.log(nodes[0].id, 'created')
+    ctx.invalidate()
+    return ctx.visible(ctx.ws.pages.summary(nodes[0].id))
   }),
   'pages.update': write((ctx, [p, patch]) => {
     ctx.need(id(p), 'edit')

@@ -1,5 +1,5 @@
 import type { SessionUser } from './collab'
-import type { NotionixApi } from './types'
+import type { NotionixApi, PageId, PageTreeNode } from './types'
 
 /**
  * The Notionix server the desktop app is linked to. `signedIn` is false once
@@ -66,11 +66,25 @@ export interface DesktopServer {
   token(): Promise<string | null>
 }
 
+/**
+ * This computer's pages as stored, to send them to the linked server: pages
+ * written without network wait here, then move there with the same ids.
+ */
+export interface DesktopLocalStore {
+  /** A page and its sub-pages, parents first */
+  tree(rootId: PageId): Promise<PageTreeNode[]>
+  /** The bytes of a file of these pages, by its name (<sha256>.<ext>); null when missing */
+  asset(name: string): Promise<Uint8Array | null>
+  /** Once on the server: a copy kept in a file, then the pages deleted here */
+  forget(rootId: PageId): Promise<void>
+}
+
 /** What the desktop app's preload gives the page. */
 export interface DesktopBridge {
   /** The pages kept on this computer */
   api: NotionixApi
   server: DesktopServer
+  local: DesktopLocalStore
 }
 
 /** Address of a server as typed by a person: scheme added, path removed; null when invalid. */

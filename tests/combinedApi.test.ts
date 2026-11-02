@@ -93,17 +93,18 @@ describe('desktop app linked to a server', () => {
     expect(local.last()).toMatchObject({ section: 'databases', method: 'updateRow' })
   })
 
-  it('creates private top-level pages here, the others on the server, sub-pages with their parent', async () => {
+  it('creates every page on the server, private ones too; sub-pages go with their parent', async () => {
     const { local, remote, api } = setup()
     await api.pages.list()
 
     const mine = await api.pages.create(null, 'restricted')
-    expect(local.last()).toMatchObject({ method: 'create', args: [null, 'restricted', undefined] })
-    expect(api.isLocal(mine.id)).toBe(true)
+    expect(remote.last()).toMatchObject({ method: 'create', args: [null, 'restricted', undefined] })
+    expect(api.isLocal(mine.id)).toBe(false)
 
     await api.pages.create(null)
     expect(remote.last()).toMatchObject({ method: 'create', args: [null, undefined, undefined] })
 
+    // A page written earlier without network, not sent yet: its sub-pages stay with it.
     const child = await api.pages.createWith('mac-1', { title: 'Sous-page' })
     expect(local.last()).toMatchObject({ method: 'createWith' })
     expect(api.isLocal(child.id)).toBe(true)
@@ -117,12 +118,46 @@ describe('desktop app linked to a server', () => {
     expect(remote.last()).toMatchObject({ section: 'databases', method: 'create' })
   })
 
-  it('refuses to move a page between this computer and the server', async () => {
-    const { api } = setup()
+  it('writes new pages on this computer without network, to send them later', async () => {
+    const OFFLINE = new Error('hors ligne')
+    const local = side('local', { 'pages.list': async () => [] })
+    const remote = side('remote', {
+      'pages.list': async () => [summary('team-1')],
+      'pages.create': async () => {
+        throw OFFLINE
+      },
+      'pages.update': async () => {
+        throw OFFLINE
+      },
+      'pages.move': async () => {
+        throw OFFLINE
+      }
+    })
+    const store = new Map<string, string>()
+    ;(globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k)
+    }
+    const api = combineApis(local.api, remote.api, {
+      currentPage: () => null,
+      user,
+      offline: (e) => e === OFFLINE
+    })
     await api.pages.list()
-    await expect(api.pages.move('mac-1', 'team-1', 0)).rejects.toThrow()
-    await expect(api.pages.move('team-1', 'mac-1', 0)).rejects.toThrow()
-    await expect(api.pages.move('mac-1', 'mac-2', 0)).resolves.toBeDefined()
+    const page = await api.pages.create('team-1')
+    expect(local.last()).toMatchObject({ method: 'create', args: [null, 'restricted'] })
+    expect(api.isLocal(page.id)).toBe(true)
+    expect(JSON.parse(store.get('notionix-pending-parents')!)).toEqual({ [page.id]: 'team-1' })
+    // A page written here cannot go under a server page before it is sent.
+    await expect(api.pages.move(page.id, 'team-1', 0)).rejects.toThrow()
+
+    // Renaming and moving a server page wait, shown at once.
+    const renamed = await api.pages.update('team-1', { title: 'Hors ligne' })
+    expect(renamed.title).toBe('Hors ligne')
+    await api.pages.move('team-1', null, 0)
+    expect(api.queue.list().map((c) => c.kind)).toEqual(['update', 'move'])
+    expect((await api.pages.list()).find((p) => p.id === 'team-1')?.title).toBe('Hors ligne')
   })
 
   it('keeps the files of a private page on this computer', async () => {

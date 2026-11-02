@@ -1,4 +1,5 @@
-import { writeFile } from 'fs/promises'
+import { mkdir, readFile, writeFile } from 'fs/promises'
+import { join } from 'path'
 import { t } from '../shared/i18n'
 import type { BrowserWindow, Dialog, IpcMain } from 'electron'
 import type {
@@ -240,5 +241,36 @@ export function registerTransferHandlers(
       pdf
     )
     return path ? { path, pages: 1 } : null
+  })
+}
+
+/**
+ * This computer's pages as stored, for the desktop app linked to a server:
+ * the pages written without network are sent there with the same ids, then
+ * deleted here (a copy is kept in `sentDir`, in case).
+ */
+export function registerLocalStoreHandlers(
+  ipc: IpcMain,
+  repo: PageRepository,
+  assets: AssetStore,
+  sentDir: string
+): void {
+  ipc.handle('local:tree', (_e, rootId: unknown) =>
+    typeof rootId === 'string' ? repo.exportTree(rootId) : []
+  )
+  ipc.handle('local:asset', async (_e, name: unknown) => {
+    const path = typeof name === 'string' ? assets.pathOf(name) : null
+    return path ? new Uint8Array(await readFile(path)) : null
+  })
+  ipc.handle('local:forget', async (_e, rootId: unknown) => {
+    if (typeof rootId !== 'string') throw new Error('Arguments invalides.')
+    const tree = repo.exportTree(rootId)
+    if (tree.length === 0) return
+    await mkdir(sentDir, { recursive: true })
+    await writeFile(
+      join(sentDir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${rootId}.json`),
+      JSON.stringify({ sentAt: Date.now(), pages: tree }, null, 1)
+    )
+    repo.deleteForever(rootId)
   })
 }

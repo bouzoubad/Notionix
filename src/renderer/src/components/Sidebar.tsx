@@ -89,7 +89,7 @@ export function Sidebar(): React.JSX.Element {
   const canCreate = !session || (session.user.role !== 'guest' && session.user.role !== 'reader')
   const Connect = platform().ServerConnect
   const [connectOpen, setConnectOpen] = useState(platform().signInAgain === true)
-  // Desktop app linked to a server: private pages are kept on this computer.
+  // Desktop app linked to a server: pages written without network wait on this computer.
   const linked = web && platform().isLocal !== undefined
   // Sections: teamspaces, the workspace, private pages, and pages shared on their own.
   const roots = childrenOf(pages, null)
@@ -177,23 +177,12 @@ export function Sidebar(): React.JSX.Element {
             empty={t('Aucune page. Créez-en une.')}
           />
         )}
-        {linked && (
+        {web && canCreate && (
           <TreeSection
-            title={t('Privé (cet ordinateur)')}
+            title={t('Privé')}
             onAdd={() => void createPage(null, 'restricted')}
-            pages={onComputer}
-            rowProps={rowProps}
-            empty={t(
-              'Vos pages privées, gardées sur cet ordinateur et jamais envoyées au serveur.'
-            )}
-          />
-        )}
-        {web && (linked ? mine.length > 0 : canCreate) && (
-          <TreeSection
-            title={linked ? t('Privé sur le serveur') : t('Privé')}
-            // Linked desktop app: a new private page goes to this computer's section.
-            onAdd={!linked && canCreate ? () => void createPage(null, 'restricted') : undefined}
-            pages={mine}
+            // Linked desktop app: with the pages written here without network, sent when it is back.
+            pages={[...mine, ...onComputer]}
             rowProps={rowProps}
             empty={t('Vos pages visibles par vous seul.')}
           />

@@ -25,6 +25,7 @@ import {
   registerPageHandlers,
   registerTransferHandlers,
   registerTeamHandlers,
+  registerLocalStoreHandlers,
   LOCAL_PERSON
 } from './ipc'
 import { reminderKey, TeamRepository } from '../core/db/teamRepository'
@@ -183,6 +184,7 @@ app.whenReady().then(() => {
       : new Response('Not found', { status: 404 })
   })
   registerPageHandlers(ipcMain, repo)
+  registerLocalStoreHandlers(ipcMain, repo, assets, join(app.getPath('userData'), 'sent-to-server'))
   const dbs = new DatabaseRepository(repo)
   dbs.personOf = (id) => (id === LOCAL_PERSON.id ? LOCAL_PERSON : undefined)
   const team = new TeamRepository(db)

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppCommand, NotionixApi } from '../shared/types'
-import type { DesktopBridge, DesktopServer } from '../shared/desktop'
+import type { DesktopBridge, DesktopLocalStore, DesktopServer } from '../shared/desktop'
 
 const call = <T>(channel: string, ...args: unknown[]): Promise<T> =>
   ipcRenderer.invoke(channel, ...args)
@@ -106,6 +106,12 @@ const server: DesktopServer = {
   token: () => call('server:token')
 }
 
+const local: DesktopLocalStore = {
+  tree: (rootId) => call('local:tree', rootId),
+  asset: (name) => call('local:asset', name),
+  forget: (rootId) => call('local:forget', rootId)
+}
+
 // The page installs `window.api`: these pages, or these pages and the linked server's.
-const desktop: DesktopBridge = { api, server }
+const desktop: DesktopBridge = { api, server, local }
 contextBridge.exposeInMainWorld('desktop', desktop)

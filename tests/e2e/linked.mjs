@@ -1,6 +1,7 @@
-// E2E of the desktop app linked to a Notionix server: private pages stay on this
-// computer, the team's go to the server; without network the team pages kept
-// here still open and can be edited, and what was written merges on reconnection.
+// E2E of the desktop app linked to a Notionix server: every page is on the
+// server (private ones visible to their author only); without network the
+// pages kept here open and can be edited, renamed, and new ones written, and
+// all of it reaches the server on reconnection.
 // The server is behind HTTPS with its own authority (like Caddy's), which the
 // computer does not trust but the app does (NOTIONIX_TEST_AUTHORITY stands for
 // the authorities shipped in resources/authorities). A new account is then
@@ -151,74 +152,134 @@ try {
   await win.locator('.server-connect-error').waitFor()
   await win.getByLabel('Mot de passe').fill(ADMIN.password)
   await win.locator('form.server-connect button.primary').click()
-  const privateSection = win.getByRole('tree', { name: 'Privé (cet ordinateur)' })
+  const privateSection = win.getByRole('tree', { name: 'Privé' })
   await privateSection.waitFor()
   assert.equal(await win.getByRole('button', { name: 'Se déconnecter' }).count(), 1)
+  const newPage = async (section) => {
+    await section.locator('.tree-title').hover()
+    await section.getByRole('button', { name: 'Nouvelle page' }).click()
+    await win.waitForFunction(() => document.querySelector('.page-title')?.value === '')
+  }
 
-  // A private page, kept on this computer
-  await privateSection.locator('.tree-title').hover()
-  await privateSection.getByRole('button', { name: 'Nouvelle page' }).click()
-  await win.locator('.local-badge').waitFor()
-  await win.locator('.page-title').fill('Secret local')
+  // A private page: on the server, visible to its author only
+  await newPage(privateSection)
+  assert.equal(await win.locator('.local-badge').count(), 0)
+  await win.locator('.page-title').fill('Secret serveur')
   await win.locator('.page-title').press('Enter')
-  await win.keyboard.type('Rien de ceci ne quitte le Mac')
-  await win.locator('.local-badge').waitFor()
-  await privateSection.getByText('Secret local').waitFor()
+  await win.keyboard.type('Visible par moi seul')
+  await privateSection.getByText('Secret serveur').waitFor()
 
-  // A team page, on the server (created there: wait for it to open)
+  // A team page
   await win.getByRole('button', { name: '+ Nouvelle page' }).click()
-  await win.waitForFunction(
-    () =>
-      document.querySelector('.page-title')?.value === '' && !document.querySelector('.local-badge')
-  )
+  await win.waitForFunction(() => document.querySelector('.page-title')?.value === '')
   await win.locator('.page-title').fill('Page équipe')
   await win.locator('.page-title').press('Enter')
   await win.keyboard.type('Bonjour équipe')
-  assert.equal(await win.locator('.local-badge').count(), 0)
   await win.getByRole('tree', { name: 'Espace d’équipe' }).getByText('Page équipe').waitFor()
 
   let team = null
+  let secret = null
   await until(async () => {
     const pages = await call('pages.list')
     team = pages.find((p) => p.title === 'Page équipe')
-    if (!team) return false
-    const page = await call('pages.get', team.id)
-    return page.content.includes('Bonjour équipe')
-  }, 'team page stored by the server')
-  const titles = (await call('pages.list')).map((p) => p.title)
-  assert.ok(!titles.includes('Secret local'), 'the private page never reaches the server')
-  assert.equal((await call('pages.search', 'Secret')).length, 0)
+    secret = pages.find((p) => p.title === 'Secret serveur')
+    if (!team || !secret) return false
+    const [a, b] = await Promise.all([call('pages.get', team.id), call('pages.get', secret.id)])
+    return a.content.includes('Bonjour équipe') && b.content.includes('Visible par moi seul')
+  }, 'pages stored by the server')
+  assert.equal(secret.access, 'restricted')
+  // Another person does not see the private page.
+  const other = await fetch(`${api}/api/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      email: 'autre@example.com',
+      name: 'Autre',
+      role: 'editor',
+      password: 'autre-mot-de-passe'
+    })
+  })
+  assert.equal(other.status, 201)
+  const otherToken = (
+    await fetch(`${api}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'autre@example.com', password: 'autre-mot-de-passe' })
+    }).then((r) => r.json())
+  ).token
+  const seen = await fetch(`${api}/api/rpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${otherToken}` },
+    body: JSON.stringify({ method: 'pages.list', args: [] })
+  }).then((r) => r.json())
+  assert.ok(!seen.result.some((p) => p.id === secret.id), 'private to its author')
+  assert.ok(seen.result.some((p) => p.id === team.id))
 
-  // Without network: the team page opens from what was kept, and stays editable
+  // Without network: the pages kept here open and stay editable
   await stopServer()
   await win.locator('.offline-banner').waitFor()
   await win.reload()
-  await win.getByRole('tree', { name: 'Espace d’équipe' }).getByText('Page équipe').click()
-  await win.locator('.editor', { hasText: 'Bonjour équipe' }).waitFor()
-  await win.locator('.editor p', { hasText: 'Bonjour équipe' }).click()
+  await privateSection.getByText('Secret serveur').click()
+  await win.locator('.editor', { hasText: 'Visible par moi seul' }).waitFor()
+  await win.locator('.editor p', { hasText: 'Visible par moi seul' }).click()
   await win.keyboard.press('End')
   await win.keyboard.type(' et hors ligne')
   await win.waitForTimeout(800)
-  // The private page too
-  await privateSection.getByText('Secret local').click()
-  await win.locator('.editor', { hasText: 'Rien de ceci ne quitte le Mac' }).waitFor()
+  // A server page renamed without network: shown at once, sent later
+  await win.getByRole('tree', { name: 'Espace d’équipe' }).getByText('Page équipe').click()
+  await win.locator('.editor', { hasText: 'Bonjour équipe' }).waitFor()
+  await win.locator('.page-title').fill('Page équipe renommée')
+  await win.locator('.page-title').press('Enter')
+  await win
+    .getByRole('tree', { name: 'Espace d’équipe' })
+    .getByText('Page équipe renommée')
+    .waitFor()
+  // A new private page, written on this computer until the network is back
+  await newPage(privateSection)
+  await win.locator('.local-badge').waitFor()
+  await win.locator('.page-title').fill('Écrite hors ligne')
+  await win.locator('.page-title').press('Enter')
+  await win.keyboard.type('Sans réseau')
+  await win.waitForTimeout(800)
+  await privateSection.getByText('Écrite hors ligne').waitFor()
+  // Left for another page: it can be sent.
+  await privateSection.getByText('Secret serveur').click()
+  await win.locator('.editor', { hasText: 'Visible par moi seul' }).waitFor()
 
-  // Network back: what was written offline reaches the server
+  // Network back: everything written offline reaches the server
   await startServer()
   token = null
   await win.locator('.offline-banner').waitFor({ state: 'detached', timeout: 30_000 })
   await until(
-    async () => (await call('pages.get', team.id)).content.includes('Bonjour équipe et hors ligne'),
+    async () =>
+      (await call('pages.get', secret.id)).content.includes('Visible par moi seul et hors ligne'),
     'offline edit merged on the server',
     30_000
   )
-  assert.ok(!(await call('pages.list')).some((p) => p.title === 'Secret local'))
+  await until(
+    async () => (await call('pages.get', team.id)).title === 'Page équipe renommée',
+    'offline rename sent',
+    30_000
+  )
+  let sent = null
+  await until(
+    async () => {
+      sent = (await call('pages.list')).find((p) => p.title === 'Écrite hors ligne')
+      return Boolean(sent) && (await call('pages.get', sent.id)).content.includes('Sans réseau')
+    },
+    'page written offline sent to the server',
+    90_000
+  )
+  assert.equal(sent.access, 'restricted')
+  await privateSection.getByText('Écrite hors ligne').click()
+  await win.locator('.editor', { hasText: 'Sans réseau' }).waitFor()
+  assert.equal(await win.locator('.local-badge').count(), 0, 'now a page of the server')
 
-  // Signing out keeps the private pages and forgets the server's
+  // Signing out: nothing of the account stays shown
   await win.getByRole('button', { name: 'Se déconnecter' }).click()
   await win.getByRole('button', { name: 'Se connecter à un serveur' }).waitFor()
-  await win.locator('.sidebar').getByText('Secret local').waitFor()
-  assert.equal(await win.locator('.sidebar').getByText('Page équipe').count(), 0)
+  assert.equal(await win.locator('.sidebar').getByText('Secret serveur').count(), 0)
+  assert.equal(await win.locator('.sidebar').getByText('Écrite hors ligne').count(), 0)
 
   // A new account, activated in the app with the link shared through Keeper
   await call('pages.list')
@@ -236,10 +297,7 @@ try {
   await win.getByLabel('Mot de passe, à nouveau').fill('nouveau-mot-de-passe')
   await win.getByRole('button', { name: 'Activer mon compte' }).click()
   await win.locator('.sidebar-account', { hasText: 'Nouvelle' }).waitFor()
-  await win
-    .getByRole('tree', { name: 'Privé (cet ordinateur)' })
-    .getByText('Secret local')
-    .waitFor()
+  assert.equal(await win.locator('.sidebar').getByText('Secret serveur').count(), 0)
   const signedIn = await fetch(`${api}/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

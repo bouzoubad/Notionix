@@ -4,17 +4,23 @@ import type {
   Comment,
   InboxItem,
   NotionixApi,
-  PageAccess,
   PageId,
+  PageSummary,
   Person,
   SearchHit
 } from '../shared/types'
+import { OfflineQueue, type QueuedChange } from './offlineQueue'
+import { pendingParents } from './sendToServer'
 
 type Side = 'local' | 'remote'
 
 export interface CombinedApi extends NotionixApi {
-  /** Whether a page is kept on this computer only */
+  /** Whether a page is on this computer only (written without network, not sent yet) */
   isLocal(id: PageId): boolean
+  /** Changes of the server's pages made without network, sent when it is back */
+  queue: OfflineQueue
+  /** Sends the queued changes (in order) */
+  flushQueue(): Promise<void>
 }
 
 /** Alternates the hits of both sides, so the best of each come first. */
@@ -29,19 +35,71 @@ function interleave<T>(a: T[], b: T[]): T[] {
 
 /**
  * The desktop app linked to a server: one set of operations over two places.
- * Private pages (and everything under them) stay in this computer's database;
- * the team's pages are on the server. Each operation goes to the side of the
- * page it is about; lists and searches gather both.
- *
- * A new top-level page is private (here) when created with the 'restricted'
- * access, the team's otherwise; a sub-page goes with its parent. Files go
- * with the page open when they are added.
+ * Every page is on the server, private ones included (visible to their owner
+ * only); this computer keeps what is needed without network. Without
+ * network, a new page is written on this computer (under the server page it
+ * was made in, once sent) and sent with the same id when the network is back;
+ * renaming, moving or trashing a server page waits in `queue`. Each operation
+ * goes to the side of the page it is about; lists and searches gather both.
  */
 export function combineApis(
   local: NotionixApi,
   remote: NotionixApi,
-  context: { currentPage: () => PageId | null; user: SessionUser }
+  context: {
+    currentPage: () => PageId | null
+    user: SessionUser
+    /** Whether an error means the server is out of reach */
+    offline?: (error: unknown) => boolean
+    queue?: OfflineQueue
+  }
 ): CombinedApi {
+  const offline = context.offline ?? (() => false)
+  const queue = context.queue ?? new OfflineQueue('notionix-queue', null)
+  /** The server's pages as last listed, for what a queued change returns */
+  const lastTeam = new Map<PageId, PageSummary>()
+  const send = async (c: QueuedChange): Promise<void> => {
+    if (c.kind === 'update') await remote.pages.update(c.id, c.patch)
+    else if (c.kind === 'move') await remote.pages.move(c.id, c.parentId, c.index)
+    else await remote.pages.trash(c.id)
+  }
+  const flushQueue = async (): Promise<void> => {
+    const report = await queue.flush(send, offline)
+    for (const d of report.dropped) console.warn('Change refused by the server:', d)
+  }
+  /**
+   * A change of a server page: sent now, or queued without network (and
+   * behind changes already waiting, to keep their order).
+   */
+  const queued = async <T>(
+    change: QueuedChange,
+    call: () => Promise<T>,
+    shown: () => T
+  ): Promise<T> => {
+    if (queue.pending) {
+      queue.push(change)
+      void flushQueue()
+      return shown()
+    }
+    try {
+      return await call()
+    } catch (e) {
+      if (!offline(e)) throw e
+      queue.push(change)
+      return shown()
+    }
+  }
+  /**
+   * A new page without network: written here (top level), and placed under
+   * `parentId` on the server once sent.
+   */
+  const createHere = async <T extends { id: PageId }>(
+    parentId: PageId | null,
+    create: () => Promise<T>
+  ): Promise<T> => {
+    const page = await create()
+    if (parentId) pendingParents.set(page.id, parentId)
+    return kept('local', page)
+  }
   const localIds = new Set<PageId>()
   /** Comments and discussions (by id), notifications (by id), saved versions (by id) */
   const commentSide = new Map<string, Side>()
@@ -56,8 +114,7 @@ export function combineApis(
     if (side === 'local') localIds.add(page.id)
     return page
   }
-  const newPageSide = (parentId: PageId | null, access: PageAccess | undefined): Side =>
-    parentId ? sideOf(parentId) : access === 'restricted' ? 'local' : 'remote'
+  const newPageSide = (parentId: PageId | null): Side => (parentId ? sideOf(parentId) : 'remote')
   const noteComments = (side: Side, comments: Comment[]): Comment[] => {
     for (const c of comments) {
       commentSide.set(c.id, side)
@@ -79,33 +136,80 @@ export function combineApis(
 
   return {
     isLocal: (id) => localIds.has(id),
+    queue,
+    flushQueue,
     pages: {
       list: async () => {
-        const [mine, team] = await Promise.all([local.pages.list(), orNone(remote.pages.list())])
+        const [mine, team] = await Promise.all([
+          local.pages.list(),
+          orNone(remote.pages.list()).then((list) => queue.overlayList(list))
+        ])
         localIds.clear()
         for (const p of mine) localIds.add(p.id)
+        lastTeam.clear()
+        for (const p of team) lastTeam.set(p.id, p)
         return [...team, ...mine]
       },
-      get: (id) => byPage(id).pages.get(id),
+      get: async (id) =>
+        sideOf(id) === 'local'
+          ? local.pages.get(id)
+          : queue.overlayPage(await remote.pages.get(id)),
       create: async (parentId, access, kind) => {
-        const side = newPageSide(parentId, access)
-        return kept(side, await of(side).pages.create(parentId, access, kind))
+        const side = newPageSide(parentId)
+        if (side === 'local') return kept(side, await local.pages.create(parentId, access, kind))
+        try {
+          return kept(side, await remote.pages.create(parentId, access, kind))
+        } catch (e) {
+          if (!offline(e) || kind === 'synced') throw e
+          return createHere(parentId, () => local.pages.create(null, 'restricted'))
+        }
       },
       createWith: async (parentId, init) => {
-        const side = newPageSide(parentId, init.access)
-        return kept(side, await of(side).pages.createWith(parentId, init))
+        const side = newPageSide(parentId)
+        if (side === 'local') return kept(side, await local.pages.createWith(parentId, init))
+        try {
+          return kept(side, await remote.pages.createWith(parentId, init))
+        } catch (e) {
+          if (!offline(e)) throw e
+          return createHere(parentId, () =>
+            local.pages.createWith(null, { ...init, access: 'restricted' })
+          )
+        }
       },
-      update: (id, patch) => byPage(id).pages.update(id, patch),
+      update: (id, patch) =>
+        sideOf(id) === 'local'
+          ? local.pages.update(id, patch)
+          : queued(
+              { kind: 'update', id, patch, at: Date.now() },
+              () => remote.pages.update(id, patch),
+              () => {
+                const before = lastTeam.get(id)
+                if (!before) throw new Error(t('Serveur injoignable : vous êtes hors ligne.'))
+                return queue.overlayPage(before)!
+              }
+            ),
       move: async (id, parentId, index) => {
         if (parentId && sideOf(parentId) !== sideOf(id))
           throw new Error(
             t(
-              'Une page ne peut pas encore passer de cet ordinateur au serveur, ni du serveur à cet ordinateur.'
+              'Cette page a été écrite sans réseau : elle sera envoyée sur le serveur au retour du réseau, vous pourrez la déplacer ensuite.'
             )
           )
-        return byPage(id).pages.move(id, parentId, index)
+        if (sideOf(id) === 'local') return local.pages.move(id, parentId, index)
+        return queued(
+          { kind: 'move', id, parentId, index, at: Date.now() },
+          () => remote.pages.move(id, parentId, index),
+          () => undefined
+        )
       },
-      trash: (id) => byPage(id).pages.trash(id),
+      trash: (id) =>
+        sideOf(id) === 'local'
+          ? local.pages.trash(id)
+          : queued(
+              { kind: 'trash', id, at: Date.now() },
+              () => remote.pages.trash(id),
+              () => undefined
+            ),
       restore: (id) => byPage(id).pages.restore(id),
       deleteForever: (id) => byPage(id).pages.deleteForever(id),
       duplicate: async (id) => kept(sideOf(id), await byPage(id).pages.duplicate(id)),
@@ -196,7 +300,13 @@ export function combineApis(
     databases: {
       create: async (parentId) => {
         const side = parentId ? sideOf(parentId) : 'remote'
-        return kept(side, await of(side).databases.create(parentId))
+        if (side === 'local') return kept(side, await local.databases.create(parentId))
+        try {
+          return kept(side, await remote.databases.create(parentId))
+        } catch (e) {
+          if (!offline(e)) throw e
+          return createHere(parentId, () => local.databases.create(null))
+        }
       },
       get: (id) => byPage(id).databases.get(id),
       getRow: (rowId) => byPage(rowId).databases.getRow(rowId),
@@ -221,7 +331,7 @@ export function combineApis(
         byPage(id).databases.changePropertyType(id, propertyId, type)
     },
     assets: {
-      // A file added to a private page never leaves this computer.
+      // A file goes with the page it is added to (sent with it when written without network).
       save: (bytes, name) => of(sideOf(context.currentPage())).assets.save(bytes, name),
       saveFile: (bytes, name) => of(sideOf(context.currentPage())).assets.saveFile(bytes, name),
       // The main process fetches the server's files it does not have yet.
@@ -229,7 +339,7 @@ export function combineApis(
     },
     commands: local.commands,
     transfer: {
-      // Imported pages arrive private, on this computer.
+      // Imported pages arrive on this computer, then go to the server as private pages.
       importNotion: () => local.transfer.importNotion(),
       exportMarkdown: (pageId) => (pageId ? byPage(pageId) : local).transfer.exportMarkdown(pageId),
       exportHtml: (pageId) => (pageId ? byPage(pageId) : local).transfer.exportHtml(pageId),

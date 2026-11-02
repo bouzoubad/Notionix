@@ -136,7 +136,7 @@ export function ConnectDialog({ onClose }: { onClose: () => void }): React.JSX.E
         <h3>{status ? t('Se reconnecter au serveur') : t('Se connecter à un serveur Notionix')}</h3>
         <p className="server-connect-hint">
           {t(
-            'Les pages de l’équipe sont sur le serveur. Vos pages privées restent sur cet ordinateur et n’y sont jamais envoyées.'
+            'Toutes vos pages sont enregistrées sur le serveur, les privées visibles par vous seul ; l’app les garde aussi sur cet ordinateur pour travailler sans réseau.'
           )}
         </p>
         {status && !status.signedIn && (

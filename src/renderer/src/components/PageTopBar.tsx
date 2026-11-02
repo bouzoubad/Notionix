@@ -43,9 +43,11 @@ export function PageTopBar({
       {platform().session && isLocalPage(page.id) && (
         <span
           className="local-badge"
-          title={t('Page privée gardée sur cet ordinateur : elle n’est jamais envoyée au serveur.')}
+          title={t(
+            'Écrite sans réseau : elle sera envoyée sur le serveur, en page privée, au retour du réseau.'
+          )}
         >
-          {t('Sur cet ordinateur')}
+          {t('À envoyer')}
         </span>
       )}
       {page.options.locked && (

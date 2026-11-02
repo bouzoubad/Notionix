@@ -138,10 +138,12 @@ const cleanup = async () => {
   await stopServer()
 }
 
+const errors = []
+const consoleErrors = []
 try {
   const win = await app.firstWindow()
-  const errors = []
-  win.on('pageerror', (e) => errors.push(String(e)))
+  win.on('pageerror', (e) => errors.push(`${e}\n${e.stack ?? ''}`))
+  win.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text()))
 
   // Linked to the server from the sidebar
   await win.getByRole('button', { name: 'Se connecter à un serveur' }).click()
@@ -317,6 +319,8 @@ try {
   console.log('linked desktop e2e: OK')
 } catch (e) {
   console.error(e)
+  console.error('page errors:', errors.join('\n---\n').slice(0, 4000))
+  console.error('console errors:', consoleErrors.slice(-15).join('\n').slice(0, 4000))
   const win = app.windows()[0]
   if (win) {
     console.error(
@@ -324,6 +328,17 @@ try {
         .locator('.sidebar')
         .innerText()
         .catch(() => '')
+    )
+    console.error(
+      await win
+        .evaluate(() => ({
+          title: document.querySelector('.page-title')?.value,
+          editor: document.querySelector('.editor')?.textContent?.slice(0, 200),
+          badge: Boolean(document.querySelector('.local-badge')),
+          offline: document.querySelector('.page-offline')?.textContent,
+          main: document.querySelector('main')?.textContent?.slice(0, 200)
+        }))
+        .catch(() => null)
     )
     if (process.env.E2E_SHOTS)
       await win.screenshot({ path: join(process.env.E2E_SHOTS, 'linked-failure.png') })

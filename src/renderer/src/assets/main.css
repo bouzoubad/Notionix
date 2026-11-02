@@ -2651,6 +2651,22 @@ button:focus:not(:focus-visible) {
   border-width: 1px;
   border-color: var(--bg-sidebar);
 }
+.page-error {
+  max-width: 520px;
+  margin: 80px auto;
+  padding: 0 24px;
+  color: var(--text-secondary, var(--text));
+  text-align: center;
+}
+.page-error button {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
 .app-notices {
   position: fixed;
   right: 16px;

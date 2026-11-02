@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+// The dialogs shared with the web client (feedback, account, administration) are styled there.
+import '../web/web.css'
 import type { SessionUser } from '../shared/collab'
 import {
   parseActivationLink,

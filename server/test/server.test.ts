@@ -1383,3 +1383,40 @@ describe('a page never edited, kept on a device', () => {
     expect(texts(a)).toEqual(['x'])
   })
 })
+
+describe('the web client session', () => {
+  it('shares one connection when the same page is opened twice at once', async () => {
+    ;(globalThis as { window?: unknown }).window ??= globalThis
+    const { connect } = await import('../../src/web/session')
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const content = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Partagé' }] }]
+    })
+    const page = await rpc<{ id: string }>(admin, 'pages.createWith', null, { title: 'P', content })
+    const me = { id: 'x', email: ADMIN.email, name: 'Admin', role: 'admin' as const }
+    const session = connect(
+      me,
+      () => undefined,
+      () => null,
+      () => null,
+      {
+        server: running.url,
+        token: admin
+      }
+    )
+    // The editor and the pages kept for offline use, at the same time.
+    const editor = session.openPage(page.result.id)
+    const keeper = session.openPage(page.result.id)
+    await Promise.all([editor.ready, keeper.ready])
+    keeper.destroy()
+    // Still open for the editor.
+    const doc = (editor.extensions[0] as { options: { document: Y.Doc } }).options.document
+    expect(texts(doc)).toEqual(['Partagé'])
+    editor.destroy()
+    // Opened again later: a new connection.
+    const again = session.openPage(page.result.id)
+    await again.ready
+    again.destroy()
+  })
+})

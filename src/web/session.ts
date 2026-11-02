@@ -112,6 +112,11 @@ export function connect(
     const people = others()
     presenceListeners.forEach((l) => l(people))
   })
+  /** The page documents open now, and how many use each */
+  const documents = new Map<
+    string,
+    { provider: HocuspocusProvider; kept: KeptDocument | null; ready: Promise<void>; users: number }
+  >()
   const statusListeners = new Set<(connected: boolean) => void>()
   let status = 'connecting'
   socket.on('status', (event: { status: string }) => {
@@ -150,41 +155,57 @@ export function connect(
     },
     openPage: (pageId) => {
       const name = pageDocumentName(pageId)
-      const provider = new HocuspocusProvider({ websocketProvider: socket, name, token })
-      const kept = options.keep?.(name, provider.document) ?? null
-      provider.attach()
-      const ready = new Promise<void>((resolve, reject) => {
-        if (provider.isSynced) return resolve()
-        provider.on('synced', () => resolve())
-        if (!kept) return
-        // Kept on this device: it opens at once, the server's changes merge in when they come.
-        void kept.loaded.then(() => {
-          if (provider.document.store.clients.size > 0) return resolve()
-          const offline = (): void => {
-            if (!provider.isSynced) reject(new OfflinePageError())
-          }
-          if (status === 'disconnected') return offline()
-          const watch = (event: { status: string }): void => {
-            if (event.status !== 'disconnected') return
-            socket.off('status', watch)
-            offline()
-          }
-          socket.on('status', watch)
-          provider.on('synced', () => socket.off('status', watch))
+      // One connection per document: the editor, a synced block shown twice and
+      // the pages kept for offline use share it (two would be refused).
+      let entry = documents.get(name)
+      if (!entry) {
+        const provider = new HocuspocusProvider({ websocketProvider: socket, name, token })
+        const kept = options.keep?.(name, provider.document) ?? null
+        provider.attach()
+        const ready = new Promise<void>((resolve, reject) => {
+          if (provider.isSynced) return resolve()
+          provider.on('synced', () => resolve())
+          if (!kept) return
+          // Kept on this device: it opens at once, the server's changes merge in when they come.
+          void kept.loaded.then(() => {
+            if (provider.document.store.clients.size > 0) return resolve()
+            const offline = (): void => {
+              if (!provider.isSynced) reject(new OfflinePageError())
+            }
+            if (status === 'disconnected') return offline()
+            const watch = (event: { status: string }): void => {
+              if (event.status !== 'disconnected') return
+              socket.off('status', watch)
+              offline()
+            }
+            socket.on('status', watch)
+            provider.on('synced', () => socket.off('status', watch))
+          })
         })
-      })
+        // Read by each user of the document: never an unhandled rejection here.
+        ready.catch(() => undefined)
+        entry = { provider, kept, ready, users: 0 }
+        documents.set(name, entry)
+      }
+      const shared = entry
+      shared.users++
+      let closed = false
       return {
-        ready,
+        ready: shared.ready,
         extensions: [
-          Collaboration.configure({ document: provider.document, field: PAGE_FIELD }),
+          Collaboration.configure({ document: shared.provider.document, field: PAGE_FIELD }),
           CollaborationCaret.configure({
-            provider,
+            provider: shared.provider,
             user: { name: user.name || user.email, color }
           })
         ],
         destroy: () => {
-          provider.destroy()
-          kept?.destroy()
+          if (closed) return
+          closed = true
+          if (--shared.users > 0) return
+          documents.delete(name)
+          shared.provider.destroy()
+          shared.kept?.destroy()
         }
       }
     },

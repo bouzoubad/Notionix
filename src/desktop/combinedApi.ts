@@ -144,11 +144,13 @@ export function combineApis(
           local.pages.list(),
           orNone(remote.pages.list()).then((list) => queue.overlayList(list))
         ])
-        localIds.clear()
-        for (const p of mine) localIds.add(p.id)
         lastTeam.clear()
         for (const p of team) lastTeam.set(p.id, p)
-        return [...team, ...mine]
+        // Being sent: already on the server, not yet deleted here. The server's copy counts.
+        const here = mine.filter((p) => !lastTeam.has(p.id))
+        localIds.clear()
+        for (const p of here) localIds.add(p.id)
+        return [...team, ...here]
       },
       get: async (id) =>
         sideOf(id) === 'local'

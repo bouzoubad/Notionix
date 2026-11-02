@@ -12,6 +12,8 @@ const dictionary: Record<string, string> = {
   Commentaires: 'Comments',
   Fermer: 'Close',
   Voir: 'View',
+  'Cette page n’a pas pu s’afficher.': 'This page could not be shown.',
+  Réessayer: 'Try again',
   '(et {n} autre(s) nouveauté(s))': '(and {n} more)',
   'Ajouter un commentaire…': 'Add a comment…',
   'Commenter la page…': 'Comment on the page…',

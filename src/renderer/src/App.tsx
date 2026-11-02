@@ -16,6 +16,7 @@ import { InboxDialog } from './components/InboxDialog'
 import { PagePicker } from './components/PagePicker'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { isLocalPage, platform } from './platform'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { language, t } from '../../shared/i18n'
 
 document.documentElement.lang = language()
@@ -140,9 +141,13 @@ export default function App(): React.JSX.Element {
         <TabBar />
         {current?.kind === 'database' ? (
           // A page written without network and then sent opens again from the server.
-          <DatabasePage key={`${current.id}:${isLocalPage(current.id)}`} page={current} />
+          <ErrorBoundary key={`${current.id}:${isLocalPage(current.id)}`}>
+            <DatabasePage page={current} />
+          </ErrorBoundary>
         ) : currentId ? (
-          <PageEditor key={`${currentId}:${isLocalPage(currentId)}`} pageId={currentId} />
+          <ErrorBoundary key={`${currentId}:${isLocalPage(currentId)}`}>
+            <PageEditor pageId={currentId} />
+          </ErrorBoundary>
         ) : (
           <div className="blank">
             <Logo variant="wordmark" className="logo-hero" />

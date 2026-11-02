@@ -21,6 +21,25 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-02-fenetres-app-de-bureau',
+    date: '2026-11-02',
+    title: 'Correctifs de l’app de bureau : page blanche et fenêtres',
+    summary:
+      'L’app de bureau ne devient plus blanche en ouvrant une page, et ses fenêtres Feedback, Mon compte et Administration retrouvent leur mise en page.',
+    desktop: '1.1.4',
+    body: `**Pour qui :** les personnes qui utilisent l'app de bureau.
+
+## Ce qui est corrigé
+
+- **Fenêtre blanche** : en ouvrant une page au moment où l'app la mettait de côté pour le hors ligne (ou une page qui venait d'être envoyée sur le serveur), toute la fenêtre pouvait devenir blanche jusqu'au redémarrage. C'est corrigé ; et si une page n'arrive pas à s'afficher, seule cette page affiche un message avec **Réessayer**, le reste de l'app reste utilisable.
+- **Fenêtres Feedback, Mon compte et Administration** : dans l'app reliée au serveur, elles s'affichaient sans mise en page (champs et boutons bruts). Elles ont maintenant la même présentation que dans le navigateur.
+- Les formules mathématiques s'affichent avec leurs vraies polices.
+
+## App de bureau
+
+La version **1.1.4** s'installe toute seule depuis la 1.1.2 (encart « Redémarrer »).`
+  },
+  {
     id: '2026-11-02-correctif-texte-en-double',
     date: '2026-11-02',
     title: 'Correctif : texte en double, et la liste des nouveautés',

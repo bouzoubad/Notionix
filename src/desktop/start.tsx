@@ -1,4 +1,6 @@
 import type { SessionUser } from '../shared/collab'
+// The dialogs shared with the web client (feedback, account, administration) are styled there.
+import '../web/web.css'
 import { OFFLINE_HEADER, type ServerLinkStatus } from '../shared/desktop'
 import type { PageId, PageSummary } from '../shared/types'
 import { setPlatform } from '../renderer/src/platform'

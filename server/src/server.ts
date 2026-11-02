@@ -193,9 +193,17 @@ export async function startServer(config: Config): Promise<NotionixServer> {
       const news = publishReleaseNotes(db, workspaces.main, RELEASE_NOTES, () => accounts.list())
       // The pages as they must be (the list of notes, their text), put back when they differ.
       const schema = documentSchema()
-      const same = (a: string, b: string): boolean =>
-        JSON.stringify(schema.nodeFromJSON(JSON.parse(a)).toJSON()) ===
-        JSON.stringify(schema.nodeFromJSON(JSON.parse(b)).toJSON())
+      // Compared block by block, without the empty paragraph the editor adds at the end.
+      const blocks = (content: string): string => {
+        const json = schema.nodeFromJSON(JSON.parse(content)).toJSON() as {
+          content?: { type: string; content?: unknown[] }[]
+        }
+        const list = [...(json.content ?? [])]
+        while (list.length && list.at(-1)!.type === 'paragraph' && !list.at(-1)!.content?.length)
+          list.pop()
+        return JSON.stringify(list)
+      }
+      const same = (a: string, b: string): boolean => blocks(a) === blocks(b)
       let repaired = 0
       for (const { pageId, content } of releasePagesContent(db, RELEASE_NOTES)) {
         const page = workspaces.main.pages.get(pageId)

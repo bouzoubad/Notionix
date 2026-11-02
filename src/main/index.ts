@@ -141,6 +141,7 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.notionix')
   buildMenu()
   // The page tells its language: the menu and the file dialogs follow it.
+  ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.on('app:language', (_e, lang: Language) => {
     if (lang !== 'fr' && lang !== 'en') return
     setLanguage(lang)

@@ -113,5 +113,5 @@ const local: DesktopLocalStore = {
 }
 
 // The page installs `window.api`: these pages, or these pages and the linked server's.
-const desktop: DesktopBridge = { api, server, local }
+const desktop: DesktopBridge = { api, server, local, appVersion: () => call('app:version') }
 contextBridge.exposeInMainWorld('desktop', desktop)

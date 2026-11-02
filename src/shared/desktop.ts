@@ -85,6 +85,8 @@ export interface DesktopBridge {
   api: NotionixApi
   server: DesktopServer
   local: DesktopLocalStore
+  /** This app's version (x.y.z) */
+  appVersion(): Promise<string>
 }
 
 /** Address of a server as typed by a person: scheme added, path removed; null when invalid. */

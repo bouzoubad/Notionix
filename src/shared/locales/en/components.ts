@@ -11,6 +11,7 @@ const dictionary: Record<string, string> = {
   'Commentaire impossible : {error}': 'Could not comment: {error}',
   Commentaires: 'Comments',
   Fermer: 'Close',
+  Voir: 'View',
   'Ajouter un commentaire…': 'Add a comment…',
   'Commenter la page…': 'Comment on the page…',
   'Chargement…': 'Loading…',

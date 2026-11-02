@@ -66,6 +66,8 @@ export interface Platform {
   ServerConnect?: ComponentType<{ onClose: () => void }>
   /** Desktop app: the link to the server needs the password again */
   signInAgain?: boolean
+  /** Notices of the platform shown with the release notes (desktop app: a new version) */
+  Notices?: ComponentType
 }
 
 let current: Platform = { kind: 'desktop', session: null }

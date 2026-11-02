@@ -11,7 +11,8 @@ const ICONS: Record<InboxItem['kind'], string> = {
   comment: '💬',
   share: '🔗',
   reminder: '⏰',
-  feedback: '💬'
+  feedback: '💬',
+  news: '📣'
 }
 
 const ACTIVITY: Record<ActivityItem['kind'], string> = {

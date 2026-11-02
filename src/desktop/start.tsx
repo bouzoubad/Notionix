@@ -9,6 +9,7 @@ import { SettingsDialog } from '../web/SettingsDialog'
 import { FeedbackDialog } from '../web/FeedbackDialog'
 import { combineApis, type CombinedApi } from './combinedApi'
 import { ConnectDialog } from './ConnectDialog'
+import { UpdateNotice } from './UpdateNotice'
 import { forgetKeptDocuments, keepDocuments } from './offline'
 import { OfflineQueue } from './offlineQueue'
 import { sendLocalPages, type ServerTarget } from './sendToServer'
@@ -98,7 +99,8 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
     session,
     origin: status.url,
     isLocal: api.isLocal,
-    ServerConnect: ConnectDialog
+    ServerConnect: ConnectDialog,
+    Notices: UpdateNotice
   })
   // The session ended meanwhile: the app starts again and asks for the password.
   whenSignedOut(() => location.reload())

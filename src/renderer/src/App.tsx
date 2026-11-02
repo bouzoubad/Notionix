@@ -68,6 +68,10 @@ export default function App(): React.JSX.Element {
 
   // Server workspace: presence of the others, connection state, and this person's open page.
   const connected = useStore((s) => s.connected)
+  const news = useStore((s) => s.news)
+  const open = useStore((s) => s.open)
+  const dismissNews = useStore((s) => s.dismissNews)
+  const Notices = platform().Notices
   useEffect(() => {
     const session = platform().session
     if (!session) return
@@ -79,7 +83,7 @@ export default function App(): React.JSX.Element {
     }
   }, [])
   useEffect(() => {
-    // The others never learn which private page (kept on this computer) is open.
+    // The others never learn which page written without network (on this computer) is open.
     platform().session?.setPage(isLocalPage(currentId) ? null : currentId)
     // Counted for the page's view statistics; a failure changes nothing.
     if (currentId) window.api.pages.view(currentId).catch(() => {})
@@ -170,6 +174,28 @@ export default function App(): React.JSX.Element {
           {notice}
         </div>
       )}
+      <div className="app-notices">
+        {news && (
+          <div className="app-notice news-notice" role="status">
+            <span>📣 {news.text}</span>
+            <span className="app-notice-actions">
+              <button
+                className="primary"
+                onClick={() => {
+                  if (news.pageId) open(news.pageId)
+                  void dismissNews(news.id)
+                }}
+              >
+                {t('Voir')}
+              </button>
+              <button aria-label={t('Fermer')} onClick={() => void dismissNews(news.id)}>
+                ×
+              </button>
+            </span>
+          </div>
+        )}
+        {Notices && <Notices />}
+      </div>
       {!connected && (
         <div className="offline-banner">
           {platform().kind === 'desktop'

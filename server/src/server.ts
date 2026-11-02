@@ -16,6 +16,8 @@ import type { Config } from './config'
 import { MAIN_WORKSPACE, WORKSPACE_DOCUMENT } from '../../src/shared/collab'
 import { exportPagesAsMarkdown } from '../../src/core/transfer/markdownExport'
 import { GitMirror, type MirrorFiles } from './mirror'
+import { publishReleaseNotes } from './announcements'
+import { RELEASE_NOTES } from '../../src/shared/changelog'
 import type { User } from './auth'
 import { openDatabase } from './db'
 import { createStatic } from './static'
@@ -184,6 +186,20 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     }
   })
   await server.listen()
+  // What changed since the last version: a page each, and a notification to everyone.
+  if (config.releaseNotes) {
+    try {
+      const news = publishReleaseNotes(db, workspaces.main, RELEASE_NOTES, () => accounts.list())
+      if (news.published.length) {
+        announceChange(server.hocuspocus, SYSTEM_USER, MAIN_WORKSPACE)
+        notifyUsers(news.notified)
+        mirror.touch(null)
+        console.log(`Nouveautés publiées : ${news.published.join(', ')}`)
+      }
+    } catch (e) {
+      console.error('Nouveautés non publiées :', e)
+    }
+  }
   // Every hour: expired sessions, and pages in the trash for more than 30 days.
   const purgeTrash = (): void => {
     let purged = 0

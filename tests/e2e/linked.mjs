@@ -155,6 +155,15 @@ try {
   const privateSection = win.getByRole('tree', { name: 'Privé' })
   await privateSection.waitFor()
   assert.equal(await win.getByRole('button', { name: 'Se déconnecter' }).count(), 1)
+  // What changed in Notionix: announced to everyone, opens its page
+  const news = win.locator('.news-notice')
+  await news.waitFor()
+  assert.ok((await news.innerText()).includes('Nouveautés'))
+  await news.getByRole('button', { name: 'Voir' }).click()
+  await win.waitForFunction(() =>
+    document.querySelector('.page-title')?.value.includes('Pages privées sur le serveur')
+  )
+  await news.waitFor({ state: 'detached' })
   const newPage = async (section) => {
     await section.locator('.tree-title').hover()
     await section.getByRole('button', { name: 'Nouvelle page' }).click()

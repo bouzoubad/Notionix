@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  InboxItem,
   PageAccess,
   PageId,
   PagePatch,
@@ -50,7 +51,11 @@ interface State {
   closeFeedback: () => void
   /** Unread notifications */
   inboxUnread: number
+  /** The latest unread release note (« Nouveautés »), shown until seen */
+  news: InboxItem | null
   refreshInbox: () => Promise<void>
+  /** The release note seen (opened, or closed) */
+  dismissNews: (id: string) => Promise<void>
   inboxOpen: boolean
   setInboxOpen: (open: boolean) => void
   /** Comments panel of the open page */
@@ -300,13 +305,25 @@ export const useStore = create<State>((set, get) => ({
   openFeedback: (focus = null) => set({ feedback: { focus } }),
   closeFeedback: () => set({ feedback: null }),
   inboxUnread: 0,
+  news: null,
   refreshInbox: async () => {
     try {
       const items = await window.api.inbox.list()
-      set({ inboxUnread: items.filter((i) => !i.readAt).length })
+      const unread = items.filter((i) => !i.readAt)
+      set({
+        inboxUnread: unread.length,
+        news:
+          unread.filter((i) => i.kind === 'news').sort((a, b) => b.createdAt - a.createdAt)[0] ??
+          null
+      })
     } catch {
       // the count is a hint; the next change retries
     }
+  },
+  dismissNews: async (id) => {
+    set({ news: null })
+    await window.api.inbox.markRead([id]).catch(() => undefined)
+    await get().refreshInbox()
   },
   inboxOpen: false,
   setInboxOpen: (inboxOpen) => set({ inboxOpen }),

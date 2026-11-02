@@ -16,6 +16,8 @@ export interface Config {
   webDir: string | null
   /** The desktop app's builds offered for download (scripts/publish-desktop.sh) */
   downloadsDir: string
+  /** Publishes the release notes not published yet (page + notification), at start */
+  releaseNotes: boolean
   /** The Git mirror of the pages: its settings and working copy */
   mirrorDir: string
   /** Port of the plain HTTP site in front of an HTTPS deployment (Caddy), for downloads; null: none */
@@ -41,6 +43,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     downloadsDir:
       env.NOTIONIX_DOWNLOADS_DIR ||
       join(env.NOTIONIX_DATA_DIR ?? join(process.cwd(), 'data'), 'downloads'),
+    releaseNotes: env.NOTIONIX_RELEASE_NOTES !== 'off',
     mirrorDir:
       env.NOTIONIX_MIRROR_DIR ||
       join(env.NOTIONIX_DATA_DIR ?? join(process.cwd(), 'data'), 'mirror'),

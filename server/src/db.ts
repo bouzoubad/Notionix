@@ -105,7 +105,13 @@ const MIGRATIONS = [
      detail TEXT,
      workspace TEXT
    );
-   CREATE INDEX audit_at ON audit(at);`
+   CREATE INDEX audit_at ON audit(at);`,
+  // Release notes published (src/shared/changelog.ts), and their page ('_page': the parent).
+  `CREATE TABLE announcements (
+     id TEXT PRIMARY KEY,
+     page_id TEXT NOT NULL,
+     at INTEGER NOT NULL
+   );`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

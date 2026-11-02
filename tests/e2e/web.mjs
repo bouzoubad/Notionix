@@ -27,7 +27,8 @@ const server = spawn(process.execPath, ['out/server/main.mjs'], {
     NOTIONIX_DATA_DIR: join(tmp, 'data'),
     NOTIONIX_WEB_DIR: join(process.cwd(), 'out/server/web'),
     NOTIONIX_ADMIN_EMAIL: ADMIN.email,
-    NOTIONIX_ADMIN_PASSWORD: ADMIN.password
+    NOTIONIX_ADMIN_PASSWORD: ADMIN.password,
+    NOTIONIX_RELEASE_NOTES: 'off'
   },
   stdio: ['ignore', 'pipe', 'inherit']
 })

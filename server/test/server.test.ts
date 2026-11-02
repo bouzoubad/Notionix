@@ -28,7 +28,8 @@ const start = async (): Promise<void> => {
       NOTIONIX_WEB_DIR: webDir,
       NOTIONIX_REMINDER_INTERVAL_MS: '100',
       NOTIONIX_ADMIN_EMAIL: ADMIN.email,
-      NOTIONIX_ADMIN_PASSWORD: ADMIN.password
+      NOTIONIX_ADMIN_PASSWORD: ADMIN.password,
+      NOTIONIX_RELEASE_NOTES: 'off'
     })
   )
 }
@@ -1248,5 +1249,75 @@ describe('pages written without network on a desktop app', () => {
     expect((await rpc<{ parentId: string }>(bob, 'pages.get', under)).result.parentId).toBe(
       team.result.id
     )
+  })
+})
+
+describe('release notes', () => {
+  it('publishes each note once, newest first, and tells every active account', async () => {
+    const { publishReleaseNotes } = await import('../src/announcements')
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const note = (id: string, title: string) => ({
+      id,
+      date: '2026-11-02',
+      title,
+      summary: `Résumé ${title}`,
+      body: `## ${title}\n\n- un point\n- un autre`
+    })
+    const accounts = () => running.accounts.list()
+    const first = publishReleaseNotes(
+      running.db,
+      running.workspace,
+      [note('b', 'Deux'), note('a', 'Un')],
+      accounts
+    )
+    expect(first.published).toEqual(['a', 'b'])
+    const pages = await rpc<
+      {
+        id: string
+        title: string
+        parentId: string | null
+        position: number
+        options: { locked?: boolean }
+      }[]
+    >(alice, 'pages.list')
+    const parent = pages.result.find((p) => p.title === 'Nouveautés de Notionix')!
+    expect(parent.options.locked).toBe(true)
+    const children = pages.result
+      .filter((p) => p.parentId === parent.id)
+      .sort((x, y) => x.position - y.position)
+      .map((p) => p.title)
+    expect(children).toEqual(['2 novembre 2026 — Deux', '2 novembre 2026 — Un'])
+    const inbox = await rpc<{ kind: string; text: string; pageId: string }[]>(alice, 'inbox.list')
+    expect(inbox.result.filter((i) => i.kind === 'news').map((i) => i.text)).toEqual(
+      expect.arrayContaining(['Nouveautés : Résumé Un', 'Nouveautés : Résumé Deux'])
+    )
+
+    // Published once: a restart changes nothing; a new note comes first.
+    expect(
+      publishReleaseNotes(
+        running.db,
+        running.workspace,
+        [note('b', 'Deux'), note('a', 'Un')],
+        accounts
+      ).published
+    ).toEqual([])
+    expect(
+      publishReleaseNotes(
+        running.db,
+        running.workspace,
+        [note('c', 'Trois'), note('b', 'Deux')],
+        accounts
+      ).published
+    ).toEqual(['c'])
+    const after = await rpc<{ title: string; parentId: string | null; position: number }[]>(
+      alice,
+      'pages.list'
+    )
+    expect(
+      after.result
+        .filter((p) => p.parentId === parent.id)
+        .sort((x, y) => x.position - y.position)[0].title
+    ).toBe('2 novembre 2026 — Trois')
   })
 })

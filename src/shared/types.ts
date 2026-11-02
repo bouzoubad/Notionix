@@ -168,7 +168,8 @@ export interface NewComment {
   quote?: string | null
 }
 
-export type InboxKind = 'mention' | 'comment' | 'share' | 'reminder' | 'feedback'
+/** 'news': what changed in Notionix (src/shared/changelog.ts) */
+export type InboxKind = 'mention' | 'comment' | 'share' | 'reminder' | 'feedback' | 'news'
 
 export interface InboxItem {
   id: string

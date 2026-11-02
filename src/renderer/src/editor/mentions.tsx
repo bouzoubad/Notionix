@@ -7,7 +7,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from 
 import { Mention, type MentionAttrs } from '../../../shared/mention'
 import { newId } from '../../../shared/database'
 import { useStore } from '../store'
-import { platform } from '../platform'
+import { canReference, platform } from '../platform'
 import { createMenuController, type SlashItem } from './slashCommands'
 import { PageIcon } from '../components/PageIcon'
 import { iconText } from '../icons'
@@ -138,6 +138,7 @@ function mentionItems(query: string): SlashItem[] {
   let shown = 0
   for (const p of pages) {
     if (p.trashedAt || p.id === currentId || (q && !fold(p.title).includes(q))) continue
+    if (!canReference(currentId, p.id)) continue
     items.push({
       icon: iconText(p.icon, p.kind === 'database' ? '🗃️' : '📄'),
       title: p.title || t('Sans titre'),

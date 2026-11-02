@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { childrenOf, pageHash, useStore } from '../store'
 import { Logo } from './Logo'
-import { platform } from '../platform'
+import { isLocalPage, platform } from '../platform'
 import { Avatars } from './PageTopBar'
 import { TemplatesDialog } from './TemplatesDialog'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
@@ -87,14 +87,19 @@ export function Sidebar(): React.JSX.Element {
   const web = session !== null
   const me = session?.user.id ?? null
   const canCreate = !session || (session.user.role !== 'guest' && session.user.role !== 'reader')
+  const Connect = platform().ServerConnect
+  const [connectOpen, setConnectOpen] = useState(platform().signInAgain === true)
+  // Desktop app linked to a server: private pages are kept on this computer.
+  const linked = web && platform().isLocal !== undefined
   // Sections: teamspaces, the workspace, private pages, and pages shared on their own.
   const roots = childrenOf(pages, null)
-  const spaces = roots.filter((p) => p.isSpace && p.parentId === null)
+  const onComputer = linked ? roots.filter((p) => isLocalPage(p.id)) : []
+  const spaces = roots.filter((p) => p.isSpace && p.parentId === null && !onComputer.includes(p))
   const isPrivate = (p: PageSummary): boolean =>
     p.parentId === null && p.access === 'restricted' && p.createdBy === me
   const isShared = (p: PageSummary): boolean =>
     p.parentId !== null || (p.access === 'restricted' && p.createdBy !== me)
-  const others = roots.filter((p) => !(p.isSpace && p.parentId === null))
+  const others = roots.filter((p) => !(p.isSpace && p.parentId === null) && !onComputer.includes(p))
   const mine = web ? others.filter(isPrivate) : []
   const shared = web ? others.filter((p) => !isPrivate(p) && isShared(p)) : []
   const team = others.filter((p) => !mine.includes(p) && !shared.includes(p))
@@ -172,10 +177,22 @@ export function Sidebar(): React.JSX.Element {
             empty={t('Aucune page. Créez-en une.')}
           />
         )}
-        {web && canCreate && (
+        {linked && (
           <TreeSection
-            title={t('Privé')}
+            title={t('Privé (cet ordinateur)')}
             onAdd={() => void createPage(null, 'restricted')}
+            pages={onComputer}
+            rowProps={rowProps}
+            empty={t(
+              'Vos pages privées, gardées sur cet ordinateur et jamais envoyées au serveur.'
+            )}
+          />
+        )}
+        {web && (linked ? mine.length > 0 : canCreate) && (
+          <TreeSection
+            title={linked ? t('Privé sur le serveur') : t('Privé')}
+            // Linked desktop app: a new private page goes to this computer's section.
+            onAdd={!linked && canCreate ? () => void createPage(null, 'restricted') : undefined}
             pages={mine}
             rowProps={rowProps}
             empty={t('Vos pages visibles par vous seul.')}
@@ -212,6 +229,14 @@ export function Sidebar(): React.JSX.Element {
           </div>
         )}
         {session && settingsOpen && <session.Settings onClose={() => setSettingsOpen(false)} />}
+        {!session && Connect && (
+          <button onClick={() => setConnectOpen(true)}>
+            {platform().signInAgain
+              ? t('Se reconnecter au serveur')
+              : t('Se connecter à un serveur')}
+          </button>
+        )}
+        {!session && Connect && connectOpen && <Connect onClose={() => setConnectOpen(false)} />}
         <select
           className="language-select"
           style={{ alignSelf: 'flex-start', margin: '4px 10px', fontSize: 12 }}

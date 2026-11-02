@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
 import { ancestorsOf, useStore } from '../store'
-import { platform } from '../platform'
+import { isLocalPage, platform, sessionFor } from '../platform'
 import { ShareMenu } from './ShareMenu'
 import { HistoryDialog } from './HistoryDialog'
 import { PageOptionsMenu } from './PageOptionsMenu'
@@ -29,7 +29,8 @@ export function PageTopBar({
   const openComments = useStore((s) => s.openComments)
   const closeComments = useStore((s) => s.closeComments)
   const crumbs = ancestorsOf(pages, page.id)
-  const web = platform().session !== null
+  // Sharing: pages of a server, not the private ones kept on this computer.
+  const web = sessionFor(page.id) !== null
   const shared = page.access === 'restricted' || page.publicToken !== null
 
   return (
@@ -39,6 +40,14 @@ export function PageTopBar({
           <PageIcon icon={c.icon} /> {c.title || t('Sans titre')}
         </button>
       ))}
+      {platform().session && isLocalPage(page.id) && (
+        <span
+          className="local-badge"
+          title={t('Page privée gardée sur cet ordinateur : elle n’est jamais envoyée au serveur.')}
+        >
+          {t('Sur cet ordinateur')}
+        </span>
+      )}
       {page.options.locked && (
         <span className="lock-badge" title={t('Page verrouillée')}>
           🔒

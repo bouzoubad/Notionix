@@ -21,6 +21,8 @@ export function switchWorkspace(id: string, pageId: string | null = null): void 
     // Without storage the main workspace stays.
   }
   // The app starts again: a change of the address's #… alone would not reload it.
-  history.replaceState(null, '', pageId ? `/#/page/${encodeURIComponent(pageId)}` : '/')
+  // (The app's own address: `/` on a server, its file in the desktop app.)
+  const path = location.protocol.startsWith('http') ? '/' : location.pathname
+  history.replaceState(null, '', pageId ? `${path}#/page/${encodeURIComponent(pageId)}` : path)
   location.reload()
 }

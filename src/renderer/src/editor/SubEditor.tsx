@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import type { Extensions } from '@tiptap/core'
 import { common, createLowlight } from 'lowlight'
 import { createDocumentExtensions } from '../../../shared/editorExtensions'
-import { platform, type SharedPage } from '../platform'
+import { platform, sessionFor, type SharedPage } from '../platform'
 import { t } from '../../../shared/i18n'
 
 const lowlight = createLowlight(common)
@@ -21,7 +21,7 @@ export function PageSubEditor({
   pageId: string
   editable: boolean
 }): React.JSX.Element {
-  const session = platform().session
+  const session = sessionFor(pageId)
   const [state, setState] = useState<
     { id: string; content: unknown; shared: SharedPage | null } | 'missing' | null
   >(null)
@@ -35,8 +35,12 @@ export function PageSubEditor({
       if (!page) return setState('missing')
       if (session) {
         shared = session.openPage(pageId)
-        await shared.ready
+        const available = await shared.ready.then(
+          () => true,
+          () => false
+        )
         if (cancelled) return
+        if (!available) return setState('missing')
       }
       setState({ id: pageId, content: JSON.parse(page.content), shared })
     })()

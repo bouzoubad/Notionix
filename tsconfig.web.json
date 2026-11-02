@@ -7,7 +7,9 @@
     "src/preload/*.d.ts",
     "src/shared/**/*",
     "src/web/**/*",
-    "src/web/**/*.tsx"
+    "src/web/**/*.tsx",
+    "src/desktop/**/*",
+    "src/desktop/**/*.tsx"
   ],
   "compilerOptions": {
     "composite": true,

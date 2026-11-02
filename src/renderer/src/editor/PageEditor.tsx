@@ -19,7 +19,7 @@ import type { Editor } from '@tiptap/core'
 import { PageDecorations } from '../components/PageDecorations'
 import { RowProperties } from '../database/RowProperties'
 import { InteractiveDatabaseView } from '../database/InlineDatabase'
-import { canEditPage, platform, type SharedPage } from '../platform'
+import { canEditPage, platform, sessionFor, type SharedPage } from '../platform'
 import { PageTopBar } from '../components/PageTopBar'
 import { pageOptionClasses } from '../pageOptions'
 import { CommentsPanel } from '../components/CommentsPanel'
@@ -41,23 +41,26 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
   const contentReload = useStore((s) => s.contentReload)
   useEffect(() => {
     let cancelled = false
-    window.api.pages.get(pageId).then((page) => {
-      if (!cancelled) setLoaded({ id: pageId, page })
-    })
+    window.api.pages.get(pageId).then(
+      (page) => !cancelled && setLoaded({ id: pageId, page }),
+      () => !cancelled && setLoaded({ id: pageId, page: null })
+    )
     return () => {
       cancelled = true
     }
   }, [pageId, contentReload])
   // On a server, the page's content is a document edited together.
-  const session = platform().session
-  const [shared, setShared] = useState<{ id: string; page: SharedPage } | null>(null)
+  const session = sessionFor(pageId)
+  const [shared, setShared] = useState<{ id: string; page: SharedPage | 'offline' } | null>(null)
   useEffect(() => {
     if (!session) return
     let cancelled = false
     const opened = session.openPage(pageId)
-    void opened.ready.then(() => {
-      if (!cancelled) setShared({ id: pageId, page: opened })
-    })
+    opened.ready.then(
+      () => !cancelled && setShared({ id: pageId, page: opened }),
+      // Desktop app without network, and this page never kept on this computer.
+      () => !cancelled && setShared({ id: pageId, page: 'offline' })
+    )
     return () => {
       cancelled = true
       opened.destroy()
@@ -65,6 +68,14 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
   }, [session, pageId])
   const page = loaded?.id === pageId ? loaded.page : null
   const sharedPage = shared?.id === pageId ? shared.page : null
+  if (sharedPage === 'offline')
+    return (
+      <div className="page-offline">
+        {t(
+          'Cette page n’est pas disponible hors ligne : ouvrez-la une fois connecté pour la garder sur cet ordinateur.'
+        )}
+      </div>
+    )
   if (!page || (session && !sharedPage)) return null
   // A shared page follows its document; a local one is loaded again after a restore.
   return (

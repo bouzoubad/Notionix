@@ -8,6 +8,7 @@ import {
   net,
   Notification,
   protocol,
+  safeStorage,
   type MenuItemConstructorOptions
 } from 'electron'
 import { pathToFileURL } from 'url'
@@ -30,6 +31,22 @@ import { DatabaseRepository } from '../core/db/databaseRepository'
 import { AssetStore } from '../core/assets'
 import { ASSET_SCHEME } from '../shared/assets'
 import { setLanguage, t, type Language } from '../shared/i18n'
+import { registerServerHandlers, ServerLink, type SecretBox } from './server'
+import { ServerCache } from '../core/serverCache'
+
+/** The session token is sealed with the system keychain when there is one. */
+const secrets: SecretBox = {
+  seal: (text) =>
+    safeStorage.isEncryptionAvailable()
+      ? `safe:${safeStorage.encryptString(text).toString('base64')}`
+      : `plain:${text}`,
+  open: (sealed) =>
+    sealed.startsWith('safe:')
+      ? safeStorage.decryptString(Buffer.from(sealed.slice(5), 'base64'))
+      : sealed.startsWith('plain:')
+        ? sealed.slice(6)
+        : ''
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -114,9 +131,32 @@ app.whenReady().then(() => {
   const repo = new PageRepository(db)
   repo.actor = LOCAL_PERSON.id
   const assets = new AssetStore(join(app.getPath('userData'), 'assets'))
-  protocol.handle(ASSET_SCHEME, (request) => {
-    const name = decodeURIComponent(new URL(request.url).pathname.slice(1))
+  // The linked Notionix server (team pages), if any.
+  const serverCache = new ServerCache(join(app.getPath('userData'), 'server-cache.db'))
+  const link = new ServerLink(
+    join(app.getPath('userData'), 'server.json'),
+    serverCache,
+    secrets,
+    (url, init) => net.fetch(url, init)
+  )
+  registerServerHandlers(ipcMain, link)
+  app.on('before-quit', () => serverCache.close())
+  // Files are named by their content: one of the server is fetched once, then kept here.
+  const locateAsset = async (name: string): Promise<string | null> => {
     const path = assets.pathOf(name)
+    if (path) return path
+    const bytes = await link.asset(name)
+    if (!bytes) return null
+    try {
+      await assets.put(name, bytes)
+    } catch {
+      return null
+    }
+    return assets.pathOf(name)
+  }
+  protocol.handle(ASSET_SCHEME, async (request) => {
+    const name = decodeURIComponent(new URL(request.url).pathname.slice(1))
+    const path = await locateAsset(name)
     return path
       ? net.fetch(pathToFileURL(path).toString())
       : new Response('Not found', { status: 404 })
@@ -148,7 +188,7 @@ app.whenReady().then(() => {
     dialog,
     getWindow: () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
   }
-  registerAssetHandlers(ipcMain, assets, dialogs)
+  registerAssetHandlers(ipcMain, assets, dialogs, locateAsset)
   registerTransferHandlers(ipcMain, repo, dbs, assets, dialogs)
   app.on('before-quit', () => db.close())
 

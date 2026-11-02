@@ -5,6 +5,7 @@ import components from './components'
 import web from './web'
 import main from './main'
 import server from './server'
+import desktop from './desktop'
 
 /** English, keyed by the French source texts (see ../../i18n.ts). */
 const en: Record<string, string> = {
@@ -14,6 +15,7 @@ const en: Record<string, string> = {
   ...components,
   ...web,
   ...main,
-  ...server
+  ...server,
+  ...desktop
 }
 export default en

@@ -14,6 +14,7 @@ import { canonicalDoc } from '../core/transfer/canonicalDoc'
 import type { TeamRepository } from '../core/db/teamRepository'
 import type { PageRepository } from '../core/db/pageRepository'
 import type { AssetStore } from '../core/assets'
+import { assetNameFromSrc } from '../shared/assets'
 import type { DatabaseRepository } from '../core/db/databaseRepository'
 import { buildMarkdownArchive, safeName } from '../core/transfer/markdownExport'
 import { importNotionExport } from '../core/transfer/notionImport'
@@ -127,13 +128,17 @@ export function registerDatabaseHandlers(ipc: IpcMain, dbs: DatabaseRepository):
 export function registerAssetHandlers(
   ipc: IpcMain,
   assets: AssetStore,
-  deps: Pick<TransferDeps, 'dialog' | 'getWindow'>
+  deps: Pick<TransferDeps, 'dialog' | 'getWindow'>,
+  /** Finds a file missing here (one of the linked server), keeping it; null when none */
+  locate: (name: string) => Promise<string | null> = async (name) => assets.pathOf(name)
 ): void {
   ipc.handle('assets:save', (_e, bytes: Uint8Array, name: string) => assets.save(bytes, name))
   ipc.handle('assets:saveFile', (_e, bytes: Uint8Array, name: string) =>
     assets.saveFile(bytes, name)
   )
   ipc.handle('assets:download', async (_e, src: string, fileName: string) => {
+    const name = assetNameFromSrc(src)
+    if (name) await locate(name)
     const bytes = await assets.read(src)
     if (!bytes) throw new Error(t('Fichier introuvable.'))
     const options = {

@@ -25,7 +25,10 @@ export function TransferDialog(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const web = platform().kind === 'web'
-  const canImport = !['reader', 'guest'].includes(platform().session?.user.role ?? '')
+  // The desktop app imports into this computer's pages, whatever the role on a server.
+  const canImport =
+    platform().kind === 'desktop' ||
+    !['reader', 'guest'].includes(platform().session?.user.role ?? '')
   const [docs, setDocs] = useState<DocumentImportSummary | null>(null)
 
   const chooseDocuments = (): void => {
@@ -95,7 +98,7 @@ export function TransferDialog(): React.JSX.Element {
             </p>
             <button
               className="primary"
-              disabled={busy || ['reader', 'guest'].includes(platform().session?.user.role ?? '')}
+              disabled={busy || !canImport}
               onClick={() => void runImport()}
             >
               {busy ? t('Import en cours…') : t('Choisir un export Notion…')}

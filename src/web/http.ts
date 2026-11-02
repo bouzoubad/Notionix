@@ -36,20 +36,33 @@ async function check(res: Response): Promise<Response> {
   throw new ServerError(res.status, message)
 }
 
+/** Sends a request of the API (`/api/…`) to the server. */
+export type Transport = (
+  path: string,
+  init: { method: string; headers: Record<string, string>; body?: BodyInit }
+) => Promise<Response>
+
+/** The browser's own: the session cookie goes with the request. */
+let transport: Transport = (path, init) =>
+  fetch(path, { ...init, credentials: 'same-origin', headers: { ...CLIENT, ...init.headers } })
+
+/** The desktop app sends its requests through its main process, which holds the session. */
+export function setTransport(next: Transport): void {
+  transport = next
+}
+
 export async function request(
   path: string,
   init: { method?: string; json?: unknown; body?: BodyInit; type?: string } = {}
 ): Promise<Response> {
   const headers: Record<string, string> = {
-    ...CLIENT,
     [WORKSPACE_HEADER]: currentWorkspace(),
     [LANGUAGE_HEADER]: language()
   }
   if (init.json !== undefined) headers['Content-Type'] = 'application/json'
   else if (init.type) headers['Content-Type'] = init.type
-  const res = await fetch(path, {
+  const res = await transport(path, {
     method: init.method ?? (init.json !== undefined || init.body ? 'POST' : 'GET'),
-    credentials: 'same-origin',
     headers,
     body: init.json !== undefined ? JSON.stringify(init.json) : init.body
   })

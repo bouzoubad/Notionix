@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PageAccess, PageShare, PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
-import { platform } from '../platform'
+import { platform, serverOrigin } from '../platform'
 import { Popover } from '../database/Popover'
 import { t } from '../../../shared/i18n'
 
@@ -189,7 +189,7 @@ export function ShareMenu({
         <div className="share-public-link">
           <input
             readOnly
-            value={`${location.origin}/p/${page.publicToken}`}
+            value={`${serverOrigin()}/p/${page.publicToken}`}
             onFocus={(e) => e.target.select()}
           />
           <a href={`/p/${page.publicToken}`} target="_blank" rel="noreferrer">

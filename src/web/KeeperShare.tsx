@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { copyText } from '../renderer/src/clipboard'
 import { locale, t, tx } from '../shared/i18n'
+import { serverOrigin } from '../renderer/src/platform'
 
 /** What a person needs to sign in the first time, shown once to the administrator. */
 export interface SignInKey {
@@ -12,7 +13,7 @@ export interface SignInKey {
   activation?: { token: string; expiresAt: number }
 }
 
-const activationUrl = (token: string): string => `${location.origin}/activate/${token}`
+const activationUrl = (token: string): string => `${serverOrigin()}/activate/${token}`
 
 /**
  * The sign-in key of an account, laid out as the fields of a Keeper login
@@ -35,7 +36,7 @@ export function KeeperShare({
     activation
       ? { label: t('Lien d’activation'), value: secret }
       : { label: t('Mot de passe provisoire'), value: secret },
-    { label: t('Adresse du site'), value: location.origin }
+    { label: t('Adresse du site'), value: serverOrigin() }
   ]
   const until = activation
     ? new Date(activation.expiresAt).toLocaleDateString(locale(), {

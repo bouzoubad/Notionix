@@ -15,7 +15,7 @@ import { Logo } from './components/Logo'
 import { InboxDialog } from './components/InboxDialog'
 import { PagePicker } from './components/PagePicker'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
-import { platform } from './platform'
+import { isLocalPage, platform } from './platform'
 import { language, t } from '../../shared/i18n'
 
 document.documentElement.lang = language()
@@ -79,7 +79,8 @@ export default function App(): React.JSX.Element {
     }
   }, [])
   useEffect(() => {
-    platform().session?.setPage(currentId)
+    // The others never learn which private page (kept on this computer) is open.
+    platform().session?.setPage(isLocalPage(currentId) ? null : currentId)
     // Counted for the page's view statistics; a failure changes nothing.
     if (currentId) window.api.pages.view(currentId).catch(() => {})
   }, [currentId])
@@ -170,7 +171,13 @@ export default function App(): React.JSX.Element {
       )}
       {!connected && (
         <div className="offline-banner">
-          {t('Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.')}
+          {platform().kind === 'desktop'
+            ? t(
+                'Hors ligne : vos pages privées et les pages d’équipe déjà ouvertes ici restent modifiables, le reste en lecture seule. Tout se synchronise au retour du réseau.'
+              )
+            : t(
+                'Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.'
+              )}
         </div>
       )}
     </div>

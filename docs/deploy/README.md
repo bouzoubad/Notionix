@@ -117,6 +117,7 @@ Caddy signe le certificat du serveur avec sa propre autorité, créée au premie
 2. L'installer :
    - **Windows** : double-clic sur le fichier > _Installer le certificat_ > _Ordinateur local_ (ou _Utilisateur actuel_) > _Placer tous les certificats dans le magasin suivant_ > **Autorités de certification racines de confiance**. Chrome et Edge l'utilisent aussitôt ; Firefox : _Paramètres > Vie privée et sécurité > Certificats > Afficher les certificats > Autorités > Importer_.
    - **macOS** : double-clic > trousseau **Système** > ouvrir le certificat « Caddy Local Authority » > _Se fier_ > **Toujours approuver**.
+     En ligne de commande (trousseau de session, mot de passe demandé) : `security add-trusted-cert -r trustRoot -k ~/Library/Keychains/login.keychain-db notionix-ca.crt`. L'app de bureau Notionix utilise ce même trousseau pour se connecter au serveur.
    - **Linux** : `sudo cp notionix-ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates` (Firefox : import comme sous Windows).
    - **iPhone/iPad** : ouvrir le lien dans Safari > _Réglages > Profil téléchargé > Installer_, puis _Réglages > Général > Informations > Réglages des certificats_ > activer la confiance.
    - **Android** : _Paramètres > Sécurité > Chiffrement et identifiants > Installer un certificat > Certificat CA_.
@@ -138,7 +139,7 @@ et relancer `docker compose -f server/docker-compose.yml up -d`. Aucun certifica
 
 ### 4.4 Autres ports
 
-Si 80 ou 443 sont déjà pris : `NOTIONIX_HTTPS_PORT=8443` et `NOTIONIX_HTTP_PORT=8081` dans `server/.env` ; l'adresse devient `https://192.168.111.200:8443` et le certificat se télécharge sur `http://192.168.111.200:8081/notionix-ca.crt`.
+Docker « rootless » (sans droits root, comme sur gamma) ne peut pas ouvrir les ports inférieurs à 1024 : utiliser les ports ci-dessous. Si 80 ou 443 sont déjà pris : `NOTIONIX_HTTPS_PORT=8443` et `NOTIONIX_HTTP_PORT=8081` dans `server/.env` ; l'adresse devient `https://192.168.111.200:8443` et le certificat se télécharge sur `http://192.168.111.200:8081/notionix-ca.crt`.
 
 ## 5. Passer en HTTPS derrière IIS (serveur Windows)
 

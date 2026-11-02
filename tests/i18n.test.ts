@@ -9,6 +9,7 @@ function sources(): Map<string, string> {
   const files = [
     ...globSync('src/renderer/src/**/*.{ts,tsx}'),
     ...globSync('src/web/**/*.{ts,tsx}'),
+    ...globSync('src/desktop/**/*.{ts,tsx}'),
     ...globSync('src/shared/**/*.{ts,tsx}'),
     ...globSync('src/main/**/*.ts')
   ].filter((f) => !f.includes('/locales/') && !f.endsWith('i18n.ts'))

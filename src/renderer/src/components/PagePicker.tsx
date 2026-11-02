@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PageIcon } from './PageIcon'
 import { useStore } from '../store'
+import { canReference } from '../platform'
 import { t } from '../../../shared/i18n'
 
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -10,6 +11,7 @@ export function PagePicker(): React.JSX.Element | null {
   const picker = useStore((s) => s.pagePicker)
   const close = useStore((s) => s.closePagePicker)
   const pages = useStore((s) => s.pages)
+  const currentId = useStore((s) => s.currentId)
   const [query, setQuery] = useState('')
   if (!picker) return null
   const q = fold(query)
@@ -19,6 +21,7 @@ export function PagePicker(): React.JSX.Element | null {
         !p.trashedAt &&
         p.kind !== 'synced' &&
         (!picker.kind || p.kind === picker.kind) &&
+        canReference(currentId, p.id, picker.kind === 'database') &&
         (!q || fold(p.title).includes(q))
     )
     .slice(0, 30)

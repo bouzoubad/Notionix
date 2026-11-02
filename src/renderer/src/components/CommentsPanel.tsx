@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { atLeast, type Comment, type PageSummary, type Person } from '../../../shared/types'
 import { useStore } from '../store'
-import { platform } from '../platform'
+import { sessionFor } from '../platform'
 import { ago } from '../time'
 import { t } from '../../../shared/i18n'
 
@@ -206,7 +206,8 @@ function ThreadView({
   onEmptied: () => void
 }): React.JSX.Element {
   const people = useStore((s) => s.people)
-  const me = platform().session?.user.id ?? 'local'
+  // The pages kept on this computer have the local person as author.
+  const me = sessionFor(thread.comments[0]?.pageId ?? null)?.user.id ?? 'local'
   const [editing, setEditing] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -353,7 +354,9 @@ function Composer({
   const [query, setQuery] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const area = useRef<HTMLTextAreaElement>(null)
-  const web = platform().session !== null
+  // Mentions of people: pages of a server (not the private ones kept on this computer).
+  const currentId = useStore((s) => s.currentId)
+  const web = sessionFor(currentId) !== null
 
   const suggestions =
     web && query !== null

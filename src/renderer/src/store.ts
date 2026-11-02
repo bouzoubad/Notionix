@@ -8,7 +8,7 @@ import type {
   PersonGroup
 } from '../../shared/types'
 import { t } from '../../shared/i18n'
-import { platform, type Presence } from './platform'
+import { isLocalPage, platform, type Presence } from './platform'
 
 interface State {
   pages: PageSummary[]
@@ -127,11 +127,17 @@ export function pageIdFromHash(hash: string): PageId | null {
   return match ? match[1] : null
 }
 
-/** Full link to a page: the web address on a server, an internal link in the desktop app. */
-export const pageUrl = (id: PageId): string =>
-  location.protocol.startsWith('http')
+/**
+ * Full link to a page: the web address on a server (also from the desktop app
+ * linked to it), an internal link for the desktop app's own pages.
+ */
+export const pageUrl = (id: PageId): string => {
+  const origin = platform().origin
+  if (origin && !isLocalPage(id)) return `${origin}/${pageHash(id)}`
+  return location.protocol.startsWith('http')
     ? `${location.origin}${location.pathname}${pageHash(id)}`
     : `notionix://page/${id}`
+}
 
 // Back, forward, or an address typed or pasted: the page follows the address.
 window.addEventListener('hashchange', () => {

@@ -1,4 +1,5 @@
 import { HocuspocusProvider, HocuspocusProviderWebsocket } from '@hocuspocus/provider'
+import type * as Y from 'yjs'
 import { Collaboration } from '@tiptap/extension-collaboration'
 import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
 import {
@@ -23,20 +24,43 @@ function colorOf(id: string): string {
   return COLORS[h % COLORS.length]
 }
 
+/** A page document kept on this device, so that it opens without network. */
+export interface KeptDocument {
+  /** Resolves once what was kept is loaded into the document */
+  loaded: Promise<void>
+  destroy: () => void
+}
+
+/** A shared page that cannot open: no network, and never kept on this device. */
+export class OfflinePageError extends Error {}
+
+export interface ConnectOptions {
+  /** The server's address (http… or https…); the page's own server by default */
+  server?: string
+  /** Authenticates the real-time connection; the web client's cookie does it by default */
+  token?: string | (() => Promise<string>)
+  /** Signs out; the web client asks its server */
+  logout?: () => Promise<void>
+  /** Keeps page documents on this device (desktop app) */
+  keep?: (name: string, document: Y.Doc) => KeptDocument
+}
+
 /**
- * The real-time connection: one WebSocket for every shared document. The
- * session cookie authenticates it; the token sent here is a placeholder the
- * server ignores when the cookie is valid.
+ * The real-time connection: one WebSocket for every shared document. The web
+ * client's session cookie authenticates it (the token sent is then a
+ * placeholder the server ignores); the desktop app sends its session token.
  */
 export function connect(
   user: SessionUser,
   onChange: () => void,
   Settings: ServerSession['Settings'],
-  Feedback: ServerSession['Feedback']
+  Feedback: ServerSession['Feedback'],
+  options: ConnectOptions = {}
 ): ServerSession {
-  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/collab`
+  const origin = options.server ?? `${location.protocol}//${location.host}`
+  const url = `${origin.replace(/^http/, 'ws')}/collab`
   const socket = new HocuspocusProviderWebsocket({ url })
-  const token = 'cookie'
+  const token = options.token ?? 'cookie'
 
   // The workspace channel announces changes to pages and databases.
   let timer: number | undefined
@@ -89,7 +113,9 @@ export function connect(
     presenceListeners.forEach((l) => l(people))
   })
   const statusListeners = new Set<(connected: boolean) => void>()
-  socket.on('status', ({ status }: { status: string }) => {
+  let status = 'connecting'
+  socket.on('status', (event: { status: string }) => {
+    status = event.status
     statusListeners.forEach((l) => l(status === 'connected'))
   })
 
@@ -123,15 +149,29 @@ export function connect(
       return () => statusListeners.delete(listener)
     },
     openPage: (pageId) => {
-      const provider = new HocuspocusProvider({
-        websocketProvider: socket,
-        name: pageDocumentName(pageId),
-        token
-      })
+      const name = pageDocumentName(pageId)
+      const provider = new HocuspocusProvider({ websocketProvider: socket, name, token })
+      const kept = options.keep?.(name, provider.document) ?? null
       provider.attach()
-      const ready = new Promise<void>((resolve) => {
-        if (provider.isSynced) resolve()
-        else provider.on('synced', () => resolve())
+      const ready = new Promise<void>((resolve, reject) => {
+        if (provider.isSynced) return resolve()
+        provider.on('synced', () => resolve())
+        if (!kept) return
+        // Kept on this device: it opens at once, the server's changes merge in when they come.
+        void kept.loaded.then(() => {
+          if (provider.document.store.clients.size > 0) return resolve()
+          const offline = (): void => {
+            if (!provider.isSynced) reject(new OfflinePageError())
+          }
+          if (status === 'disconnected') return offline()
+          const watch = (event: { status: string }): void => {
+            if (event.status !== 'disconnected') return
+            socket.off('status', watch)
+            offline()
+          }
+          socket.on('status', watch)
+          provider.on('synced', () => socket.off('status', watch))
+        })
       })
       return {
         ready,
@@ -142,12 +182,16 @@ export function connect(
             user: { name: user.name || user.email, color }
           })
         ],
-        destroy: () => provider.destroy()
+        destroy: () => {
+          provider.destroy()
+          kept?.destroy()
+        }
       }
     },
     logout: async () => {
       try {
-        await request('/api/logout', { method: 'POST' })
+        if (options.logout) await options.logout()
+        else await request('/api/logout', { method: 'POST' })
       } finally {
         workspace.destroy()
         socket.destroy()

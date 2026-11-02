@@ -8,7 +8,7 @@ import {
   type PropertyValue
 } from '../../../shared/database'
 import { Cell } from './Cell'
-import { platform } from '../platform'
+import { platform, serverOrigin } from '../platform'
 import { copyText } from '../clipboard'
 import { TYPE_ICONS, visibleProperties, type ViewProps } from './viewTypes'
 import { t, tx } from '../../../shared/i18n'
@@ -36,7 +36,7 @@ export function FormView({
   onSchema
 }: ViewProps): React.JSX.Element {
   const web = platform().kind === 'web'
-  const link = view.formToken ? `${location.origin}/f/${view.formToken}` : null
+  const link = view.formToken ? `${serverOrigin()}/f/${view.formToken}` : null
   const share = (on: boolean): void =>
     onSchema({
       ...schema,

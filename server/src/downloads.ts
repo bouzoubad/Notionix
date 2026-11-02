@@ -6,6 +6,13 @@ import type { DesktopDownload, DownloadsInfo } from '../../src/shared/desktop'
 /** Names the app's builds have (electron-builder artifactName); nothing else is served. */
 const FILE = /^notionix-[0-9A-Za-z.-]+\.dmg$/
 const MAC_PATH = '/download/mac'
+/** What the desktop app updates itself from: the feed, and the zips it names. */
+const UPDATE_FILE = /^(latest-mac\.yml|notionix-[0-9A-Za-z.-]+-mac\.zip)$/
+const TYPES: Record<string, string> = {
+  dmg: 'application/x-apple-diskimage',
+  zip: 'application/zip',
+  yml: 'text/yaml; charset=utf-8'
+}
 
 const latestMac = (dir: string): { file: string; info: DesktopDownload } | null => {
   if (!existsSync(dir)) return null
@@ -42,17 +49,27 @@ export function createDownloads(dir: string, plainPort: number | null) {
       res.end(req.method === 'HEAD' ? undefined : text)
       return true
     }
-    if (path !== MAC_PATH) return false
-    const found = latestMac(dir)
+    let found: { file: string; name: string; size: number } | null = null
+    if (path === MAC_PATH) {
+      const mac = latestMac(dir)
+      found = mac && { file: mac.file, name: mac.info.name, size: mac.info.size }
+    } else if (path.startsWith('/download/')) {
+      const name = path.slice('/download/'.length)
+      const file = join(dir, name)
+      const stat = UPDATE_FILE.test(name) ? statSync(file, { throwIfNoEntry: false }) : undefined
+      if (stat?.isFile()) found = { file, name, size: stat.size }
+      else if (!UPDATE_FILE.test(name)) return false
+    } else return false
     if (!found) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
       res.end('Aucune version de l’app de bureau n’est disponible sur ce serveur.')
       return true
     }
+    const ext = found.name.split('.').pop() ?? ''
     res.writeHead(200, {
-      'Content-Type': 'application/x-apple-diskimage',
-      'Content-Length': found.info.size,
-      'Content-Disposition': `attachment; filename="${found.info.name}"`,
+      'Content-Type': TYPES[ext] ?? 'application/octet-stream',
+      'Content-Length': found.size,
+      ...(ext === 'yml' ? {} : { 'Content-Disposition': `attachment; filename="${found.name}"` }),
       'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff'
     })

@@ -177,18 +177,21 @@ export default function App(): React.JSX.Element {
       <div className="app-notices">
         {news && (
           <div className="app-notice news-notice" role="status">
-            <span>📣 {news.text}</span>
+            <span>
+              📣 {news.text}
+              {news.others > 0 && ` ${t('(et {n} autre(s) nouveauté(s))', { n: news.others })}`}
+            </span>
             <span className="app-notice-actions">
               <button
                 className="primary"
                 onClick={() => {
                   if (news.pageId) open(news.pageId)
-                  void dismissNews(news.id)
+                  void dismissNews()
                 }}
               >
                 {t('Voir')}
               </button>
-              <button aria-label={t('Fermer')} onClick={() => void dismissNews(news.id)}>
+              <button aria-label={t('Fermer')} onClick={() => void dismissNews()}>
                 ×
               </button>
             </span>

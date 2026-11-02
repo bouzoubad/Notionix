@@ -20,6 +20,11 @@ const dictionary: Record<string, string> = {
     'Written without network: it will be sent to the server, as a private page, when the network is back.',
   'À envoyer': 'To send',
   'Nouvelle version de l’app de bureau : {version}.': 'New version of the desktop app: {version}.',
+  'Nouvelle version de l’app ({version}) prête : redémarrez pour l’installer.':
+    'New version of the app ({version}) ready: restart to install it.',
+  Redémarrer: 'Restart',
+  'Téléchargement de la version {version} de l’app… {percent} %':
+    'Downloading version {version} of the app… {percent}%',
   'Toutes vos pages sont enregistrées sur le serveur, les privées visibles par vous seul ; l’app les garde aussi sur cet ordinateur pour travailler sans réseau.':
     'All your pages are saved on the server, private ones visible to you only; the app also keeps them on this computer to work without network.',
   'Cette page a été écrite sans réseau : elle sera envoyée sur le serveur au retour du réseau, vous pourrez la déplacer ensuite.':

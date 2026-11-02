@@ -37,6 +37,7 @@ import { setLanguage, t, type Language } from '../shared/i18n'
 import { registerServerHandlers, ServerLink, type SecretBox } from './server'
 import { ServerCache } from '../core/serverCache'
 import { loadAuthorities, trustServerAuthorities } from './trust'
+import { registerUpdates } from './updater'
 
 /**
  * Authorities of the team's servers shipped with the app (resources/authorities/*.crt):
@@ -148,7 +149,10 @@ app.whenReady().then(() => {
     buildMenu()
   })
   if (process.platform === 'darwin') app.dock?.setIcon(icon)
-  trustServerAuthorities(session.defaultSession, loadAuthorities(authorities()))
+  const trusted = loadAuthorities(authorities())
+  trustServerAuthorities(session.defaultSession, trusted)
+  // The updates are downloaded through their own session (electron-updater's).
+  trustServerAuthorities(session.fromPartition('electron-updater', { cache: false }), trusted)
 
   const db = openDatabase(join(app.getPath('userData'), 'notionix.db'))
   const repo = new PageRepository(db)
@@ -163,6 +167,11 @@ app.whenReady().then(() => {
     (url, init) => net.fetch(url, init)
   )
   registerServerHandlers(ipcMain, link)
+  registerUpdates(
+    ipcMain,
+    () => link.status()?.url ?? null,
+    () => BrowserWindow.getAllWindows().map((w) => w.webContents)
+  )
   app.on('before-quit', () => serverCache.close())
   // Files are named by their content: one of the server is fetched once, then kept here.
   const locateAsset = async (name: string): Promise<string | null> => {

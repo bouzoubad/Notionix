@@ -160,9 +160,8 @@ try {
   await news.waitFor()
   assert.ok((await news.innerText()).includes('Nouveautés'))
   await news.getByRole('button', { name: 'Voir' }).click()
-  await win.waitForFunction(() =>
-    document.querySelector('.page-title')?.value.includes('Pages privées sur le serveur')
-  )
+  // The latest one opens; all are seen (the page « Nouveautés de Notionix » lists them).
+  await win.waitForFunction(() => document.querySelector('.page-title')?.value.includes(' — '))
   await news.waitFor({ state: 'detached' })
   const newPage = async (section) => {
     await section.locator('.tree-title').hover()

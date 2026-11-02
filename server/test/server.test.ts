@@ -1109,6 +1109,14 @@ describe('desktop app downloads', () => {
     expect((await call('/download/mac', { method: 'HEAD' })).status).toBe(200)
     // Only the latest is reachable, by its fixed address.
     expect(await (await call('/download/autre.dmg')).text()).not.toBe('pas une version')
+    // What the desktop app updates itself from.
+    writeFileSync(join(dir, 'latest-mac.yml'), 'version: 1.1.0\n')
+    writeFileSync(join(dir, 'notionix-1.1.0-universal-mac.zip'), 'zip')
+    expect(await (await call('/download/latest-mac.yml')).text()).toBe('version: 1.1.0\n')
+    const zip = await call('/download/notionix-1.1.0-universal-mac.zip')
+    expect(zip.headers.get('content-type')).toBe('application/zip')
+    expect(await zip.text()).toBe('zip')
+    expect((await call('/download/notionix-9.9.9-universal-mac.zip')).status).toBe(404)
   })
 })
 

@@ -21,6 +21,25 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-02-mise-a-jour-automatique',
+    date: '2026-11-02',
+    title: 'L’app de bureau se met à jour toute seule',
+    summary:
+      'À partir de la version 1.1.2, l’app de bureau télécharge ses mises à jour et vous propose de redémarrer pour les installer.',
+    desktop: '1.1.2',
+    body: `**Pour qui :** les personnes qui utilisent l'app de bureau sur Mac.
+
+## Ce qui change
+
+- L'app **vérifie toute seule** s'il existe une nouvelle version sur le serveur (au démarrage, puis toutes les 4 heures) et la **télécharge en arrière-plan**.
+- Quand elle est prête, un encart propose **« Redémarrer »** pour l'installer. Si vous ne redémarrez pas, elle s'installe quand vous quittez l'app.
+- Plus besoin de retélécharger l'app ni de repasser par **Confidentialité et sécurité** : macOS vérifie que la mise à jour est bien signée comme l'app installée.
+
+## Une dernière installation à la main
+
+La mise à jour automatique arrive avec la **version 1.1.2** : il faut l'installer une fois comme d'habitude (bandeau « Nouvelle version de l'app », lien « App de bureau (Mac) » de votre fiche Keeper, ou **Mon compte > Télécharger l'app** dans le navigateur), puis **Ouvrir quand même** dans **Réglages Système > Confidentialité et sécurité** si macOS le demande. Les versions suivantes s'installeront seules.`
+  },
+  {
     id: '2026-11-02-pages-privees-hors-ligne',
     date: '2026-11-02',
     title: 'Pages privées sur le serveur et travail hors ligne',

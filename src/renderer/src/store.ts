@@ -52,10 +52,10 @@ interface State {
   /** Unread notifications */
   inboxUnread: number
   /** The latest unread release note (« Nouveautés »), shown until seen */
-  news: InboxItem | null
+  news: (InboxItem & { others: number }) | null
   refreshInbox: () => Promise<void>
-  /** The release note seen (opened, or closed) */
-  dismissNews: (id: string) => Promise<void>
+  /** The release notes seen (the latest opened, or the notice closed) */
+  dismissNews: () => Promise<void>
   inboxOpen: boolean
   setInboxOpen: (open: boolean) => void
   /** Comments panel of the open page */
@@ -310,19 +310,25 @@ export const useStore = create<State>((set, get) => ({
     try {
       const items = await window.api.inbox.list()
       const unread = items.filter((i) => !i.readAt)
+      const news = unread.filter((i) => i.kind === 'news').sort((a, b) => b.createdAt - a.createdAt)
       set({
         inboxUnread: unread.length,
-        news:
-          unread.filter((i) => i.kind === 'news').sort((a, b) => b.createdAt - a.createdAt)[0] ??
-          null
+        news: news.length ? { ...news[0], others: news.length - 1 } : null
       })
     } catch {
       // the count is a hint; the next change retries
     }
   },
-  dismissNews: async (id) => {
+  dismissNews: async () => {
     set({ news: null })
-    await window.api.inbox.markRead([id]).catch(() => undefined)
+    // Seen together: the page « Nouveautés de Notionix » lists them all.
+    try {
+      const items = await window.api.inbox.list()
+      const ids = items.filter((i) => i.kind === 'news' && !i.readAt).map((i) => i.id)
+      if (ids.length) await window.api.inbox.markRead(ids)
+    } catch {
+      // Shown again next time.
+    }
     await get().refreshInbox()
   },
   inboxOpen: false,

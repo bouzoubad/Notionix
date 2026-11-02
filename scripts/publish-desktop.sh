@@ -9,11 +9,14 @@ host=${1:-Gamma}
 repo=${2:-notionix}
 version=$(node -p "require('./package.json').version")
 file="dist/notionix-$version-universal.dmg"
-rm -f "$file"
+zip="dist/notionix-$version-universal-mac.zip"
+rm -f "$file" "$zip" dist/latest-mac.yml
 npm run build:mac
-test -f "$file"
+test -f "$file" && test -f "$zip" && test -f dist/latest-mac.yml
 ssh "$host" "mkdir -p '$repo/server/downloads'"
-scp "$file" "$host:$repo/server/downloads/"
+# The feed last: an app never sees a version whose zip is not there yet.
+scp "$file" "$zip" "$host:$repo/server/downloads/"
+scp dist/latest-mac.yml "$host:$repo/server/downloads/"
 # Only the latest is kept (disk space).
-ssh "$host" "cd '$repo/server/downloads' && ls notionix-*.dmg | grep -vx 'notionix-$version-universal.dmg' | xargs rm -f"
-echo "Publié : $(basename "$file") sur $host"
+ssh "$host" "cd '$repo/server/downloads' && ls notionix-* | grep -vx -e 'notionix-$version-universal.dmg' -e 'notionix-$version-universal-mac.zip' | xargs rm -f"
+echo "Publié : $(basename "$file") et la mise à jour automatique sur $host"

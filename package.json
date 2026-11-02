@@ -1,6 +1,6 @@
 {
   "name": "notionix",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Notionix: local-first Notion-style workspace (Electron, React, TipTap, SQLite)",
   "main": "./out/main/index.js",
   "author": "Baptiste Pillet",
@@ -53,6 +53,7 @@
     "@tiptap/starter-kit": "^3.32.0",
     "@tiptap/suggestion": "^3.32.0",
     "@tiptap/y-tiptap": "^3.0.10",
+    "electron-updater": "6.8.10",
     "fflate": "^0.8.3",
     "katex": "^0.18.10",
     "lowlight": "^3.3.0",

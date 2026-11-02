@@ -79,6 +79,24 @@ export interface DesktopLocalStore {
   forget(rootId: PageId): Promise<void>
 }
 
+/** Where the update of the desktop app is (from the linked server). */
+export type UpdateState =
+  | { status: 'unsupported' }
+  | { status: 'idle' }
+  | { status: 'downloading'; version: string; percent: number }
+  | { status: 'ready'; version: string }
+  | { status: 'error'; message: string }
+
+/** The desktop app's own updates, downloaded from the linked server. */
+export interface DesktopUpdates {
+  state(): Promise<UpdateState>
+  /** Asks the server for a newer version (downloaded at once when there is one) */
+  check(): Promise<UpdateState>
+  /** Restarts the app on the version downloaded */
+  install(): Promise<void>
+  onChange(listener: (state: UpdateState) => void): () => void
+}
+
 /** What the desktop app's preload gives the page. */
 export interface DesktopBridge {
   /** The pages kept on this computer */
@@ -87,6 +105,7 @@ export interface DesktopBridge {
   local: DesktopLocalStore
   /** This app's version (x.y.z) */
   appVersion(): Promise<string>
+  updates: DesktopUpdates
 }
 
 /** Address of a server as typed by a person: scheme added, path removed; null when invalid. */

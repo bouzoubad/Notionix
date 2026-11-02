@@ -12,6 +12,7 @@ const dictionary: Record<string, string> = {
   Commentaires: 'Comments',
   Fermer: 'Close',
   Voir: 'View',
+  '(et {n} autre(s) nouveauté(s))': '(and {n} more)',
   'Ajouter un commentaire…': 'Add a comment…',
   'Commenter la page…': 'Comment on the page…',
   'Chargement…': 'Loading…',

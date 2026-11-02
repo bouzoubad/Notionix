@@ -23,6 +23,11 @@ mac:
   target:
     - target: dmg
       arch: universal
+    # The zip and latest-mac.yml are what the app updates itself from (the server's /download/).
+    - target: zip
+      arch: universal
+  # The zip (the dmg has its own name below).
+  artifactName: ${name}-${version}-${arch}-mac.${ext}
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
@@ -42,6 +47,7 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+# The app asks the server it is linked to (setFeedURL); this one is only the default.
 publish:
   provider: generic
-  url: https://example.com/auto-updates
+  url: https://192.168.111.219:8443/download

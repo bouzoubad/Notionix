@@ -1,19 +1,45 @@
 import { useEffect, useState } from 'react'
 import { olderVersion } from '../shared/changelog'
-import { macDownloadUrls, type DownloadsInfo } from '../shared/desktop'
+import { macDownloadUrls, type DownloadsInfo, type UpdateState } from '../shared/desktop'
 import { t } from '../shared/i18n'
 import { serverOrigin } from '../renderer/src/platform'
 import { json } from '../web/http'
 
 const DISMISSED_KEY = 'notionix-update-dismissed'
 
+const dismissedVersion = (): string | null => {
+  try {
+    return localStorage.getItem(DISMISSED_KEY)
+  } catch {
+    return null
+  }
+}
+
 /**
- * A newer version of the desktop app on the linked server: where to
- * download it (until closed, for that version).
+ * A newer version of the desktop app on the linked server. It downloads by
+ * itself, then the person restarts to install it; when the app cannot update
+ * itself (or the update failed), the link to download it instead.
  */
 export function UpdateNotice(): React.JSX.Element | null {
-  const [offer, setOffer] = useState<{ version: string; url: string } | null>(null)
+  const updates = window.desktop!.updates
+  const [state, setState] = useState<UpdateState | null>(null)
+  const [manual, setManual] = useState<{ version: string; url: string } | null>(null)
+  const [closed, setClosed] = useState<string | null>(dismissedVersion)
+
   useEffect(() => {
+    let cancelled = false
+    const stop = updates.onChange((s) => !cancelled && setState(s))
+    void updates.check().then((s) => !cancelled && setState(s))
+    return () => {
+      cancelled = true
+      stop()
+    }
+  }, [updates])
+
+  // No update by itself: offer the download.
+  const fallback = state?.status === 'unsupported' || state?.status === 'error'
+  useEffect(() => {
+    if (!fallback) return
     let cancelled = false
     void (async () => {
       const [mine, info] = await Promise.all([
@@ -22,41 +48,68 @@ export function UpdateNotice(): React.JSX.Element | null {
       ])
       const latest = info.mac?.version
       const urls = macDownloadUrls(serverOrigin(), info)
-      let dismissed: string | null = null
-      try {
-        dismissed = localStorage.getItem(DISMISSED_KEY)
-      } catch {
-        dismissed = null
-      }
-      if (cancelled || !latest || !urls || dismissed === latest) return
-      if (olderVersion(mine, latest)) setOffer({ version: latest, url: urls.shared })
+      if (!cancelled && latest && urls && olderVersion(mine, latest))
+        setManual({ version: latest, url: urls.shared })
     })().catch(() => undefined)
     return () => {
       cancelled = true
     }
-  }, [])
-  if (!offer) return null
-  const close = (): void => {
+  }, [fallback])
+
+  const close = (version: string): void => {
     try {
-      localStorage.setItem(DISMISSED_KEY, offer.version)
+      localStorage.setItem(DISMISSED_KEY, version)
     } catch {
       // Shown again next time.
     }
-    setOffer(null)
+    setClosed(version)
   }
-  return (
-    <div className="app-notice update-notice" role="status">
-      <span>
-        {t('Nouvelle version de l’app de bureau : {version}.', { version: offer.version })}
-      </span>
-      <span className="app-notice-actions">
-        <a className="button primary" href={offer.url} target="_blank" rel="noreferrer">
-          {t('Télécharger')}
-        </a>
-        <button aria-label={t('Fermer')} onClick={close}>
-          ×
-        </button>
-      </span>
-    </div>
+  const closeButton = (version: string): React.JSX.Element => (
+    <button aria-label={t('Fermer')} onClick={() => close(version)}>
+      ×
+    </button>
   )
+
+  if (state?.status === 'ready' && closed !== state.version)
+    return (
+      <div className="app-notice update-notice" role="status">
+        <span>
+          {t('Nouvelle version de l’app ({version}) prête : redémarrez pour l’installer.', {
+            version: state.version
+          })}
+        </span>
+        <span className="app-notice-actions">
+          <button className="primary" onClick={() => void updates.install()}>
+            {t('Redémarrer')}
+          </button>
+          {closeButton(state.version)}
+        </span>
+      </div>
+    )
+  if (state?.status === 'downloading' && closed !== state.version)
+    return (
+      <div className="app-notice update-notice" role="status">
+        <span>
+          {t('Téléchargement de la version {version} de l’app… {percent} %', {
+            version: state.version,
+            percent: state.percent
+          })}
+        </span>
+      </div>
+    )
+  if (fallback && manual && closed !== manual.version)
+    return (
+      <div className="app-notice update-notice" role="status">
+        <span>
+          {t('Nouvelle version de l’app de bureau : {version}.', { version: manual.version })}
+        </span>
+        <span className="app-notice-actions">
+          <a className="button primary" href={manual.url} target="_blank" rel="noreferrer">
+            {t('Télécharger')}
+          </a>
+          {closeButton(manual.version)}
+        </span>
+      </div>
+    )
+  return null
 }

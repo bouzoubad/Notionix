@@ -1,11 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { Extension, Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
-import {
-  prosemirrorJSONToYDoc,
-  prosemirrorJSONToYXmlFragment,
-  yXmlFragmentToProseMirrorRootNode
-} from '@tiptap/y-tiptap'
+import { prosemirrorJSONToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from '@tiptap/y-tiptap'
 import { documentSchema } from '../../src/core/transfer/canonicalDoc'
 import {
   PAGE_FIELD,
@@ -22,6 +18,21 @@ import type { Workspaces } from './workspaces'
 
 export interface CollabContext {
   user: User
+}
+
+/** Author of the content a document starts from: the same for every opening. */
+const SEED_CLIENT = 1
+
+/** The shared document of a page made from its stored content, the same every time. */
+export function seededState(content: string): Uint8Array {
+  const seeded = new Y.Doc()
+  seeded.clientID = SEED_CLIENT
+  prosemirrorJSONToYXmlFragment(
+    documentSchema(),
+    JSON.parse(content),
+    seeded.getXmlFragment(PAGE_FIELD)
+  )
+  return Y.encodeStateAsUpdate(seeded)
 }
 
 /**
@@ -73,11 +84,16 @@ export class PageDocuments {
       Y.applyUpdate(document, new Uint8Array(row.state))
       return
     }
-    // First opening: the document starts from the content stored in the workspace.
+    // First opening: the document starts from the content stored in the workspace,
+    // always with the same Yjs ids, and is kept at once. A device holding a copy
+    // made from an earlier opening then merges into it instead of adding the
+    // content a second time.
     const page = this.workspaceOf(id)?.pages.get(id)
     if (!page) return
-    const seeded = prosemirrorJSONToYDoc(documentSchema(), JSON.parse(page.content), PAGE_FIELD)
-    Y.applyUpdate(document, Y.encodeStateAsUpdate(seeded))
+    Y.applyUpdate(document, seededState(page.content))
+    this.store
+      .prepare('INSERT OR IGNORE INTO documents (name, state, updated_at) VALUES (?, ?, ?)')
+      .run(name, Y.encodeStateAsUpdate(document), Date.now())
   }
 
   private save(name: string, document: Y.Doc): void {

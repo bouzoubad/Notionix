@@ -1327,5 +1327,59 @@ describe('release notes', () => {
         .filter((p) => p.parentId === parent.id)
         .sort((x, y) => x.position - y.position)[0].title
     ).toBe('2 novembre 2026 — Trois')
+    // The parent page lists them, newest first.
+    const { releasePagesContent } = await import('../src/announcements')
+    const expected = releasePagesContent(running.db, [
+      note('c', 'Trois'),
+      note('b', 'Deux'),
+      note('a', 'Un')
+    ])
+    expect(expected[0].pageId).toBe(parent.id)
+    const links = JSON.parse(expected[0].content).content.filter(
+      (n: { type: string }) => n.type === 'pageLink'
+    )
+    expect(links).toHaveLength(3)
+  })
+})
+
+describe('a page never edited, kept on a device', () => {
+  it('does not get its content twice when the device comes back', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const content = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Une seule fois' }] }]
+    })
+    const page = await rpc<{ id: string }>(admin, 'pages.createWith', null, { title: 'P', content })
+    // A device opens it and keeps its copy (as the desktop app does), nobody edits.
+    const first = connect(`page:${page.result.id}`, admin)
+    await first.synced
+    const kept = Y.encodeStateAsUpdate(first.doc)
+    first.provider.destroy()
+    // The server restarts: the document is opened anew.
+    await running.stop()
+    await start()
+    const again = await login(ADMIN.email, ADMIN.password)
+    const device = connect(`page:${page.result.id}`, again)
+    Y.applyUpdate(device.doc, kept)
+    await device.synced
+    await new Promise((r) => setTimeout(r, 300))
+    expect(texts(device.doc)).toEqual(['Une seule fois'])
+    const other = connect(`page:${page.result.id}`, again)
+    await other.synced
+    expect(texts(other.doc)).toEqual(['Une seule fois'])
+    device.provider.destroy()
+    other.provider.destroy()
+  })
+
+  it('starts the same way every time', async () => {
+    const { seededState } = await import('../src/collab')
+    const content = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }]
+    })
+    const a = new Y.Doc()
+    Y.applyUpdate(a, seededState(content))
+    Y.applyUpdate(a, seededState(content))
+    expect(texts(a)).toEqual(['x'])
   })
 })

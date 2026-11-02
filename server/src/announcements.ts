@@ -79,3 +79,36 @@ export function publishReleaseNotes(
     return { published: fresh.map((n) => n.id), notified: people }
   })
 }
+
+/**
+ * What the release note pages must hold: the parent lists every note (newest
+ * first, as links), each note its text. The server puts them back when they
+ * differ (pages generated here, locked).
+ */
+export function releasePagesContent(
+  db: DatabaseSync,
+  notes: ReleaseNote[]
+): { pageId: PageId; content: string }[] {
+  const done = new Map(
+    (
+      db.prepare('SELECT id, page_id FROM announcements').all() as { id: string; page_id: string }[]
+    ).map((r) => [r.id, r.page_id])
+  )
+  const parent = done.get(PARENT)
+  if (!parent) return []
+  const published = notes.filter((n) => done.has(n.id))
+  const intro = markdownToDoc(INTRO, () => undefined, newStats())
+  return [
+    {
+      pageId: parent,
+      content: JSON.stringify({
+        type: 'doc',
+        content: [
+          ...(intro.content ?? []),
+          ...published.map((n) => ({ type: 'pageLink', attrs: { pageId: done.get(n.id)! } }))
+        ]
+      })
+    },
+    ...published.map((n) => ({ pageId: done.get(n.id)!, content: doc(n.body) }))
+  ]
+}

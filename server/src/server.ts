@@ -16,7 +16,8 @@ import type { Config } from './config'
 import { MAIN_WORKSPACE, WORKSPACE_DOCUMENT } from '../../src/shared/collab'
 import { exportPagesAsMarkdown } from '../../src/core/transfer/markdownExport'
 import { GitMirror, type MirrorFiles } from './mirror'
-import { publishReleaseNotes } from './announcements'
+import { publishReleaseNotes, releasePagesContent } from './announcements'
+import { documentSchema } from '../../src/core/transfer/canonicalDoc'
 import { RELEASE_NOTES } from '../../src/shared/changelog'
 import type { User } from './auth'
 import { openDatabase } from './db'
@@ -190,10 +191,24 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   if (config.releaseNotes) {
     try {
       const news = publishReleaseNotes(db, workspaces.main, RELEASE_NOTES, () => accounts.list())
-      if (news.published.length) {
+      // The pages as they must be (the list of notes, their text), put back when they differ.
+      const schema = documentSchema()
+      const same = (a: string, b: string): boolean =>
+        JSON.stringify(schema.nodeFromJSON(JSON.parse(a)).toJSON()) ===
+        JSON.stringify(schema.nodeFromJSON(JSON.parse(b)).toJSON())
+      let repaired = 0
+      for (const { pageId, content } of releasePagesContent(db, RELEASE_NOTES)) {
+        const page = workspaces.main.pages.get(pageId)
+        if (!page || same(page.content, content)) continue
+        await documents.replace(server.hocuspocus, pageId, content, SYSTEM_USER)
+        repaired++
+      }
+      if (news.published.length || repaired) {
         announceChange(server.hocuspocus, SYSTEM_USER, MAIN_WORKSPACE)
-        notifyUsers(news.notified)
         mirror.touch(null)
+      }
+      if (news.published.length) {
+        notifyUsers(news.notified)
         console.log(`Nouveautés publiées : ${news.published.join(', ')}`)
       }
     } catch (e) {

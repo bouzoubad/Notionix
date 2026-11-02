@@ -64,6 +64,8 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
     if (e instanceof ServerError && e.status === 401) return false
     // Out of reach: the account kept from the last connection.
   }
+  // Copies kept by earlier versions could add a page's content twice: dropped.
+  await forgetKeptDocuments(true)
   const { useStore } = await import('../renderer/src/store')
   const queue = new OfflineQueue(`notionix-queue:${status.url}|${user.id}`, storage())
   const api = combineApis(bridge.api, webApi, {
@@ -162,7 +164,8 @@ function watchNetwork(
   })
 }
 
-const KEPT_KEY = 'notionix-kept-at'
+// v2: the copies of earlier versions were dropped (1.1.3), all are kept again.
+const KEPT_KEY = 'notionix-kept-at-2'
 
 /**
  * Keeps on this computer, for working without network, every private page

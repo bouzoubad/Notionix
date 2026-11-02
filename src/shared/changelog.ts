@@ -21,6 +21,28 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-02-correctif-texte-en-double',
+    date: '2026-11-02',
+    title: 'Correctif : texte en double, et la liste des nouveautés',
+    summary:
+      'Une page jamais modifiée pouvait afficher son texte deux fois après passage par l’app de bureau ; c’est corrigé.',
+    desktop: '1.1.3',
+    body: `**Pour qui :** tout le monde.
+
+## Ce qui est corrigé
+
+- Une page **jamais modifiée** depuis sa création, ouverte dans l'app de bureau, pouvait ensuite afficher **son texte en double**, chez tout le monde. La cause est corrigée sur le serveur, et l'app de bureau oublie les copies faites par ses versions précédentes (elle les reprend aussitôt, propres).
+- Si vous voyez encore un texte en double dans une page, supprimez simplement la partie répétée : elle ne reviendra plus.
+
+## La page « Nouveautés de Notionix »
+
+Elle liste maintenant toutes les nouveautés, de la plus récente à la plus ancienne : cliquez sur l'une d'elles pour l'ouvrir.
+
+## App de bureau
+
+La version **1.1.3** s'installe toute seule si vous avez déjà la 1.1.2 (encart « Redémarrer »). Sinon, installez-la comme d'habitude depuis **Mon compte > Télécharger l'app** ou le lien de votre fiche Keeper.`
+  },
+  {
     id: '2026-11-02-mise-a-jour-automatique',
     date: '2026-11-02',
     title: 'L’app de bureau se met à jour toute seule',

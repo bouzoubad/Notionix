@@ -142,7 +142,7 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 - Embeds (YouTube…) : reportés, ils supposent du réseau ; à reprendre avec la phase en ligne.
 - Serveur : invitations et mot de passe oublié par e-mail (nécessite un serveur SMTP, mis de côté) ; adaptation mobile et installation sur téléphone (PWA, possible maintenant que le HTTPS est en place).
 - Hors périmètre décidé : intégrations externes (YouTube…), automatisations, IA.
-- App de bureau reliée : hors ligne, modifier les bases (lignes, propriétés) et les commentaires de l'équipe, créer une ligne de base ; commentaires des pages écrites hors ligne (pas envoyés avec elles) ; signature Developer ID + notarisation Apple (compte Apple Developer) pour supprimer « Ouvrir quand même » à la première installation ; version Windows de l'app. Miroir git : miroir local des pages privées de l'app de bureau (dépôt sur le Mac, jamais poussé) ; autres espaces que l'espace principal.
+- App de bureau reliée : option « garder toutes les pages d'équipe sur le Mac » (pas seulement ouvertes, favorites et récentes), mise de côté à la demande (2 nov. 2026) ; hors ligne, modifier les bases (lignes, propriétés) et les commentaires de l'équipe, créer une ligne de base ; commentaires des pages écrites hors ligne (pas envoyés avec elles) ; signature Developer ID + notarisation Apple (compte Apple Developer) pour supprimer « Ouvrir quand même » à la première installation ; version Windows de l'app. Miroir git : miroir local des pages privées de l'app de bureau (dépôt sur le Mac, jamais poussé) ; autres espaces que l'espace principal.
 - Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
 
 ## Limites connues

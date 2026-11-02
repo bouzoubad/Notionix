@@ -35,6 +35,7 @@ import {
   WORKSPACE_HEADER
 } from '../../src/shared/collab'
 import { inLanguage } from '../../src/shared/i18n'
+import type { GitMirror } from './mirror'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -172,6 +173,8 @@ export interface ApiOptions {
   collab: CollabHooks
   sessionDays: number
   throttle?: LoginThrottle
+  /** The Git mirror of the team's pages, when the server has one */
+  mirror?: GitMirror
 }
 
 /**
@@ -185,7 +188,8 @@ export function createApi({
   groups,
   collab,
   sessionDays,
-  throttle = new LoginThrottle()
+  throttle = new LoginThrottle(),
+  mirror
 }: ApiOptions) {
   const requireUser = (req: IncomingMessage, roles: Role[] = ROLES): User => {
     const header = bearer(req.headers.authorization)
@@ -527,6 +531,32 @@ export function createApi({
           .map(([k, v]) => (k === 'password' ? 'mot de passe' : `${k} = ${String(v)}`))
         audit.record(admin.id, 'user.update', id, `${user.email} : ${changed.join(', ')}`)
         send(res, 200, { user })
+      } else if (path === '/api/admin/mirror' || path === '/api/admin/mirror/sync') {
+        // The Git mirror of the team's pages: status, repository and token, export now.
+        const admin = requireUser(req, ['admin'])
+        if (!mirror) throw new HttpError(404, 'Introuvable.')
+        if (path === '/api/admin/mirror/sync' && method === 'POST') {
+          await mirror.syncNow()
+          send(res, 200, { mirror: mirror.status() })
+        } else if (path === '/api/admin/mirror' && method === 'GET') {
+          send(res, 200, { mirror: mirror.status() })
+        } else if (path === '/api/admin/mirror' && method === 'PUT') {
+          const body = await readJson(req)
+          const remote = str(body.remote)
+          if (!remote) throw new HttpError(400, 'Adresse du dépôt invalide (https://…).')
+          const result = await mirror.configure({
+            remote,
+            token: body.token === null ? null : (str(body.token) ?? undefined),
+            branch: str(body.branch) ?? undefined
+          })
+          if (!result.ok) throw new HttpError(400, result.error)
+          audit.record(admin.id, 'mirror.configure', null, remote)
+          send(res, 200, { mirror: mirror.status() })
+        } else if (path === '/api/admin/mirror' && method === 'DELETE') {
+          await mirror.configure(null)
+          audit.record(admin.id, 'mirror.disable', null)
+          send(res, 200, { mirror: mirror.status() })
+        } else throw new HttpError(405, 'Méthode non autorisée.')
       } else if (path === '/api/admin/overview' && method === 'GET') {
         requireUser(req, ['admin'])
         collab.flush()

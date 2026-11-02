@@ -247,6 +247,28 @@ const dictionary: Record<string, string> = {
     'If macOS refuses to open the app: System Settings > Privacy & Security > “Open Anyway”.',
   'App de bureau pour Mac (Apple Silicon et Intel) : vos pages privées restent sur votre ordinateur, et vous travaillez hors ligne.':
     'Desktop app for Mac (Apple Silicon and Intel): your private pages stay on your computer, and you can work offline.',
-  'Télécharger l’app': 'Download the app'
+  'Télécharger l’app': 'Download the app',
+  'Miroir git configuré': 'Git mirror set up',
+  'Miroir git désactivé': 'Git mirror turned off',
+  'Miroir git': 'Git mirror',
+  'Copie Markdown des pages ouvertes à tout l’espace principal, envoyée dans un dépôt git une minute après chaque modification (au plus tard toutes les 10 minutes) ; l’auteur de chaque commit est la personne qui a modifié. Les pages privées, partagées à quelques personnes, et les commentaires n’y vont pas. Le dépôt ne doit pas être modifié à la main.':
+    'Markdown copy of the pages open to the whole main workspace, sent to a git repository one minute after each change (at least every 10 minutes); each commit’s author is the person who made the change. Private pages, pages shared with a few people, and comments are left out. The repository must not be changed by hand.',
+  'Problème : {error}': 'Problem: {error}',
+  'Commits en attente d’envoi.': 'Commits waiting to be sent.',
+  'Modifications en attente d’export.': 'Changes waiting to be exported.',
+  'À jour.': 'Up to date.',
+  'Dernier commit : {when}': 'Last commit: {when}',
+  'Dernier envoi : {when}.': 'Last push: {when}.',
+  '{n} fichier(s) de plus de 25 Mo laissé(s) de côté.': '{n} file(s) over 25 MB left out.',
+  'Adresse HTTPS du dépôt': 'Repository HTTPS address',
+  'Jeton d’accès du dépôt (lecture et écriture)': 'Repository access token (read and write)',
+  'Enregistré : laisser vide pour le garder': 'Saved: leave empty to keep it',
+  Branche: 'Branch',
+  'Vérification du dépôt…': 'Checking the repository…',
+  'Synchronisation…': 'Syncing…',
+  'Synchroniser maintenant': 'Sync now',
+  'Arrêter le miroir ? Le dépôt garde son historique.':
+    'Stop the mirror? The repository keeps its history.',
+  Enregistrer: 'Save'
 }
 export default dictionary

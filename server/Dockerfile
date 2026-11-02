@@ -20,7 +20,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 # One bundled server file and the built web client: no node_modules in the image.
 COPY --from=build /app/out/server/ ./
-RUN mkdir -p /data && chown node:node /data
+# git: the mirror of the pages (Administration > Miroir git).
+RUN apk add --no-cache git && mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data
 EXPOSE 8080

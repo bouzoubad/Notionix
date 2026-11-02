@@ -72,6 +72,27 @@ export interface AdminOverview {
   totalBytes: number
 }
 
+/** The Git mirror of the team's pages (Administration > Miroir git). */
+export interface MirrorStatus {
+  configured: boolean
+  /** Address of the repository (never with its token) */
+  remote: string | null
+  branch: string
+  hasToken: boolean
+  /** Changes waiting for the next export */
+  pending: boolean
+  /** First line of the last commit */
+  lastCommit: string | null
+  lastCommitAt: number | null
+  lastPushAt: number | null
+  /** Commits not sent to the repository yet */
+  unpushed: boolean
+  /** Files too big for the repository, left out */
+  skipped: number
+  /** Last problem (git's message), until a run succeeds */
+  error: string | null
+}
+
 /** The workspace every account belongs to, holding the pages from before workspaces. */
 export const MAIN_WORKSPACE = 'main'
 /** Header giving the language of the person, for what the server creates for them. */

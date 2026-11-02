@@ -71,6 +71,8 @@ const dictionary: Record<string, string> = {
   'Valeurs invalides.': 'Invalid values.',
   'Arguments invalides.': 'Invalid arguments.',
   'Base verrouillée : déverrouillez-la pour changer ses vues ou ses propriétés.':
-    'Locked database: unlock it to change its views or properties.'
+    'Locked database: unlock it to change its views or properties.',
+  'Adresse du dépôt invalide (https://…).': 'Invalid repository address (https://…).',
+  'Nom de branche invalide.': 'Invalid branch name.'
 }
 export default dictionary

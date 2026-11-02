@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AdminOverview, AuditEntry, SessionUser } from '../shared/collab'
 import { json } from './http'
 import { locale, t, tx } from '../shared/i18n'
+import { MirrorSettings } from './MirrorSettings'
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
@@ -51,7 +52,9 @@ const ACTIONS: Record<string, string> = {
   'pages.restoreVersion': t('Version restaurée'),
   'databases.importCsv': t('Import CSV'),
   'transfer.import': t('Import Notion'),
-  'transfer.export': t('Export')
+  'transfer.export': t('Export'),
+  'mirror.configure': t('Miroir git configuré'),
+  'mirror.disable': t('Miroir git désactivé')
 }
 
 interface Account extends SessionUser {
@@ -156,6 +159,8 @@ export function AdminDashboard(): React.JSX.Element {
           ))}
         </tbody>
       </table>
+
+      <MirrorSettings />
 
       <h4>{t('Sessions ouvertes')}</h4>
       {overview.sessions.length === 0 ? (

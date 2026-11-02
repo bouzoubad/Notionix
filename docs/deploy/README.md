@@ -140,6 +140,10 @@ Le volume `caddy-data` garde l'autorité : s'il est perdu, Caddy en crée une au
 
 `sh scripts/publish-desktop.sh [hôte ssh] [dossier du dépôt]` (sur un Mac, défaut : `Gamma` et `notionix`) construit l'app universelle (Apple Silicon et Intel) et la dépose dans `server/downloads/` du serveur (monté en lecture seule dans le conteneur). Le serveur la sert sans connexion à `/download/mac` (toujours la dernière version), y compris en HTTP sur le port du site Caddy (`http://<adresse>:<port HTTP>/download/mac`) pour un poste qui ne connaît pas encore l'autorité. Le lien apparaît dans la fiche Keeper créée avec un compte et dans _Mon compte_. L'app n'étant pas notarisée par Apple, macOS demande à la première ouverture de chaque version : _Réglages Système > Confidentialité et sécurité > Ouvrir quand même_.
 
+### 4.2 quater Miroir git des pages
+
+_Administration > Miroir git_ : adresse HTTPS du dépôt, jeton d'accès, branche (`main`). Le serveur vérifie que le dépôt répond, puis exporte les pages ouvertes à tout l'espace principal en Markdown, commite après chaque lot de modifications et pousse. Bitbucket : créer un dépôt privé, puis _Repository settings > Access tokens > Create access token_ avec les droits **Repositories : Read + Write** (les « Access keys » SSH ne permettent que la lecture), et coller le jeton dans l'écran du miroir. Il reste sur le serveur (`data/mirror/settings.json`), jamais affiché ni écrit dans la configuration git. La copie de travail est dans `data/mirror/repo` ; « Désactiver » l'efface, le dépôt distant garde son historique.
+
 ### 4.3 Avec un certificat de l'entreprise
 
 Copier le certificat et sa clé dans `server/certs/` (jamais versionné) sous les noms `cert.pem` (certificat + chaîne) et `key.pem`, puis dans `server/.env` :

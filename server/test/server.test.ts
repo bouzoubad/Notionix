@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { createHash } from 'crypto'
@@ -1108,5 +1108,64 @@ describe('desktop app downloads', () => {
     expect((await call('/download/mac', { method: 'HEAD' })).status).toBe(200)
     // Only the latest is reachable, by its fixed address.
     expect(await (await call('/download/autre.dmg')).text()).not.toBe('pas une version')
+  })
+})
+
+describe('Git mirror of the team pages', () => {
+  const doc = (text: string): string =>
+    JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+    })
+
+  it('commits the pages open to everyone, as their author, never the restricted ones', async () => {
+    const { execFileSync } = await import('child_process')
+    const bare = join(dataDir, 'remote.git')
+    execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare])
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const editor = await createUser(admin, 'claire@example.com', 'editor')
+
+    // Only an administrator sets it up; a repository that does not answer is refused.
+    expect((await api('/api/admin/mirror', { token: editor })).status).toBe(403)
+    expect(
+      (
+        await api('/api/admin/mirror', {
+          method: 'PUT',
+          token: admin,
+          json: { remote: 'file:///nulle/part.git' }
+        })
+      ).status
+    ).toBe(400)
+    const set = await api('/api/admin/mirror', {
+      method: 'PUT',
+      token: admin,
+      json: { remote: `file://${bare}`, token: 'jeton-secret' }
+    })
+    expect(set.status).toBe(200)
+    expect(JSON.stringify(set.body)).not.toContain('jeton-secret')
+    // The first export (README only), then the pages.
+    await api('/api/admin/mirror/sync', { method: 'POST', token: admin })
+
+    await rpc(editor, 'pages.createWith', null, {
+      title: 'Compte rendu',
+      content: doc('Ouvert à tous')
+    })
+    await rpc(editor, 'pages.createWith', null, {
+      title: 'Brouillon perso',
+      content: doc('Secret'),
+      access: 'restricted'
+    })
+    const synced = await api('/api/admin/mirror/sync', { method: 'POST', token: admin })
+    expect(synced.body.mirror).toMatchObject({ configured: true, error: null, unpushed: false })
+
+    const clone = join(dataDir, 'clone')
+    execFileSync('git', ['clone', '-q', bare, clone])
+    const tree = execFileSync('git', ['ls-files'], { cwd: clone, encoding: 'utf8' })
+    expect(tree).toContain('pages/Compte rendu.md')
+    expect(tree).not.toContain('Brouillon')
+    expect(readFileSync(join(clone, 'pages/Compte rendu.md'), 'utf8')).toContain('Ouvert à tous')
+    expect(
+      execFileSync('git', ['log', '-1', '--format=%an'], { cwd: clone, encoding: 'utf8' })
+    ).toBe('claire\n')
   })
 })

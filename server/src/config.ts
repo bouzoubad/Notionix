@@ -16,6 +16,8 @@ export interface Config {
   webDir: string | null
   /** The desktop app's builds offered for download (scripts/publish-desktop.sh) */
   downloadsDir: string
+  /** The Git mirror of the pages: its settings and working copy */
+  mirrorDir: string
   /** Port of the plain HTTP site in front of an HTTPS deployment (Caddy), for downloads; null: none */
   plainPort: number | null
   /** Optional first administrator, created at start if no account exists */
@@ -39,6 +41,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
     downloadsDir:
       env.NOTIONIX_DOWNLOADS_DIR ||
       join(env.NOTIONIX_DATA_DIR ?? join(process.cwd(), 'data'), 'downloads'),
+    mirrorDir:
+      env.NOTIONIX_MIRROR_DIR ||
+      join(env.NOTIONIX_DATA_DIR ?? join(process.cwd(), 'data'), 'mirror'),
     plainPort: env.NOTIONIX_PLAIN_PORT ? number(env.NOTIONIX_PLAIN_PORT, 0) || null : null,
     adminEmail: env.NOTIONIX_ADMIN_EMAIL || null,
     adminPassword: env.NOTIONIX_ADMIN_PASSWORD || null

@@ -466,12 +466,12 @@ main {
   gap: 12px;
   color: var(--text-muted);
 }
-.blank button {
+.blank > button {
   padding: 8px 14px;
   background: var(--accent);
   color: #fff;
 }
-.blank button:hover {
+.blank > button:hover {
   background: var(--accent);
   filter: brightness(1.1);
 }
@@ -4020,10 +4020,22 @@ button:focus:not(:focus-visible) {
   width: 100%;
   text-align: left;
   padding: 6px 8px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+}
+.welcome li button:hover {
+  background: var(--bg-hover);
 }
 .welcome-close {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: transparent;
   font-size: 12px;
   color: var(--text-muted);
+}
+.welcome-close:hover {
+  background: var(--bg-hover);
 }
 .dialog.tour {
   width: min(460px, 92vw);

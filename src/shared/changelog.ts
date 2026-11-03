@@ -21,6 +21,27 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-03-reponse-retours-accueil',
+    date: '2026-11-03',
+    title: 'Correctifs : répondre à un retour, écran d’accueil',
+    summary:
+      'Répondre à un retour (Feedback) confirme l’envoi et montre la réponse ; l’écran d’accueil retrouve des liens discrets.',
+    desktop: '1.2.0',
+    body: `**Pour qui :** les administrateurs (retours) et tout le monde (écran d'accueil).
+
+## Répondre à un retour
+
+Dans **Feedback des utilisateurs**, le bouton **Répondre** enregistrait bien la réponse et prévenait l'auteur, mais rien ne le montrait à l'écran. Maintenant :
+
+- un message confirme l'envoi (« Réponse envoyée : … est prévenu·e dans sa boîte de réception ») ;
+- la réponse envoyée s'affiche au-dessus du champ (« Votre réponse : … ») ;
+- le bouton devient **Modifier la réponse** pour la corriger.
+
+## Écran d'accueil
+
+Les liens de la carte **Bien démarrer** (visite guidée, raccourcis…) s'affichaient comme de gros boutons bleus ; seul **Créer une page** garde ce style.`
+  },
+  {
     id: '2026-11-03-apparence-code-rouge',
     date: '2026-11-03',
     title: 'Code en rouge et apparence personnalisable',

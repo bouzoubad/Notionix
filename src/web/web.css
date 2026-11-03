@@ -345,6 +345,19 @@
   border-radius: 6px;
   background: var(--bg-sidebar);
 }
+.feedback-sent {
+  margin: 6px 0 0;
+  color: var(--nx-green);
+  font-size: 13px;
+}
+.feedback-admin button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.feedback-admin button.primary:disabled {
+  opacity: 0.45;
+}
 
 /* Public forms */
 .public-form {

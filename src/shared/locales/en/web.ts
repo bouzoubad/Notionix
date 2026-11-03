@@ -83,6 +83,10 @@ const dictionary: Record<string, string> = {
   'Supprimer ce retour ?': 'Delete this feedback?',
   Supprimer: 'Delete',
   'Réponse :': 'Reply:',
+  'Votre réponse :': 'Your reply:',
+  'Modifier la réponse': 'Edit the reply',
+  'Réponse envoyée : {name} est prévenu·e dans sa boîte de réception.':
+    'Reply sent: {name} is told in their inbox.',
 
   // Groups and workspaces
   'Un groupe (ex. « Équipe produit ») se choisit dans le menu Partager d’une page : ses membres, présents et futurs, y ont accès.':

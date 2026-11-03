@@ -240,13 +240,26 @@ function FeedbackItem({
 }): React.JSX.Element {
   const [reply, setReply] = useState(item.reply ?? '')
   const [error, setError] = useState<string | null>(null)
-  const patch = async (next: Record<string, unknown>): Promise<void> => {
+  const [sending, setSending] = useState(false)
+  // Said once the reply is saved: the author is told (inbox), the admin sees it here.
+  const [sent, setSent] = useState(false)
+  const patch = async (next: Record<string, unknown>): Promise<boolean> => {
+    setError(null)
     try {
       await json(`/api/feedback/${encodeURIComponent(item.id)}`, { method: 'PATCH', json: next })
       await onChanged()
+      return true
     } catch (e) {
       setError(message(e))
+      return false
     }
+  }
+  const sendReply = async (): Promise<void> => {
+    setSending(true)
+    setSent(false)
+    const ok = await patch({ reply: reply.trim() })
+    setSending(false)
+    if (ok) setSent(true)
   }
   const shot = item.screenshot ? assetNameFromSrc(item.screenshot) : null
   const [wholeShot, setWholeShot] = useState(false)
@@ -294,6 +307,11 @@ function FeedbackItem({
           ))}
         </details>
       )}
+      {admin && item.reply && (
+        <p className="feedback-reply">
+          <strong>{t('Votre réponse :')}</strong> {item.reply}
+        </p>
+      )}
       {admin ? (
         <div className="feedback-admin">
           <select value={item.status} onChange={(e) => void patch({ status: e.target.value })}>
@@ -307,10 +325,17 @@ function FeedbackItem({
             rows={2}
             placeholder={t('Réponse à l’auteur (il est prévenu)')}
             value={reply}
-            onChange={(e) => setReply(e.target.value)}
+            onChange={(e) => {
+              setReply(e.target.value)
+              setSent(false)
+            }}
           />
-          <button disabled={reply === (item.reply ?? '')} onClick={() => void patch({ reply })}>
-            {t('Répondre')}
+          <button
+            className="primary"
+            disabled={sending || !reply.trim() || reply.trim() === (item.reply ?? '')}
+            onClick={() => void sendReply()}
+          >
+            {sending ? t('Envoi…') : item.reply ? t('Modifier la réponse') : t('Répondre')}
           </button>
           <button
             className="danger"
@@ -329,6 +354,13 @@ function FeedbackItem({
             <strong>{t('Réponse :')}</strong> {item.reply}
           </p>
         )
+      )}
+      {admin && sent && (
+        <p className="feedback-sent" role="status">
+          {t('Réponse envoyée : {name} est prévenu·e dans sa boîte de réception.', {
+            name: item.userName
+          })}
+        </p>
       )}
       {error && <p className="error">{error}</p>}
     </article>

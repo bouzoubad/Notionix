@@ -225,6 +225,27 @@ try {
   assert.ok(!seen.result.some((p) => p.id === secret.id), 'private to its author')
   assert.ok(seen.result.some((p) => p.id === team.id))
 
+  // A feedback from someone, answered from the app: said sent, and the author told
+  const sentFeedback = await fetch(`${api}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${otherToken}` },
+    body: JSON.stringify({ kind: 'idea', title: 'Une idée', body: 'Et si…' })
+  }).then((r) => r.json())
+  await win.getByRole('button', { name: 'Feedback des utilisateurs' }).click()
+  await win.locator('.dialog.feedback').waitFor()
+  await win.getByText(/Tous les retours/).click()
+  const card = win.locator('.feedback-item', { hasText: 'Une idée' })
+  await card.locator('textarea').fill('Bonne idée, c’est prévu.')
+  await card.getByRole('button', { name: 'Répondre' }).click()
+  await card.locator('.feedback-sent').waitFor()
+  await card.getByText('Votre réponse :').waitFor()
+  const mine = await fetch(`${api}/api/feedback`, {
+    headers: { Authorization: `Bearer ${otherToken}` }
+  }).then((r) => r.json())
+  const answered = mine.feedback.find((f) => f.id === sentFeedback.feedback.id)
+  assert.equal(answered?.reply, 'Bonne idée, c’est prévu.')
+  await win.keyboard.press('Escape')
+
   // Without network: the pages kept here open and stay editable
   await stopServer()
   await win.locator('.offline-banner').waitFor()

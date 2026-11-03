@@ -3,7 +3,9 @@ import type { SessionUser } from '../shared/collab'
 import { json } from './http'
 import { Groups, Workspaces } from './TeamSettings'
 import { KeeperShare, type SignInKey } from './KeeperShare'
-import { useMacDownload } from './downloads'
+import { useLatestApp, useMacDownload } from './downloads'
+import { ClientsSeen } from './ClientsSeen'
+import type { ClientSeen } from '../shared/clients'
 import { AppearanceSettings } from '../renderer/src/components/AppearanceSettings'
 import { AdminDashboard } from './AdminDashboard'
 import { locale, t } from '../shared/i18n'
@@ -14,6 +16,9 @@ interface Account extends SessionUser {
   disabled: boolean
   createdAt: number
   pendingActivation: boolean
+  /** When last used (any session), and from what */
+  lastSeenAt: number | null
+  clients: ClientSeen[]
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -208,6 +213,7 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
   const [notice, setNotice] = useState<string | null>(null)
   const [key, setKey] = useState<SignInKey | null>(null)
   const [leaving, setLeaving] = useState<Account | null>(null)
+  const latestApp = useLatestApp()
 
   const reload = async (): Promise<void> => {
     const { users } = await json<{ users: Account[] }>('/api/users')
@@ -290,6 +296,7 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
               <th>{t('Nom')}</th>
               <th>{t('E-mail')}</th>
               <th>{t('Rôle')}</th>
+              <th>{t('Version utilisée')}</th>
               <th />
             </tr>
           </thead>
@@ -313,6 +320,9 @@ function Accounts({ self }: { self: SessionUser }): React.JSX.Element {
                       </option>
                     ))}
                   </select>
+                </td>
+                <td>
+                  <ClientsSeen clients={a.clients} latest={latestApp} />
                 </td>
                 <td className="account-actions">
                   <select

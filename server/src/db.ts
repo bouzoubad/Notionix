@@ -113,7 +113,10 @@ const MIGRATIONS = [
      at INTEGER NOT NULL
    );`,
   // Each person's colours (Apparence), JSON (src/shared/appearance.ts).
-  `ALTER TABLE users ADD COLUMN appearance TEXT;`
+  `ALTER TABLE users ADD COLUMN appearance TEXT;`,
+  // When a session was last used, and from what (desktop app and version, browser).
+  `ALTER TABLE sessions ADD COLUMN seen_at INTEGER;
+   ALTER TABLE sessions ADD COLUMN client TEXT;`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

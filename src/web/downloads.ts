@@ -17,3 +17,18 @@ export function useMacDownload(): { direct: string; shared: string } | null {
   }, [])
   return urls
 }
+
+/** The version of the desktop app the server offers, or null. */
+export function useLatestApp(): string | null {
+  const [version, setVersion] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    json<DownloadsInfo>('/api/downloads')
+      .then((info) => !cancelled && setVersion(info.mac?.version ?? null))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return version
+}

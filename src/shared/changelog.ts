@@ -21,6 +21,26 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-03-activite-et-versions',
+    date: '2026-11-03',
+    title: 'Administration : dernière activité et version utilisée par chacun',
+    summary:
+      'Le tableau de bord montre la dernière activité de chacun (et plus seulement sa connexion) ; Comptes de l’équipe montre la version de l’app ou le navigateur utilisé.',
+    body: `**Pour qui :** les administrateurs.
+
+## Dernière activité
+
+Le tableau de bord affichait l'heure à laquelle chaque session avait été **ouverte**. Or l'app de bureau reste connectée pendant des semaines avec la même session : quelqu'un qui travaillait le matin même apparaissait encore à « hier ». La colonne s'appelle maintenant **Dernière activité** et suit l'utilisation réelle (à la minute près).
+
+## Version utilisée
+
+- **Tableau de bord** et **Comptes de l'équipe** montrent d'où chaque personne utilise Notionix : **App 1.1.5**, **Navigateur (Safari)**…
+- Une app plus ancienne que celle proposée par le serveur est signalée **à mettre à jour** (en orange).
+- Survolez une étiquette pour voir quand elle a servi pour la dernière fois.
+
+L'activité est suivie à partir de cette mise à jour du serveur : avant, seules les heures de connexion étaient connues.`
+  },
+  {
     id: '2026-11-03-reponse-retours-accueil',
     date: '2026-11-03',
     title: 'Correctifs : répondre à un retour, écran d’accueil',

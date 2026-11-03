@@ -5,6 +5,8 @@
  */
 import { t } from './i18n'
 
+import type { ClientSeen } from './clients'
+
 export const WORKSPACE_DOCUMENT = 'workspace:main'
 
 /** Field holding the page in its Yjs document (TipTap's Collaboration default). */
@@ -54,7 +56,8 @@ export interface AdminOverview {
   users: { total: number; active: number; disabled: number; admins: number; pending: number }
   /** Accounts connected right now (real-time connection open) */
   online: string[]
-  sessions: { userId: string; count: number; lastAt: number }[]
+  /** Per account: open sessions, when last used, and from what (desktop app version, browser) */
+  sessions: { userId: string; count: number; lastAt: number; clients: ClientSeen[] }[]
   workspaces: {
     id: string
     name: string

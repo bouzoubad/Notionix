@@ -3,6 +3,8 @@ import type { AdminOverview, AuditEntry, SessionUser } from '../shared/collab'
 import { json } from './http'
 import { locale, t, tx } from '../shared/i18n'
 import { MirrorSettings } from './MirrorSettings'
+import { ClientsSeen } from './ClientsSeen'
+import { useLatestApp } from './downloads'
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
@@ -66,6 +68,7 @@ export function AdminDashboard(): React.JSX.Element {
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [error, setError] = useState<string | null>(null)
+  const latestApp = useLatestApp()
   const reload = async (): Promise<void> => {
     const [{ overview }, { users }] = await Promise.all([
       json<{ overview: AdminOverview }>('/api/admin/overview'),
@@ -171,7 +174,8 @@ export function AdminDashboard(): React.JSX.Element {
             <tr>
               <th>{t('Personne')}</th>
               <th>{t('Sessions')}</th>
-              <th>{t('Dernière connexion')}</th>
+              <th>{t('Utilisé depuis')}</th>
+              <th>{t('Dernière activité')}</th>
               <th />
             </tr>
           </thead>
@@ -180,6 +184,9 @@ export function AdminDashboard(): React.JSX.Element {
               <tr key={s.userId}>
                 <td>{name(s.userId)}</td>
                 <td>{s.count}</td>
+                <td>
+                  <ClientsSeen clients={s.clients} latest={latestApp} />
+                </td>
                 <td>{when(s.lastAt)}</td>
                 <td className="account-actions">
                   <button

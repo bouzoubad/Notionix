@@ -1,3 +1,4 @@
+import type { ClientSeen } from '../../src/shared/clients'
 import type { DatabaseSync } from 'node:sqlite'
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
@@ -229,7 +230,12 @@ export class Accounts {
   }
 
   /** Checks the password and opens a session; the same error for an unknown account and a wrong password. */
-  async login(email: string, password: string): Promise<{ token: string; user: User }> {
+  async login(
+    email: string,
+    password: string,
+    /** What the session is used from (clientOf) */
+    client: string | null = null
+  ): Promise<{ token: string; user: User }> {
     const row = this.db
       .prepare('SELECT * FROM users WHERE email = ?')
       .get(email.trim().toLowerCase()) as UserRow | undefined
@@ -242,23 +248,36 @@ export class Accounts {
     const t = this.now()
     this.db
       .prepare(
-        'INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
+        'INSERT INTO sessions (token_hash, user_id, created_at, expires_at, seen_at, client) VALUES (?, ?, ?, ?, ?, ?)'
       )
-      .run(tokenHash(token), row.id, t, t + this.sessionDays * 864e5)
+      .run(tokenHash(token), row.id, t, t + this.sessionDays * 864e5, t, client)
     return { token, user: this.user(row) }
   }
 
-  /** The active user of a session token or an API token, or null. */
-  authenticate(token: string | null | undefined): User | null {
+  /**
+   * The active user of a session token or an API token, or null. A session
+   * notes when it was used, and from what (`client`), at most every minute.
+   */
+  authenticate(token: string | null | undefined, client: string | null = null): User | null {
     if (!token) return null
     const hash = tokenHash(token)
+    const now = this.now()
     const row = this.db
       .prepare(
         `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`
       )
-      .get(hash, this.now()) as UserRow | undefined
-    if (row) return this.user(row)
+      .get(hash, now) as UserRow | undefined
+    if (row) {
+      this.db
+        .prepare(
+          `UPDATE sessions SET seen_at = ?, client = COALESCE(?, client)
+           WHERE token_hash = ?
+             AND (seen_at IS NULL OR seen_at < ? OR (? IS NOT NULL AND client IS NOT ?))`
+        )
+        .run(now, client, hash, now - 60_000, client, client)
+      return this.user(row)
+    }
     if (!token.startsWith(API_TOKEN_PREFIX)) return null
     const api = this.db
       .prepare(
@@ -304,11 +323,15 @@ export class Accounts {
   }
 
   /** Sets the password chosen through the link, which is then used up, and signs in. */
-  async activate(token: string, password: string): Promise<{ token: string; user: User }> {
+  async activate(
+    token: string,
+    password: string,
+    client: string | null = null
+  ): Promise<{ token: string; user: User }> {
     const user = this.activationUser(token)
     if (!user) throw new AuthError('Lien d’activation invalide ou expiré.', 404)
     await this.update(user.id, { password })
-    return this.login(user.email, password)
+    return this.login(user.email, password, client)
   }
 
   /** Whether the account has a pending activation link. */
@@ -318,16 +341,36 @@ export class Accounts {
       .get(userId, this.now())
   }
 
-  /** Open sessions per account: how many, and the latest. */
-  sessionsByUser(): { userId: string; count: number; lastAt: number }[] {
+  /**
+   * Open sessions per account: how many, when last used (not opened: a
+   * desktop app keeps its session for weeks), and from what, latest first.
+   */
+  sessionsByUser(): { userId: string; count: number; lastAt: number; clients: ClientSeen[] }[] {
+    const now = this.now()
+    const clients = new Map<string, ClientSeen[]>()
+    for (const r of this.db
+      .prepare(
+        `SELECT user_id, client, MAX(COALESCE(seen_at, created_at)) AS seen FROM sessions
+         WHERE expires_at > ? AND client IS NOT NULL GROUP BY user_id, client ORDER BY seen DESC`
+      )
+      .all(now) as { user_id: string; client: string; seen: number }[]) {
+      const list = clients.get(r.user_id) ?? []
+      list.push({ client: r.client, seenAt: r.seen })
+      clients.set(r.user_id, list)
+    }
     return (
       this.db
         .prepare(
-          `SELECT user_id, COUNT(*) AS n, MAX(created_at) AS last FROM sessions
+          `SELECT user_id, COUNT(*) AS n, MAX(COALESCE(seen_at, created_at)) AS last FROM sessions
            WHERE expires_at > ? GROUP BY user_id`
         )
-        .all(this.now()) as { user_id: string; n: number; last: number }[]
-    ).map((r) => ({ userId: r.user_id, count: r.n, lastAt: r.last }))
+        .all(now) as { user_id: string; n: number; last: number }[]
+    ).map((r) => ({
+      userId: r.user_id,
+      count: r.n,
+      lastAt: r.last,
+      clients: clients.get(r.user_id) ?? []
+    }))
   }
 
   // ---------------------------------------------------------------------------

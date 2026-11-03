@@ -37,6 +37,7 @@ import {
 import { inLanguage } from '../../src/shared/i18n'
 import type { GitMirror } from './mirror'
 import { parseAppearance } from '../../src/shared/appearance'
+import { clientOf } from '../../src/shared/clients'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -195,7 +196,7 @@ export function createApi({
   const requireUser = (req: IncomingMessage, roles: Role[] = ROLES): User => {
     const header = bearer(req.headers.authorization)
     const cookie = header ? null : cookieToken(req.headers.cookie)
-    const user = accounts.authenticate(header ?? cookie)
+    const user = accounts.authenticate(header ?? cookie, clientOf(req.headers['user-agent']))
     if (!user) throw new HttpError(401, 'Connexion requise.')
     const safe = req.method === 'GET' || req.method === 'HEAD'
     if (cookie && !safe && req.headers[CLIENT_HEADER] !== 'web')
@@ -337,7 +338,11 @@ export function createApi({
         const key = `${email.toLowerCase()}|${req.socket.remoteAddress ?? ''}`
         throttle.check(key)
         try {
-          const session = await accounts.login(email, str(body.password) ?? '')
+          const session = await accounts.login(
+            email,
+            str(body.password) ?? '',
+            clientOf(req.headers['user-agent'])
+          )
           throttle.succeed(key)
           audit.record(session.user.id, 'login')
           send(res, 200, session, {
@@ -364,7 +369,11 @@ export function createApi({
           send(res, 200, { email: user.email, name: user.name })
         } else {
           const body = await readJson(req)
-          const session = await accounts.activate(token, str(body.password) ?? '')
+          const session = await accounts.activate(
+            token,
+            str(body.password) ?? '',
+            clientOf(req.headers['user-agent'])
+          )
           audit.record(user.id, 'user.activated', user.id)
           send(res, 200, session, {
             'Set-Cookie': sessionCookie(req, session.token, sessionDays * 86400)
@@ -471,10 +480,15 @@ export function createApi({
         send(res, 200, { ok: true })
       } else if (path === '/api/users' && method === 'GET') {
         requireUser(req, ['admin'])
+        // When each person last used Notionix, and from what (desktop app version, browser).
+        const activity = new Map(accounts.sessionsByUser().map((s) => [s.userId, s]))
         send(res, 200, {
-          users: accounts
-            .list()
-            .map((u) => ({ ...u, pendingActivation: accounts.pendingActivation(u.id) }))
+          users: accounts.list().map((u) => ({
+            ...u,
+            pendingActivation: accounts.pendingActivation(u.id),
+            lastSeenAt: activity.get(u.id)?.lastAt ?? null,
+            clients: activity.get(u.id)?.clients ?? []
+          }))
         })
       } else if (path === '/api/users' && method === 'POST') {
         // A new account signs in with an activation link (it chooses its own

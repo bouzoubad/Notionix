@@ -68,7 +68,7 @@
 
 /* Settings: own account and team accounts */
 .dialog.settings {
-  width: 760px;
+  width: min(940px, 94vw);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -149,9 +149,13 @@
 }
 .accounts-table th,
 .accounts-table td {
-  padding: 6px 6px 6px 0;
+  padding: 6px 8px 6px 0;
   border-bottom: 1px solid var(--border);
-  overflow-wrap: anywhere;
+  /* Long e-mails break, names and words do not */
+  overflow-wrap: break-word;
+}
+.accounts-table select {
+  max-width: 170px;
 }
 .accounts-table tr.disabled td {
   opacity: 0.5;
@@ -557,4 +561,28 @@
   align-self: center;
   font-size: 12px;
   margin-top: 4px;
+}
+
+/* What each person used Notionix from (administration) */
+.clients-seen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.client-seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.client-seen.outdated {
+  background: var(--nx-orange-bg);
+  color: var(--nx-orange);
+}
+.client-seen small {
+  font-size: 11px;
 }

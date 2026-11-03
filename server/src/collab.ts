@@ -1,3 +1,4 @@
+import { clientOf } from '../../src/shared/clients'
 import type { DatabaseSync } from 'node:sqlite'
 import type { Extension, Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
@@ -201,7 +202,10 @@ export function authenticate(
   }): Promise<CollabContext> => {
     const id = pageIdOf(documentName)
     if (documentName !== WORKSPACE_DOCUMENT && id === null) throw new Error('Document inconnu.')
-    const user = accounts.authenticate(token) ?? accounts.authenticate(cookieToken(requestHeaders))
+    const client = clientOf(requestHeaders.get('user-agent'))
+    const user =
+      accounts.authenticate(token, client) ??
+      accounts.authenticate(cookieToken(requestHeaders), client)
     if (!user) throw new Error('Session invalide ou expirée.')
     if (id === null) {
       // The workspace channel only carries the server's notices.

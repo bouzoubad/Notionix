@@ -1,7 +1,7 @@
 import type { Appearance } from '../../shared/appearance'
 import type { ComponentType } from 'react'
 import type { Extensions } from '@tiptap/core'
-import type { SessionUser, WorkspaceInfo } from '../../shared/collab'
+import type { CustomEmoji, SessionUser, WorkspaceInfo } from '../../shared/collab'
 import { atLeast, type PageSummary } from '../../shared/types'
 
 /** A page opened for editing together: its editor extensions, and how to close it. */
@@ -69,6 +69,12 @@ export interface Platform {
   signInAgain?: boolean
   /** Notices of the platform shown with the release notes (desktop app: a new version) */
   Notices?: ComponentType
+  /** The team's own emojis (server); absent: none (desktop app on its own) */
+  emojis?: {
+    list: () => Promise<CustomEmoji[]>
+    add: (name: string, image: File) => Promise<CustomEmoji>
+    remove: (name: string) => Promise<void>
+  }
   /** The person's colours (Apparence) kept in their account; absent: on this device only */
   appearance?: {
     load: () => Promise<Appearance | null>

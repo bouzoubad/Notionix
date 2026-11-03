@@ -712,3 +712,25 @@ describe('Notion specifics seen in real exports', () => {
     expect(back.content![1].attrs?.latex).toBe('a = \\frac{b}{c}')
   })
 })
+
+describe('team emojis in a page', () => {
+  it('are part of the document and read « :nom: » in Markdown', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Bravo ' },
+            {
+              type: 'customEmoji',
+              attrs: { name: 'bravo-equipe', src: `notionix-asset://file/${'a'.repeat(64)}.png` }
+            }
+          ]
+        }
+      ]
+    }
+    expect(canonicalDoc(doc)).not.toBeNull()
+    expect(docToMarkdown(doc).trim()).toBe('Bravo :bravo-equipe:')
+  })
+})

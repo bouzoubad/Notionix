@@ -12,6 +12,8 @@ export interface EmojiEntry {
   /** Its keywords, folded */
   terms: string[]
   shortcodes: string[]
+  /** The same in each skin tone, light to dark (people, hands); absent when it has none */
+  tones?: string[]
 }
 
 interface CompactEmoji {
@@ -21,6 +23,23 @@ interface CompactEmoji {
   group?: number
   order?: number
   tags?: string[]
+  skins?: CompactEmoji[]
+}
+
+/** The five skin tone modifiers (light to dark). */
+const TONE_CODES = ['1F3FB', '1F3FC', '1F3FD', '1F3FE', '1F3FF']
+
+/** The variants of one tone each (for two people, both of the same tone), light to dark. */
+const tonesOf = (skins: CompactEmoji[] | undefined): string[] | undefined => {
+  if (!skins?.length) return undefined
+  const byTone: string[] = []
+  for (const skin of skins) {
+    const used = new Set(skin.hexcode.split('-').filter((c) => TONE_CODES.includes(c)))
+    if (used.size !== 1) continue
+    const tone = TONE_CODES.indexOf([...used][0])
+    byTone[tone] ??= skin.unicode
+  }
+  return byTone.length === 5 && byTone.every(Boolean) ? byTone : undefined
 }
 
 /** The groups of the picker, in order (emojibase's numbers), with their tab icon. */
@@ -64,7 +83,8 @@ export function loadEmojis(): Promise<EmojiEntry[]> {
           order: e.order ?? 0,
           names: [e.label, en?.label ?? ''].filter(Boolean).map(fold),
           terms: [...(e.tags ?? []), ...(en?.tags ?? [])].map(fold),
-          shortcodes: codesOf
+          shortcodes: codesOf,
+          tones: tonesOf(e.skins)
         }
       })
       .sort((a, b) => a.order - b.order)
@@ -163,3 +183,30 @@ export function rememberEmoji(emoji: string): void {
     // Only a convenience.
   }
 }
+
+const TONE_KEY = 'notionix-emoji-tone'
+
+/** The skin tone chosen on this device: 0 the default (yellow), 1 to 5 light to dark. */
+export function emojiTone(): number {
+  try {
+    const tone = Number(localStorage.getItem(TONE_KEY))
+    return Number.isInteger(tone) && tone >= 0 && tone <= 5 ? tone : 0
+  } catch {
+    return 0
+  }
+}
+
+export function setEmojiTone(tone: number): void {
+  try {
+    localStorage.setItem(TONE_KEY, String(tone))
+  } catch {
+    // Only a convenience.
+  }
+}
+
+/** The emoji in the chosen skin tone, when it has tones. */
+export const inTone = (entry: EmojiEntry, tone = emojiTone()): string =>
+  (tone > 0 && entry.tones?.[tone - 1]) || entry.emoji
+
+/** The hand that shows each tone in the picker. */
+export const TONE_SAMPLES = ['✋', '✋🏻', '✋🏼', '✋🏽', '✋🏾', '✋🏿']

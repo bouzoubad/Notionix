@@ -38,6 +38,7 @@ import { inLanguage } from '../../src/shared/i18n'
 import type { GitMirror } from './mirror'
 import { parseAppearance } from '../../src/shared/appearance'
 import { clientOf, parseUpdateReport } from '../../src/shared/clients'
+import { CUSTOM_EMOJI_NAME, type CustomEmoji } from '../../src/shared/collab'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -385,6 +386,53 @@ export function createApi({
         send(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(req, '', 0) })
       } else if (path === '/api/me' && method === 'GET') {
         send(res, 200, { user: requireUser(req) })
+      } else if (path === '/api/emojis' || path.startsWith('/api/emojis/')) {
+        // The team's own emojis: everyone uses them, editors add some, their author or an admin removes one.
+        const rows = (): CustomEmoji[] =>
+          (
+            accounts.db
+              .prepare('SELECT name, src, created_by FROM custom_emojis ORDER BY name')
+              .all() as { name: string; src: string; created_by: string | null }[]
+          ).map((r) => ({ name: r.name, src: r.src, createdBy: r.created_by }))
+        if (path === '/api/emojis' && method === 'GET') {
+          requireUser(req)
+          send(res, 200, { emojis: rows() })
+        } else if (path === '/api/emojis' && method === 'POST') {
+          const user = requireUser(req, editors)
+          const name = (url.searchParams.get('name') ?? '').trim().toLowerCase()
+          if (!CUSTOM_EMOJI_NAME.test(name))
+            throw new HttpError(
+              400,
+              'Nom d’émoji invalide : 2 à 32 lettres minuscules, chiffres, « _ » ou « - ».'
+            )
+          if (rows().some((e) => e.name === name))
+            throw new HttpError(400, 'Un émoji porte déjà ce nom.')
+          let src: string
+          try {
+            // In the main workspace: everyone's images are looked for there.
+            src = await workspaces.main.assets.save(await readBody(req, MAX_ASSET_BYTES), name)
+          } catch (e) {
+            if (e instanceof HttpError) throw e
+            throw new HttpError(400, e instanceof Error ? e.message : 'Image refusée.')
+          }
+          accounts.db
+            .prepare(
+              'INSERT INTO custom_emojis (name, src, created_by, created_at) VALUES (?, ?, ?, ?)'
+            )
+            .run(name, src, user.id, Date.now())
+          audit.record(user.id, 'emoji.create', null, name)
+          send(res, 201, { emoji: { name, src, createdBy: user.id } })
+        } else if (path.startsWith('/api/emojis/') && method === 'DELETE') {
+          const user = requireUser(req, editors)
+          const name = decodeURIComponent(path.slice('/api/emojis/'.length))
+          const emoji = rows().find((e) => e.name === name)
+          if (!emoji) throw new HttpError(404, 'Introuvable.')
+          if (user.role !== 'admin' && emoji.createdBy !== user.id)
+            throw new HttpError(403, 'Droits insuffisants.')
+          accounts.db.prepare('DELETE FROM custom_emojis WHERE name = ?').run(name)
+          audit.record(user.id, 'emoji.delete', null, name)
+          send(res, 200, { ok: true })
+        } else throw new HttpError(405, 'Méthode non autorisée.')
       } else if (path === '/api/me/app' && method === 'PUT') {
         // A desktop app tells where its own update is (shown to the administrators).
         requireUser(req)

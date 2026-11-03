@@ -15,6 +15,7 @@ import { t } from '../shared/i18n'
 import { SettingsDialog } from './SettingsDialog'
 import { FeedbackDialog } from './FeedbackDialog'
 import { accountAppearance } from './accountAppearance'
+import { teamEmojis } from './teamEmojis'
 import {
   applyAppearance,
   loadAccountAppearance,
@@ -62,7 +63,8 @@ async function startApp(user: SessionUser): Promise<void> {
       },
       stored: assetSrcFromWebPath
     },
-    appearance: accountAppearance
+    appearance: accountAppearance,
+    emojis: teamEmojis
   })
   void loadAccountAppearance()
   whenSignedOut(() => location.reload())

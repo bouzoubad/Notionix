@@ -224,6 +224,7 @@ function inline(nodes: JsonNode[], r: Resolvers): string {
 function inlineNode(node: JsonNode, r: Resolvers): string {
   if (node.type === 'hardBreak') return '  \n'
   if (node.type === 'inlineMath') return `$${String(node.attrs?.latex ?? '')}$`
+  if (node.type === 'customEmoji') return `:${String(node.attrs?.name ?? '')}:`
   if (node.type === 'mention') {
     const attrs = node.attrs ?? {}
     if (attrs.kind === 'page') {

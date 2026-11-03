@@ -12,6 +12,8 @@ export interface SlashItem {
   hint: string
   /** Shown before the title (mention menu) */
   icon?: string
+  /** An image shown before the title instead (team emojis) */
+  image?: string
   keywords: string[]
   run: (editor: Editor, range: Range) => void
 }
@@ -304,7 +306,11 @@ function SlashMenu({ items, selected, onHover, onPick }: MenuProps): React.JSX.E
           onClick={() => onPick(i)}
         >
           <span className="slash-title">
-            {item.icon && <span className="slash-icon">{item.icon}</span>}
+            {item.image ? (
+              <img className="slash-icon custom-emoji" src={item.image} alt="" />
+            ) : (
+              item.icon && <span className="slash-icon">{item.icon}</span>
+            )}
             {item.title}
           </span>
           <span className="slash-hint">{item.hint}</span>

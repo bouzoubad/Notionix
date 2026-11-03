@@ -73,6 +73,9 @@ const dictionary: Record<string, string> = {
   'Base verrouillée : déverrouillez-la pour changer ses vues ou ses propriétés.':
     'Locked database: unlock it to change its views or properties.',
   'Adresse du dépôt invalide (https://…).': 'Invalid repository address (https://…).',
-  'Nom de branche invalide.': 'Invalid branch name.'
+  'Nom de branche invalide.': 'Invalid branch name.',
+  'Nom d’émoji invalide : 2 à 32 lettres minuscules, chiffres, « _ » ou « - ».':
+    'Invalid emoji name: 2 to 32 lower-case letters, digits, « _ » or « - ».',
+  'Un émoji porte déjà ce nom.': 'An emoji already has this name.'
 }
 export default dictionary

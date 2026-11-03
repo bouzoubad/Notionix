@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PageIcon } from './PageIcon'
 import { EmojiPicker } from './EmojiPicker'
 import type { PageSummary } from '../../../shared/types'
@@ -86,6 +86,24 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
   const patch = useStore((s) => s.patch)
   const showNotice = useStore((s) => s.showNotice)
   const [picker, setPicker] = useState<'icon' | 'cover' | null>(null)
+  // Closed by a click elsewhere or Escape, like Notion's (not by the mouse leaving it).
+  useEffect(() => {
+    if (!picker) return
+    const outside = (e: MouseEvent): void => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.picker') && !target.closest('.page-icon, .page-icon-wrap > button'))
+        setPicker(null)
+    }
+    const escape = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setPicker(null)
+    }
+    document.addEventListener('mousedown', outside)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('mousedown', outside)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [picker])
   // While repositioning: the position shown, saved on "Enregistrer".
   const [coverY, setCoverY] = useState<number | null>(null)
   const drag = useRef<{ startY: number; startPos: number; height: number } | null>(null)
@@ -155,7 +173,7 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
   }
 
   const iconPicker = (
-    <div className="picker icon-picker" onMouseLeave={() => setPicker(null)}>
+    <div className="picker icon-picker">
       <div className="picker-actions">
         <button
           onClick={() =>
@@ -171,12 +189,20 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
           </button>
         )}
       </div>
-      <EmojiPicker onPick={(emoji) => (setPicker(null), void patch(page.id, { icon: emoji }))} />
+      <EmojiPicker
+        withIcons
+        onPick={(choice) => {
+          setPicker(null)
+          const icon =
+            'emoji' in choice ? choice.emoji : 'custom' in choice ? choice.custom.src : choice.icon
+          void patch(page.id, { icon })
+        }}
+      />
     </div>
   )
 
   const coverPicker = (
-    <div className="picker cover-picker" onMouseLeave={() => setPicker(null)}>
+    <div className="picker cover-picker">
       <div className="cover-grid">
         {GRADIENT_COVERS.map((g, i) => (
           <button

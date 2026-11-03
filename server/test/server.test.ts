@@ -1477,3 +1477,37 @@ describe('desktop app update status', () => {
     ).toBe(400)
   })
 })
+
+describe('team emojis', () => {
+  it('are added by editors, used by everyone, removed by their author or an admin', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const bob = await createUser(admin, 'bob@example.com', 'editor')
+    const reader = await createUser(admin, 'lecteur@example.com', 'reader')
+    const add = (token: string, name: string) =>
+      api(`/api/emojis?name=${encodeURIComponent(name)}`, {
+        method: 'POST',
+        token,
+        body: PNG,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      })
+    const added = await add(alice, 'bravo')
+    expect(added.status).toBe(201)
+    expect((added.body.emoji as { src: string }).src).toMatch(/^notionix-asset:\/\/file\//)
+    expect((await add(alice, 'bravo')).status).toBe(400)
+    expect((await add(alice, 'Pas Bon')).status).toBe(400)
+    expect((await add(reader, 'lecture')).status).toBe(403)
+    // Everyone sees it, and its image.
+    const list = (await api('/api/emojis', { token: reader })).body.emojis as {
+      name: string
+      src: string
+    }[]
+    expect(list.map((e) => e.name)).toEqual(['bravo'])
+    const file = list[0].src.slice('notionix-asset://file/'.length)
+    expect((await call(`/api/assets/${file}`, { token: reader })).status).toBe(200)
+    // Removed by its author or an admin only.
+    expect((await api('/api/emojis/bravo', { method: 'DELETE', token: bob })).status).toBe(403)
+    expect((await api('/api/emojis/bravo', { method: 'DELETE', token: admin })).status).toBe(200)
+    expect((await api('/api/emojis', { token: alice })).body.emojis).toEqual([])
+  })
+})

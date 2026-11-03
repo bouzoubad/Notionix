@@ -1,6 +1,6 @@
 {
   "name": "notionix",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Notionix: local-first Notion-style workspace (Electron, React, TipTap, SQLite)",
   "main": "./out/main/index.js",
   "author": "Baptiste Pillet",
@@ -58,6 +58,7 @@
     "fflate": "^0.8.3",
     "katex": "^0.18.10",
     "lowlight": "^3.3.0",
+    "lucide": "1.56.0",
     "mammoth": "^1.13.0",
     "markdown-it": "^15.0.2",
     "uuid": "^14.0.3",

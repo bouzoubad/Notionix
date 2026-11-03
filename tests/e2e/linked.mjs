@@ -9,7 +9,7 @@
 // Run after `npm run build && npm run build:server`: node tests/e2e/linked.mjs
 import { _electron as electron } from 'playwright-core'
 import { spawn } from 'child_process'
-import { mkdtempSync, readFileSync } from 'fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { connect, createServer } from 'net'
 import { createServer as createTlsServer } from 'tls'
 import { tmpdir } from 'os'
@@ -308,6 +308,37 @@ try {
   await privateSection.getByText('Écrite hors ligne').click()
   await win.locator('.editor', { hasText: 'Sans réseau' }).waitFor()
   assert.equal(await win.locator('.local-badge').count(), 0, 'now a page of the server')
+
+  // A team emoji: added in the picker, then « :bravo » in the text, stored as such
+  const png = join(tmp, 'bravo.png')
+  writeFileSync(
+    png,
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    )
+  )
+  await win.locator('.editor', { hasText: 'Sans réseau' }).locator('p').last().click()
+  await win.keyboard.press('Meta+ArrowRight')
+  await win.keyboard.press('Enter')
+  await win.keyboard.type('/emoji')
+  await win.locator('.slash-item', { hasText: 'Émoji' }).first().click()
+  await win.locator('.emoji-popover .team-emoji-add').click()
+  await win.getByLabel('Nom de l’émoji').fill('bravo')
+  await win.getByLabel('Image de l’émoji').setInputFiles(png)
+  await win.locator('.team-emoji-form .primary').click()
+  await win.locator('.emoji-popover .team-emoji img').first().waitFor()
+  await win.locator('.emoji-popover .emoji-search').press('Escape')
+  await win.locator('.emoji-popover').waitFor({ state: 'detached' })
+  await win.keyboard.type('Bravo :brav')
+  await win.locator('.slash-item', { hasText: ':bravo:' }).waitFor()
+  await win.keyboard.press('Enter')
+  await win.locator('.editor img.custom-emoji').waitFor()
+  await until(
+    async () => (await call('pages.get', sent.id)).content.includes('"customEmoji"'),
+    'team emoji stored in the page',
+    30_000
+  )
 
   // Signing out: nothing of the account stays shown
   await win.getByRole('button', { name: 'Se déconnecter' }).click()

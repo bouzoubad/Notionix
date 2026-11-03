@@ -18,6 +18,9 @@ export function docToText(content: string): string {
     if (typeof node.text === 'string') out.push(node.text)
     // Mentions are atoms: their label is their text.
     if (node.type === 'mention' && typeof node.attrs?.label === 'string') out.push(node.attrs.label)
+    // A team emoji reads as its name.
+    if (node.type === 'customEmoji' && typeof (node.attrs as { name?: unknown })?.name === 'string')
+      out.push(`:${(node.attrs as { name: string }).name}:`)
     node.content?.forEach(walk)
     if (node.content) out.push(' ')
   }

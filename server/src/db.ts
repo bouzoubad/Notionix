@@ -118,7 +118,14 @@ const MIGRATIONS = [
   `ALTER TABLE sessions ADD COLUMN seen_at INTEGER;
    ALTER TABLE sessions ADD COLUMN client TEXT;`,
   // What a desktop app last said of its own update (JSON, src/shared/clients.ts).
-  `ALTER TABLE sessions ADD COLUMN app_update TEXT;`
+  `ALTER TABLE sessions ADD COLUMN app_update TEXT;`,
+  // The team's own emojis (« :nom: »), their images in the main workspace's assets.
+  `CREATE TABLE custom_emojis (
+     name TEXT PRIMARY KEY,
+     src TEXT NOT NULL,
+     created_by TEXT,
+     created_at INTEGER NOT NULL
+   );`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

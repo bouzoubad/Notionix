@@ -13,6 +13,7 @@ import { combineApis, type CombinedApi } from './combinedApi'
 import { ConnectDialog } from './ConnectDialog'
 import { UpdateNotice } from './UpdateNotice'
 import { accountAppearance } from '../web/accountAppearance'
+import { teamEmojis } from '../web/teamEmojis'
 import { loadAccountAppearance } from '../renderer/src/appearance'
 import { forgetKeptDocuments, keepDocuments } from './offline'
 import { OfflineQueue } from './offlineQueue'
@@ -107,7 +108,8 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
     isLocal: api.isLocal,
     ServerConnect: ConnectDialog,
     Notices: UpdateNotice,
-    appearance: accountAppearance
+    appearance: accountAppearance,
+    emojis: teamEmojis
   })
   void loadAccountAppearance()
   // The session ended meanwhile: the app starts again and asks for the password.

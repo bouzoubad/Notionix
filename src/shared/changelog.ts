@@ -21,12 +21,42 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-03-emojis-equipe-icones',
+    date: '2026-11-03',
+    title: 'Émojis de l’équipe, couleurs de peau et icônes',
+    summary:
+      'Ajoutez les émojis de l’équipe, choisissez la couleur de peau des émojis, et donnez à une page une icône (pictogramme) en couleur.',
+    desktop: '1.3.0',
+    body: `**Pour qui :** tout le monde.
+
+## Émojis de l'équipe
+
+Dans le sélecteur d'émojis (**/emoji**, ou l'icône d'une page), la section **Équipe** rassemble les émojis ajoutés par l'équipe : un logo, une mascotte, un « bravo » maison…
+
+- **+** pour en ajouter un : un nom (lettres minuscules, chiffres, « _ » ou « - ») et une image.
+- Ils s'utilisent comme les autres : **:nom** dans le texte, ou comme icône de page.
+- Leur auteur ou un administrateur peut en supprimer un (la croix au survol).
+
+## Couleur de peau
+
+Le bouton **✋** à côté de la recherche choisit la couleur de peau des émojis qui en ont une (mains, personnes). Le choix est gardé sur l'appareil et vaut aussi pour **:nom**.
+
+## Icônes de page
+
+Le sélecteur d'icône d'une page a un onglet **Icônes** : plus de 1 600 pictogrammes sobres, dans la couleur de votre choix (les plus utiles d'abord, la recherche se fait en anglais : *calendar*, *rocket*…).
+
+## Corrigé
+
+- **Feedback** : « Tous les retours (N) » ne compte plus les retours terminés ou refusés.
+- Le sélecteur d'icône ne se ferme plus quand la souris en sort : il se ferme d'un clic à côté ou avec Échap.`
+  },
+  {
     id: '2026-11-03-emojis-transformer-plan',
     date: '2026-11-03',
     title: 'Émojis, « Transformer en » et plan de la page',
     summary:
       'Émojis avec « : » et /emoji, « Transformer en » depuis une sélection, plan de la page sur le côté (comme Notion), et la touche Entrée corrigée.',
-    desktop: '1.2.1',
+    desktop: '1.3.0',
     body: `**Pour qui :** tout le monde (merci Yohan et Solenne pour vos retours).
 
 ## Émojis

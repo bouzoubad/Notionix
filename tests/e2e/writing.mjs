@@ -106,6 +106,28 @@ await win.locator('.icon-picker .emoji-search').fill('rocket')
 await win.locator('.icon-picker .emoji-grid button').first().click()
 await win.locator('.page-head .page-icon', { hasText: '🚀' }).waitFor()
 
+// Skin tone: chosen once, the emojis with tones come in it
+await win.locator(`${MAIN} > p`).last().click()
+await win.keyboard.press('Meta+ArrowRight')
+await win.keyboard.press('Enter')
+await win.keyboard.type('/emoji')
+await win.locator('.slash-item', { hasText: 'Émoji' }).first().click()
+await win.locator('.emoji-popover').getByRole('button', { name: 'Couleur de peau' }).click()
+await win.locator('.emoji-popover .emoji-tones').getByRole('radio').nth(3).click()
+await win.locator('.emoji-popover .emoji-search').fill('pouce vers le haut')
+await win.locator('.emoji-popover .emoji-grid button').first().waitFor()
+await win.locator('.emoji-popover .emoji-search').press('Enter')
+await win.waitForFunction((main) => document.querySelector(main)?.textContent?.includes('👍🏽'), MAIN)
+
+// « Icônes » tab: a pictogram in a colour as the page icon
+await win.locator('.page-head .page-icon').click()
+await win.locator('.icon-picker').getByRole('tab', { name: 'Icônes' }).click()
+await win.locator('.icon-picker .emoji-search').fill('calendar')
+await win.locator('.icon-picker .pictogram-colors').getByRole('radio', { name: 'blue' }).click()
+await win.locator('.icon-picker .emoji-grid button').first().click()
+await win.locator('.page-head .page-icon svg.pictogram').waitFor()
+await win.locator('.sidebar svg.pictogram').first().waitFor()
+
 await win.screenshot({ path: join(tmp, 'writing.png') })
 assert.deepEqual(errors, [])
 await app.close()

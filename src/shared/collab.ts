@@ -143,3 +143,15 @@ export interface Feedback {
   createdAt: number
   updatedAt: number
 }
+
+/** An emoji of the team: an image used like an emoji (« :nom: »), in text and as a page icon. */
+export interface CustomEmoji {
+  /** Lower case letters, digits, « _ » and « - » */
+  name: string
+  /** notionix-asset://file/<name> */
+  src: string
+  createdBy: string | null
+}
+
+/** What a custom emoji may be called. */
+export const CUSTOM_EMOJI_NAME = /^[a-z0-9_-]{2,32}$/

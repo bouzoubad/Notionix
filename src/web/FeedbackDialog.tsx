@@ -65,7 +65,10 @@ export function FeedbackDialog({
           </button>
           <button className={tab === 'list' ? 'active' : ''} onClick={() => setTab('list')}>
             {admin ? t('Tous les retours') : t('Mes retours')}
-            {items ? ` (${items.length})` : ''}
+            {/* What is left to deal with: the ones done or declined are not counted. */}
+            {items
+              ? ` (${items.filter((i) => i.status !== 'done' && i.status !== 'declined').length})`
+              : ''}
           </button>
         </div>
         <div className="settings-body">

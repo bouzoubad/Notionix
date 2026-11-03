@@ -286,9 +286,18 @@ function LoadedEditor({
               }}
             >
               <EmojiPicker
-                onPick={(emoji) => {
+                onPick={(choice) => {
                   setEmojiAt(null)
-                  editor.chain().focus().insertContent(emoji).run()
+                  if ('emoji' in choice) editor.chain().focus().insertContent(choice.emoji).run()
+                  else if ('custom' in choice)
+                    editor
+                      .chain()
+                      .focus()
+                      .insertContent({
+                        type: 'customEmoji',
+                        attrs: { name: choice.custom.name, src: choice.custom.src }
+                      })
+                      .run()
                 }}
               />
             </div>

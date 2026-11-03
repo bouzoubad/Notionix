@@ -37,3 +37,34 @@ describe('desktop app update reports', () => {
     expect(parseUpdateReport(null, 5)).toBeNull()
   })
 })
+
+describe('skin tones and pictograms', () => {
+  it('offer each emoji with tones in the tone chosen', async () => {
+    const { inTone } = await import('../src/renderer/src/emoji')
+    const all = await loadEmojis()
+    const thumb = all.find((e) => e.emoji.replace(/\uFE0F/g, '') === '👍')!
+    expect(thumb.tones).toEqual(['👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿'])
+    expect(inTone(thumb, 3)).toBe('👍🏽')
+    expect(inTone(thumb, 0)).toBe(thumb.emoji)
+    // Two people: both of the same tone.
+    expect(all.some((e) => e.tones?.[0] === '🤝🏻')).toBe(true)
+    // No tone: the emoji itself.
+    const rocket = all.find((e) => e.emoji === '🚀')!
+    expect(inTone(rocket, 4)).toBe('🚀')
+  })
+
+  it('reads and finds pictograms (Lucide)', async () => {
+    const { loadPictograms, parsePictogram, pictogramIcon, searchPictograms } =
+      await import('../src/renderer/src/pictograms')
+    expect(parsePictogram(pictogramIcon('calendar-days', 'blue'))).toEqual({
+      name: 'calendar-days',
+      color: 'blue'
+    })
+    expect(parsePictogram('icon:rocket:violet')).toEqual({ name: 'rocket', color: 'default' })
+    expect(parsePictogram('icon:../x')).toBeNull()
+    const all = await loadPictograms()
+    expect(all.length).toBeGreaterThan(1000)
+    expect(searchPictograms(all, 'rocket')[0].name).toBe('rocket')
+    expect(searchPictograms(all, 'calendar days').map((p) => p.name)).toContain('calendar-days')
+  })
+})

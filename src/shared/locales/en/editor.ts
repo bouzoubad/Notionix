@@ -307,6 +307,27 @@ const dictionary: Record<string, string> = {
   Activités: 'Activities',
   Objets: 'Objects',
   Symboles: 'Symbols',
-  Drapeaux: 'Flags'
+  Drapeaux: 'Flags',
+  Émojis: 'Emojis',
+  Ajouter: 'Add',
+  Icônes: 'Icons',
+  Équipe: 'Team',
+  'Supprimer :{name}:': 'Delete :{name}:',
+  'Supprimer l’émoji :{name}: pour toute l’équipe ?':
+    'Delete the emoji :{name}: for the whole team?',
+  'Ajouter un émoji pour l’équipe': 'Add an emoji for the team',
+  'Couleur de peau': 'Skin tone',
+  'Nom : 2 à 32 lettres minuscules, chiffres, « _ » ou « - ».':
+    'Name: 2 to 32 lower-case letters, digits, « _ » or « - ».',
+  'Choisissez une image.': 'Choose an image.',
+  'nom (ex. logo, bravo-equipe)': 'name (e.g. logo, well-done)',
+  'Nom de l’émoji': 'Emoji name',
+  'Image de l’émoji': 'Emoji image',
+  'Rechercher une icône (en anglais : rocket, calendar…)': 'Search an icon (rocket, calendar…)',
+  'Rechercher une icône': 'Search an icon',
+  'Couleur de l’icône': 'Icon colour',
+  'Aucune icône trouvée.': 'No icon found.',
+  '{n} icônes : recherchez pour trouver les autres.': '{n} icons: search to find the others.',
+  'Émoji de l’équipe': 'Team emoji'
 }
 export default dictionary

@@ -12,6 +12,7 @@ import type { Node as PmNode } from '@tiptap/pm/model'
 import { Callout } from './callout'
 import { DatabaseView } from './databaseView'
 import { CommentMark, Mention } from './mention'
+import { CustomEmojiNode } from './customEmoji'
 import { BackgroundColor, Color, TextStyle } from '@tiptap/extension-text-style'
 import { BlockColors } from './colors'
 import { NotionBlockquote, NotionInputRules } from './inputRules'
@@ -103,6 +104,7 @@ function baseExtensions(lowlight: Lowlight, overrides: DocumentExtensionOverride
     overrides.callout ?? Callout,
     overrides.databaseView ?? DatabaseView,
     overrides.mention ?? Mention,
+    CustomEmojiNode.configure({ display: overrides.imageSrc?.display ?? ((src) => src) }),
     CommentMark,
     TextStyle,
     Color,

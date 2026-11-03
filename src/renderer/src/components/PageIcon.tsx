@@ -1,7 +1,9 @@
 import { displaySrc } from '../platform'
 import { isImageIcon } from '../icons'
+import { isPictogram, parsePictogram } from '../pictograms'
+import { PictogramIcon } from './PictogramIcon'
 
-/** A page's icon: its emoji or its image. */
+/** A page's icon: its emoji, its image, or a pictogram. */
 export function PageIcon({
   icon,
   fallback = '',
@@ -20,5 +22,9 @@ export function PageIcon({
         draggable={false}
       />
     )
+  if (isPictogram(icon)) {
+    const p = parsePictogram(icon)
+    if (p) return <PictogramIcon name={p.name} color={p.color} className={className} />
+  }
   return <>{icon ?? fallback}</>
 }

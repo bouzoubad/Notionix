@@ -4260,3 +4260,218 @@ main:focus-visible {
   align-items: center;
   gap: 12px;
 }
+
+/* Emoji picker: /emoji, page icons */
+.emoji-picker {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  height: 360px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.icon-picker .emoji-picker {
+  width: 100%;
+  border: 0;
+  box-shadow: none;
+}
+.emoji-search {
+  margin: 8px 8px 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+.emoji-groups {
+  display: flex;
+  gap: 2px;
+  padding: 0 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.emoji-groups button {
+  flex: 1;
+  padding: 3px 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+}
+.emoji-groups button:hover,
+.emoji-groups button.active {
+  background: var(--bg-hover);
+}
+.emoji-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+}
+.emoji-group-title {
+  margin: 6px 2px 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.emoji-note {
+  margin: 12px 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.emoji-popover {
+  position: fixed;
+  z-index: 55;
+}
+.emoji-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+.emoji-picker .emoji-grid {
+  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+}
+.emoji-picker .emoji-grid button {
+  width: auto;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+}
+.emoji-picker .emoji-grid button:hover {
+  background: var(--bg-hover);
+}
+
+/* « Transformer en » in the selection toolbar */
+.bubble-turn {
+  position: relative;
+  display: inline-flex;
+}
+.bubble-turn-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+.bubble-turn-menu button {
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+}
+.bubble-turn-menu button:hover,
+.bubble-turn-menu button.active {
+  background: var(--bg-hover);
+}
+
+/* The page's outline on its right edge (headings), like Notion's */
+.side-outline {
+  position: fixed;
+  top: 140px;
+  right: 14px;
+  z-index: 30;
+}
+.side-outline-marks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 4px;
+}
+.side-outline-marks span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text-muted);
+  opacity: 0.4;
+}
+.side-outline-marks span.level-2 {
+  width: 12px;
+}
+.side-outline-marks span.level-3 {
+  width: 8px;
+}
+.side-outline-marks span.current {
+  background: var(--text);
+  opacity: 1;
+}
+.side-outline-panel {
+  position: absolute;
+  top: -8px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition:
+    opacity 0.12s,
+    transform 0.12s;
+}
+.side-outline.open .side-outline-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.side-outline.open .side-outline-marks {
+  visibility: hidden;
+}
+.side-outline-panel button {
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+}
+.side-outline-panel button.level-1 {
+  color: var(--text);
+}
+.side-outline-panel button.level-2 {
+  padding-left: 18px;
+}
+.side-outline-panel button.level-3 {
+  padding-left: 30px;
+}
+.side-outline-panel button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.side-outline-panel button.current {
+  color: var(--accent);
+}
+.editor h1,
+.editor h2,
+.editor h3 {
+  scroll-margin-top: 70px;
+}
+@media (max-width: 900px) {
+  .side-outline {
+    display: none;
+  }
+}

@@ -288,6 +288,25 @@ const dictionary: Record<string, string> = {
   Livre: 'Book',
   Article: 'Article',
   Auteur: 'Author',
-  Galerie: 'Gallery'
+  Galerie: 'Gallery',
+  'Transformer en': 'Turn into',
+  'Équation dans le texte (la sélection)': 'Inline equation (the selection)',
+  'Plan de la page': 'Page outline',
+  Émoji: 'Emoji',
+  'Choisir un émoji (ou « : » suivi d’un nom)': 'Choose an emoji (or « : » followed by a name)',
+  'Rechercher un émoji (cœur, fusée, rocket…)': 'Search an emoji (heart, rocket…)',
+  'Rechercher un émoji': 'Search an emoji',
+  'Aucun émoji trouvé.': 'No emoji found.',
+  Récents: 'Recent',
+  ':nom  (ex. :coeur, :rocket)  ou  /emoji': ':name  (e.g. :heart, :rocket)  or  /emoji',
+  'Smileys et émotions': 'Smileys & emotion',
+  Personnes: 'People',
+  'Animaux et nature': 'Animals & nature',
+  'Nourriture et boissons': 'Food & drink',
+  'Voyages et lieux': 'Travel & places',
+  Activités: 'Activities',
+  Objets: 'Objects',
+  Symboles: 'Symbols',
+  Drapeaux: 'Flags'
 }
 export default dictionary

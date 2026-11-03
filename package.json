@@ -1,6 +1,6 @@
 {
   "name": "notionix",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Notionix: local-first Notion-style workspace (Electron, React, TipTap, SQLite)",
   "main": "./out/main/index.js",
   "author": "Baptiste Pillet",
@@ -23,7 +23,7 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "test": "vitest run",
-    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs && node tests/e2e/blocks.mjs && node tests/e2e/database.mjs && node tests/e2e/views.mjs && node tests/e2e/inline.mjs && node tests/e2e/dbadvanced.mjs && node tests/e2e/editor.mjs && node tests/e2e/dbteam.mjs && node tests/e2e/workspace.mjs && node tests/e2e/shortcuts.mjs && node tests/e2e/dbviews2.mjs && node tests/e2e/imports.mjs && node tests/e2e/dbviews3.mjs && node tests/e2e/ergonomics.mjs && node tests/e2e/english.mjs && npm run test:e2e:web",
+    "test:e2e": "npm run build && node tests/e2e/smoke.mjs && node tests/e2e/transfer.mjs && node tests/e2e/blocks.mjs && node tests/e2e/database.mjs && node tests/e2e/views.mjs && node tests/e2e/inline.mjs && node tests/e2e/dbadvanced.mjs && node tests/e2e/editor.mjs && node tests/e2e/dbteam.mjs && node tests/e2e/workspace.mjs && node tests/e2e/shortcuts.mjs && node tests/e2e/dbviews2.mjs && node tests/e2e/imports.mjs && node tests/e2e/dbviews3.mjs && node tests/e2e/ergonomics.mjs && node tests/e2e/english.mjs && node tests/e2e/writing.mjs && npm run test:e2e:web",
     "test:e2e:web": "npm run build:server && npm run build:web && node tests/e2e/web.mjs && node tests/e2e/linked.mjs"
   },
   "dependencies": {
@@ -54,6 +54,7 @@
     "@tiptap/suggestion": "^3.32.0",
     "@tiptap/y-tiptap": "^3.0.10",
     "electron-updater": "6.8.10",
+    "emojibase-data": "17.0.0",
     "fflate": "^0.8.3",
     "katex": "^0.18.10",
     "lowlight": "^3.3.0",

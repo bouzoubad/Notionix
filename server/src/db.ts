@@ -116,7 +116,9 @@ const MIGRATIONS = [
   `ALTER TABLE users ADD COLUMN appearance TEXT;`,
   // When a session was last used, and from what (desktop app and version, browser).
   `ALTER TABLE sessions ADD COLUMN seen_at INTEGER;
-   ALTER TABLE sessions ADD COLUMN client TEXT;`
+   ALTER TABLE sessions ADD COLUMN client TEXT;`,
+  // What a desktop app last said of its own update (JSON, src/shared/clients.ts).
+  `ALTER TABLE sessions ADD COLUMN app_update TEXT;`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

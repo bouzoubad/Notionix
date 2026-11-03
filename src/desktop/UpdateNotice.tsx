@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { olderVersion } from '../shared/changelog'
 import { macDownloadUrls, type DownloadsInfo, type UpdateState } from '../shared/desktop'
 import { t } from '../shared/i18n'
@@ -35,6 +35,21 @@ export function UpdateNotice(): React.JSX.Element | null {
       stop()
     }
   }, [updates])
+
+  // The administrators see where each app's update is (Comptes de l'équipe).
+  const reported = useRef('')
+  useEffect(() => {
+    if (!state) return
+    const step =
+      state.status === 'downloading'
+        ? `downloading:${state.version}:${Math.floor(state.percent / 25)}`
+        : state.status === 'ready'
+          ? `ready:${state.version}`
+          : state.status
+    if (step === reported.current) return
+    reported.current = step
+    void json('/api/me/app', { method: 'PUT', json: { update: state } }).catch(() => undefined)
+  }, [state])
 
   // No update by itself: offer the download.
   const fallback = state?.status === 'unsupported' || state?.status === 'error'

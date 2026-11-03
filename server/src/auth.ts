@@ -1,4 +1,4 @@
-import type { ClientSeen } from '../../src/shared/clients'
+import type { AppUpdateReport, ClientSeen } from '../../src/shared/clients'
 import type { DatabaseSync } from 'node:sqlite'
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'crypto'
 import { promisify } from 'util'
@@ -341,6 +341,13 @@ export class Accounts {
       .get(userId, this.now())
   }
 
+  /** What a desktop app says of its own update, kept on its session. */
+  setAppUpdate(token: string, report: AppUpdateReport): void {
+    this.db
+      .prepare('UPDATE sessions SET app_update = ? WHERE token_hash = ?')
+      .run(JSON.stringify(report), tokenHash(token))
+  }
+
   /**
    * Open sessions per account: how many, when last used (not opened: a
    * desktop app keeps its session for weeks), and from what, latest first.
@@ -350,12 +357,27 @@ export class Accounts {
     const clients = new Map<string, ClientSeen[]>()
     for (const r of this.db
       .prepare(
-        `SELECT user_id, client, MAX(COALESCE(seen_at, created_at)) AS seen FROM sessions
+        `SELECT user_id, client, MAX(COALESCE(seen_at, created_at)) AS seen,
+                (SELECT app_update FROM sessions s2
+                 WHERE s2.user_id = s.user_id AND s2.client = s.client AND s2.expires_at > ?
+                 ORDER BY COALESCE(s2.seen_at, s2.created_at) DESC LIMIT 1) AS app_update
+         FROM sessions s
          WHERE expires_at > ? AND client IS NOT NULL GROUP BY user_id, client ORDER BY seen DESC`
       )
-      .all(now) as { user_id: string; client: string; seen: number }[]) {
+      .all(now, now) as {
+      user_id: string
+      client: string
+      seen: number
+      app_update: string | null
+    }[]) {
       const list = clients.get(r.user_id) ?? []
-      list.push({ client: r.client, seenAt: r.seen })
+      let update: ClientSeen['update'] = null
+      try {
+        update = r.app_update ? (JSON.parse(r.app_update) as ClientSeen['update']) : null
+      } catch {
+        update = null
+      }
+      list.push({ client: r.client, seenAt: r.seen, update })
       clients.set(r.user_id, list)
     }
     return (

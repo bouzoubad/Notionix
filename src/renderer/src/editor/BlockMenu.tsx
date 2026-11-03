@@ -2,61 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { BlockMenuRequest } from './blockHandle'
 import { COLOR_LABELS, COLORED_BLOCKS, COLORS, type BlockColor } from '../../../shared/colors'
+import { TURN_TARGETS, turnBlockInto } from './turnInto'
 import { t } from '../../../shared/i18n'
-
-interface Target {
-  name: string
-  label: string
-  run: (editor: Editor) => void
-}
-
-/** What a block can become; the text is kept. */
-const TARGETS: Target[] = [
-  { name: 'paragraph', label: t('Texte'), run: (e) => e.chain().clearNodes().setParagraph().run() },
-  {
-    name: 'h1',
-    label: t('Titre 1'),
-    run: (e) => e.chain().clearNodes().setHeading({ level: 1 }).run()
-  },
-  {
-    name: 'h2',
-    label: t('Titre 2'),
-    run: (e) => e.chain().clearNodes().setHeading({ level: 2 }).run()
-  },
-  {
-    name: 'h3',
-    label: t('Titre 3'),
-    run: (e) => e.chain().clearNodes().setHeading({ level: 3 }).run()
-  },
-  {
-    name: 'bullet',
-    label: t('Liste à puces'),
-    run: (e) => e.chain().clearNodes().toggleBulletList().run()
-  },
-  {
-    name: 'ordered',
-    label: t('Liste numérotée'),
-    run: (e) => e.chain().clearNodes().toggleOrderedList().run()
-  },
-  {
-    name: 'task',
-    label: t('Liste de tâches'),
-    run: (e) => e.chain().clearNodes().toggleTaskList().run()
-  },
-  { name: 'toggle', label: t('Toggle'), run: (e) => e.chain().clearNodes().setDetails().run() },
-  ...[1, 2, 3].map((level) => ({
-    name: `toggle-h${level}`,
-    label: t('Titre {level} repliable', { level }),
-    run: (e: Editor) => e.chain().clearNodes().setDetails().setToggleHeading(level).run()
-  })),
-  {
-    name: 'quote',
-    label: t('Citation'),
-    run: (e) => e.chain().clearNodes().toggleBlockquote().run()
-  },
-  { name: 'callout', label: t('Callout'), run: (e) => e.chain().clearNodes().setCallout().run() },
-  { name: 'code', label: t('Code'), run: (e) => e.chain().clearNodes().setCodeBlock().run() }
-]
 
 /** Menu of a block, opened from its handle. */
 export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | null {
@@ -98,13 +45,6 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
   const pos = request.pos
   const done = (): void => setRequest(null)
 
-  /** Puts the cursor in the block so text commands apply to it. */
-  const inside = (): Editor => {
-    const from = Math.min(pos + 1, editor.state.doc.content.size)
-    const to = Math.max(from, pos + node.nodeSize - 1)
-    editor.chain().focus().setTextSelection({ from, to }).run()
-    return editor
-  }
   const setColor = (color: BlockColor | null): void => {
     editor
       .chain()
@@ -154,32 +94,11 @@ export function BlockMenu({ editor }: { editor: Editor }): React.JSX.Element | n
         </>
       )}
       {section === 'turn' &&
-        TARGETS.map((target) => (
+        TURN_TARGETS.map((target) => (
           <button
             key={target.name}
             onClick={() => {
-              const level =
-                target.name === 'toggle'
-                  ? 0
-                  : Number(target.name.match(/^toggle-h(\d)$/)?.[1] ?? -1)
-              if (level >= 0 && node.isTextblock) {
-                // A line becomes the title of the toggle, like in Notion.
-                editor
-                  .chain()
-                  .focus()
-                  .insertContentAt(
-                    { from: pos, to: pos + node.nodeSize },
-                    {
-                      type: 'details',
-                      attrs: { headingLevel: level },
-                      content: [
-                        { type: 'detailsSummary', content: node.content.toJSON() ?? [] },
-                        { type: 'detailsContent', content: [{ type: 'paragraph' }] }
-                      ]
-                    }
-                  )
-                  .run()
-              } else target.run(inside())
+              turnBlockInto(editor, pos, target)
               done()
             }}
           >

@@ -37,7 +37,7 @@ import {
 import { inLanguage } from '../../src/shared/i18n'
 import type { GitMirror } from './mirror'
 import { parseAppearance } from '../../src/shared/appearance'
-import { clientOf } from '../../src/shared/clients'
+import { clientOf, parseUpdateReport } from '../../src/shared/clients'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -385,6 +385,15 @@ export function createApi({
         send(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(req, '', 0) })
       } else if (path === '/api/me' && method === 'GET') {
         send(res, 200, { user: requireUser(req) })
+      } else if (path === '/api/me/app' && method === 'PUT') {
+        // A desktop app tells where its own update is (shown to the administrators).
+        requireUser(req)
+        const token = bearer(req.headers.authorization) ?? cookieToken(req.headers.cookie)
+        const body = await readJson(req)
+        const report = parseUpdateReport(body.update, Date.now())
+        if (!token || !report) throw new HttpError(400, 'Requête refusée.')
+        accounts.setAppUpdate(token, report)
+        send(res, 200, { ok: true })
       } else if (path === '/api/me/appearance' && (method === 'GET' || method === 'PUT')) {
         // The person's colours, the same on all their devices.
         const user = requireUser(req)

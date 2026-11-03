@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { PageIcon } from './PageIcon'
+import { EmojiPicker } from './EmojiPicker'
 import type { PageSummary } from '../../../shared/types'
 import { useStore } from '../store'
 import { GRADIENT_COVERS, coverStyle } from './covers'
@@ -170,16 +171,7 @@ export function PageDecorations({ page }: { page: PageSummary }): React.JSX.Elem
           </button>
         )}
       </div>
-      <div className="emoji-grid">
-        {EMOJIS.map((emoji) => (
-          <button
-            key={emoji}
-            onClick={() => (setPicker(null), void patch(page.id, { icon: emoji }))}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
+      <EmojiPicker onPick={(emoji) => (setPicker(null), void patch(page.id, { icon: emoji }))} />
     </div>
   )
 

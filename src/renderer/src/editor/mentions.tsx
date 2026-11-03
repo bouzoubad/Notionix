@@ -185,6 +185,12 @@ export const PageLinkSuggestion = Extension.create({
         pluginKey: new PluginKey('pageLinkSuggestion'),
         char: '[[',
         allowSpaces: true,
+        // A "[[" followed by a space, or already closed, is text: no menu (it would
+        // stay open for the rest of the line, and take its Enter).
+        allow: ({ state, range }) => {
+          const query = state.doc.textBetween(Math.min(range.from + 2, range.to), range.to)
+          return !/^\s/.test(query) && !query.includes(']]') && query.length <= 100
+        },
         items: ({ query }) => {
           const q = fold(query)
           const { pages, currentId } = useStore.getState()

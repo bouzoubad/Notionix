@@ -233,6 +233,9 @@ try {
   }).then((r) => r.json())
   await win.getByRole('button', { name: 'Feedback des utilisateurs' }).click()
   await win.locator('.dialog.feedback').waitFor()
+  // Sent without a title: said next to the field, nothing sent
+  await win.locator('.feedback-form').getByRole('button', { name: 'Envoyer' }).click()
+  await win.locator('.feedback-form .field-error').waitFor()
   await win.getByText(/Tous les retours/).click()
   const card = win.locator('.feedback-item', { hasText: 'Une idée' })
   await card.locator('textarea').fill('Bonne idée, c’est prévu.')

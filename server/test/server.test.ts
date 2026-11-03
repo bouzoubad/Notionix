@@ -1441,3 +1441,39 @@ describe('appearance kept in the account', () => {
     expect((await api('/api/me/appearance', { token: other })).body).toEqual({ appearance: null })
   })
 })
+
+describe('desktop app update status', () => {
+  const APP_UA = 'Mozilla/5.0 AppleWebKit/537.36 notionix/1.2.1 Chrome/142 Electron/39.8.10'
+  it('is kept on the session and shown to the administrators', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const res = await fetch(running.url + '/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': APP_UA
+      },
+      body: JSON.stringify(ADMIN)
+    })
+    const { token } = (await res.json()) as { token: string }
+    // Every request of the app carries its identity.
+    const put = await api('/api/me/app', {
+      method: 'PUT',
+      token,
+      headers: { 'User-Agent': APP_UA },
+      json: { update: { status: 'ready', version: '1.2.2' } }
+    })
+    expect(put.status).toBe(200)
+    const users = (await api('/api/users', { token: admin })).body.users as {
+      email: string
+      clients: { client: string; update?: { status: string; version?: string } }[]
+    }[]
+    const me = users.find((u) => u.email === ADMIN.email)!
+    expect(me.clients.find((c) => c.client === 'desktop:1.2.1')?.update).toMatchObject({
+      status: 'ready',
+      version: '1.2.2'
+    })
+    expect(
+      (await api('/api/me/app', { method: 'PUT', token, json: { update: { status: '?' } } })).status
+    ).toBe(400)
+  })
+})

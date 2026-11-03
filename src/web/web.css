@@ -586,3 +586,17 @@
 .client-seen small {
   font-size: 11px;
 }
+
+/* A field to fill in, said next to it */
+.field-error {
+  color: var(--nx-red);
+  font-size: 12px;
+}
+input.invalid,
+textarea.invalid {
+  border-color: var(--nx-red) !important;
+}
+.client-seen.failed {
+  background: var(--nx-red-bg);
+  color: var(--nx-red);
+}

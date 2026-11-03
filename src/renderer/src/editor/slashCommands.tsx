@@ -171,6 +171,18 @@ export const SLASH_ITEMS: SlashItem[] = [
     }
   },
   {
+    title: t('Émoji'),
+    hint: t('Choisir un émoji (ou « : » suivi d’un nom)'),
+    keywords: ['emoji', 'emoticone', 'smiley', 'icone', 'icon', 'emote'],
+    run: (e, r) => {
+      chain(e, r).run()
+      const at = e.view.coordsAtPos(e.state.selection.from)
+      window.dispatchEvent(
+        new CustomEvent('notionix:emoji-picker', { detail: { left: at.left, top: at.bottom } })
+      )
+    }
+  },
+  {
     title: t('Séparateur'),
     hint: t('Ligne horizontale'),
     keywords: ['divider', 'hr', 'separateur', 'separator', 'line'],
@@ -376,6 +388,8 @@ export function createMenuController(): ReturnType<
     },
     onKeyDown: ({ event }) => {
       if (!latest) return false
+      // Nothing to choose: the keys keep their usual effect (Enter makes a new line).
+      if (latest.items.length === 0 && event.key !== 'Escape') return false
       const n = Math.max(latest.items.length, 1)
       if (event.key === 'ArrowDown') {
         selected = (selected + 1) % n

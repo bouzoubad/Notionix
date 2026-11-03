@@ -1,3 +1,4 @@
+import { TURN_TARGETS, selectionBlock, selectionToInlineEquation, turnBlockInto } from './turnInto'
 import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
@@ -42,6 +43,7 @@ const TABLE_MENU_OPTIONS = { placement: 'top-start' } as const
 export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
   const [linking, setLinking] = useState(false)
   const [coloring, setColoring] = useState(false)
+  const [turning, setTurning] = useState(false)
   // Cmd+K on selected text: add or change its link.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -65,6 +67,8 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
       strike: e.isActive('strike'),
       code: e.isActive('code'),
       link: e.isActive('link') ? String(e.getAttributes('link').href ?? '') : null,
+      // The kind of the line selected, for « Transformer en ».
+      block: selectionBlock(e),
       // Locking or sharing the page changes which buttons are shown.
       editable: e.isEditable
     })
@@ -122,6 +126,44 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
             button(t('💬 Commenter'), t('Commenter la sélection'), false, () =>
               startComment(editor)
             )}
+          {state.editable && state.block && (
+            <span className="bubble-turn">
+              {button(
+                `${TURN_TARGETS.find((x) => x.name === state.block!.kind)?.label ?? t('Texte')} ▾`,
+                t('Transformer en'),
+                turning,
+                () => {
+                  setTurning(!turning)
+                  setColoring(false)
+                }
+              )}
+              {turning && (
+                <div className="bubble-turn-menu" onMouseDown={(e) => e.preventDefault()}>
+                  <span className="palette-title">{t('Transformer en')}</span>
+                  {TURN_TARGETS.map((target) => (
+                    <button
+                      key={target.name}
+                      className={target.name === state.block!.kind ? 'active' : ''}
+                      onClick={() => {
+                        setTurning(false)
+                        turnBlockInto(editor, state.block!.pos, target)
+                      }}
+                    >
+                      {target.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setTurning(false)
+                      selectionToInlineEquation(editor)
+                    }}
+                  >
+                    {t('Équation dans le texte (la sélection)')}
+                  </button>
+                </div>
+              )}
+            </span>
+          )}
           {state.editable && (
             <>
               {button('B', t('Gras (⌘B)'), state.bold, () =>
@@ -141,7 +183,10 @@ export function TextBubbleMenu({ editor }: { editor: Editor }): React.JSX.Elemen
                 setHref(state.link ?? '')
                 setLinking(true)
               })}
-              {button('A▾', t('Couleur'), coloring, () => setColoring(!coloring))}
+              {button('A▾', t('Couleur'), coloring, () => {
+                setColoring(!coloring)
+                setTurning(false)
+              })}
               {coloring && <ColorPalette editor={editor} onDone={() => setColoring(false)} />}
             </>
           )}

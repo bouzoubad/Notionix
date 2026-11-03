@@ -115,7 +115,7 @@ assert.equal(
 await win.locator('.page').hover()
 await win.getByRole('button', { name: 'Ajouter une icône' }).click()
 await win.locator('.page-icon').click()
-await win.locator('.emoji-grid button', { hasText: '🚀' }).click()
+await win.locator('.icon-picker').getByRole('button', { name: 'fusée', exact: true }).click()
 assert.equal(await win.locator('.page-icon').innerText(), '🚀')
 await win.locator('.page').hover()
 await win.getByRole('button', { name: 'Ajouter une couverture' }).click()

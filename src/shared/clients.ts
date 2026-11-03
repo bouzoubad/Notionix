@@ -25,6 +25,38 @@ export interface ClientSeen {
   /** clientOf() */
   client: string
   seenAt: number
+  /** Desktop app (1.2.1 on): where its own update is, as it last said */
+  update?: AppUpdateReport | null
+}
+
+/** What a desktop app says of its update (Comptes de l'équipe shows it). */
+export interface AppUpdateReport {
+  status: 'idle' | 'downloading' | 'ready' | 'error' | 'unsupported'
+  /** The version being downloaded or ready */
+  version?: string
+  percent?: number
+  message?: string
+  at: number
+}
+
+/** A report from an app, made safe (short strings, known statuses). */
+export function parseUpdateReport(raw: unknown, at: number): AppUpdateReport | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const statuses = ['idle', 'downloading', 'ready', 'error', 'unsupported'] as const
+  const status = statuses.find((s) => s === r.status)
+  if (!status) return null
+  const version =
+    typeof r.version === 'string' && /^\d+\.\d+\.\d+$/.test(r.version) ? r.version : undefined
+  return {
+    status,
+    ...(version ? { version } : {}),
+    ...(typeof r.percent === 'number'
+      ? { percent: Math.max(0, Math.min(100, Math.round(r.percent))) }
+      : {}),
+    ...(typeof r.message === 'string' ? { message: r.message.slice(0, 300) } : {}),
+    at
+  }
 }
 
 /** The desktop app version of a client, or null. */

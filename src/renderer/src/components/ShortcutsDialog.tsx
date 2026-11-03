@@ -55,6 +55,7 @@ const GROUPS: [string, [string, string][]][] = [
       [t('Menu des blocs'), '/'],
       [t('Mention, date, rappel'), '@'],
       [t('Lien vers une page'), '[['],
+      [t('Émoji'), t(':nom  (ex. :coeur, :rocket)  ou  /emoji')],
       [t('Titres'), t('#, ##, ###  + espace')],
       [t('Puces, numéros, tâche'), t('- ou *,  1.,  [] + espace')],
       [t('Toggle, citation'), t('>,  "  + espace')],

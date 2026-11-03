@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   FEEDBACK_STATUS_LABELS,
   type Feedback,
@@ -93,9 +93,17 @@ function SendForm({ onSent }: { onSent: () => Promise<void> }): React.JSX.Elemen
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [titleMissing, setTitleMissing] = useState(false)
+  const titleInput = useRef<HTMLInputElement>(null)
 
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
+    // The title is what the list shows: said, not just refused.
+    if (!title.trim()) {
+      setTitleMissing(true)
+      titleInput.current?.focus()
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -135,16 +143,27 @@ function SendForm({ onSent }: { onSent: () => Promise<void> }): React.JSX.Elemen
         </label>
       </div>
       <label>
-        {t('Titre')}
+        {t('Titre (obligatoire)')}
         <input
-          required
+          ref={titleInput}
           maxLength={200}
+          aria-invalid={titleMissing}
+          aria-describedby={titleMissing ? 'feedback-title-missing' : undefined}
+          className={titleMissing ? 'invalid' : undefined}
           placeholder={
             kind === 'bug' ? t('Ex. : la recherche ne trouve pas…') : t('Ex. : pouvoir trier par…')
           }
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value)
+            if (e.target.value.trim()) setTitleMissing(false)
+          }}
         />
+        {titleMissing && (
+          <span id="feedback-title-missing" className="field-error" role="alert">
+            {t('Donnez un titre à votre retour : c’est ce qui s’affiche dans la liste.')}
+          </span>
+        )}
       </label>
       <label>
         {kind === 'bug'
@@ -164,7 +183,7 @@ function SendForm({ onSent }: { onSent: () => Promise<void> }): React.JSX.Elemen
         {t('La page ouverte et le navigateur utilisé sont joints automatiquement.')}
       </p>
       {error && <p className="error">{error}</p>}
-      <button className="primary" type="submit" disabled={busy || !title.trim()}>
+      <button className="primary" type="submit" disabled={busy}>
         {busy ? t('Envoi…') : t('Envoyer')}
       </button>
     </form>

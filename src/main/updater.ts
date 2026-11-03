@@ -2,8 +2,9 @@ import { app, type IpcMain, type WebContents } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { UpdateState } from '../shared/desktop'
 
-/** How often the linked server is asked for a newer app. */
-const EVERY_MS = 4 * 60 * 60 * 1000
+/** How often the linked server is asked for a newer app, and again when the app comes back to the front. */
+const EVERY_MS = 60 * 60 * 1000
+const ON_FOCUS_AFTER_MS = 30 * 60 * 1000
 
 /**
  * Updates of the desktop app from the linked Notionix server (its
@@ -55,9 +56,11 @@ export function registerUpdates(
   })
 
   let checking: Promise<unknown> | null = null
+  let lastCheck = 0
   const check = async (): Promise<UpdateState> => {
     const url = serverUrl()
     if (!url || state.status === 'ready' || state.status === 'downloading') return state
+    lastCheck = Date.now()
     autoUpdater.setFeedURL({ provider: 'generic', url: `${url}/download` })
     checking ??= autoUpdater
       .checkForUpdates()
@@ -68,4 +71,7 @@ export function registerUpdates(
   }
   ipc.handle('updates:check', () => check())
   setInterval(() => void check(), EVERY_MS).unref()
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastCheck > ON_FOCUS_AFTER_MS) void check()
+  })
 }

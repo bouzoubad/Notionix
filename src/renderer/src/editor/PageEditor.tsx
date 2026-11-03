@@ -7,6 +7,9 @@ import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editor
 import { pageHash, useStore } from '../store'
 import { SlashCommands } from './slashCommands'
 import { InteractiveMention, MentionSuggestion, PageLinkSuggestion } from './mentions'
+import { EmojiSuggestion } from './emojiSuggestion'
+import { SideOutline } from './SideOutline'
+import { EmojiPicker } from '../components/EmojiPicker'
 import { NotionShortcuts } from './shortcuts'
 import { FileHandler } from '@tiptap/extension-file-handler'
 import { InteractiveCallout } from './CalloutView'
@@ -180,6 +183,7 @@ function LoadedEditor({
       SlashCommands,
       MentionSuggestion,
       PageLinkSuggestion,
+      EmojiSuggestion,
       NotionShortcuts
     ],
     editorProps: {
@@ -217,6 +221,14 @@ function LoadedEditor({
   useEffect(() => {
     if (editor && editor.isEditable !== editable) editor.setEditable(editable)
   }, [editor, editable])
+  // « /emoji »: the picker at the caret; the emoji goes where the command was typed.
+  const [emojiAt, setEmojiAt] = useState<{ left: number; top: number } | null>(null)
+  useEffect(() => {
+    const onPicker = (e: Event): void =>
+      setEmojiAt((e as CustomEvent<{ left: number; top: number }>).detail)
+    window.addEventListener('notionix:emoji-picker', onPicker)
+    return () => window.removeEventListener('notionix:emoji-picker', onPicker)
+  }, [])
   useEffect(() => {
     const onInsert = (e: Event): void => editMath((e as CustomEvent<boolean>).detail, '', null)
     window.addEventListener('notionix:insert-math', onInsert)
@@ -255,6 +267,33 @@ function LoadedEditor({
         <EditorContent editor={editor} className="editor" />
         {editor && <TextBubbleMenu editor={editor} />}
         {editor && <BlockMenu editor={editor} />}
+        {editor && <SideOutline editor={editor} />}
+        {editor && emojiAt && (
+          <div
+            className="emoji-popover"
+            style={{
+              left: Math.min(emojiAt.left, window.innerWidth - 360),
+              top: Math.min(emojiAt.top + 6, window.innerHeight - 380)
+            }}
+          >
+            <div className="emoji-popover-backdrop" onMouseDown={() => setEmojiAt(null)} />
+            <div
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setEmojiAt(null)
+                  editor.commands.focus()
+                }
+              }}
+            >
+              <EmojiPicker
+                onPick={(emoji) => {
+                  setEmojiAt(null)
+                  editor.chain().focus().insertContent(emoji).run()
+                }}
+              />
+            </div>
+          </div>
+        )}
         {commentsOpen && summary && <CommentsPanel page={summary} editor={editor} />}
         {editor && <TableBubbleMenu editor={editor} />}
       </div>

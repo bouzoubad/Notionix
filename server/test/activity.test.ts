@@ -45,7 +45,7 @@ describe('what a session is used from', () => {
         userId: user.id,
         count: 1,
         lastAt: now,
-        clients: [{ client: 'desktop:1.1.5', seenAt: now }]
+        clients: [{ client: 'desktop:1.1.5', seenAt: now, update: null }]
       }
     ])
     // The next morning, the same session (the app stays signed in).
@@ -59,6 +59,6 @@ describe('what a session is used from', () => {
     accounts.authenticate(token, 'desktop:1.1.6')
     const [s] = accounts.sessionsByUser()
     expect(s.lastAt).toBe(morning + 50_000)
-    expect(s.clients).toEqual([{ client: 'desktop:1.1.6', seenAt: morning + 50_000 }])
+    expect(s.clients).toEqual([{ client: 'desktop:1.1.6', seenAt: morning + 50_000, update: null }])
   })
 })

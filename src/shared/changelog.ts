@@ -21,6 +21,39 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-03-emojis-transformer-plan',
+    date: '2026-11-03',
+    title: 'Émojis, « Transformer en » et plan de la page',
+    summary:
+      'Émojis avec « : » et /emoji, « Transformer en » depuis une sélection, plan de la page sur le côté (comme Notion), et la touche Entrée corrigée.',
+    desktop: '1.2.1',
+    body: `**Pour qui :** tout le monde (merci Yohan et Solenne pour vos retours).
+
+## Émojis
+
+- Tapez **« : » suivi d'un nom** : \\:coeur, :fusée, :rire, ou en anglais :heart, :rocket, :thumbsup. Choisissez avec les flèches et **Entrée**.
+- Ou **/emoji** : un sélecteur avec une recherche (en français ou en anglais), vos émojis récents et toutes les catégories.
+- L'icône d'une page se choisit avec le même sélecteur (cliquez sur l'icône).
+- Les deux-points d'une phrase ou d'une heure (« Note : », « 10:30 ») restent du texte.
+
+## « Transformer en » depuis une sélection
+
+Sélectionnez un mot (un double-clic suffit) : le premier bouton de la barre qui apparaît indique le type de la ligne (**Texte ▾**) et la transforme en titre, liste, tâche, toggle, citation, callout, code ou **équation**. **Équation dans le texte** fait de la sélection une formule.
+
+## Plan de la page
+
+Sur une page qui a au moins deux titres, de petits traits apparaissent sur le bord droit, un par titre, celui de la section lue en plus foncé. Au survol, ils s'ouvrent en plan cliquable, comme dans Notion.
+
+## Corrigé
+
+- **Entrée ne faisait rien** sur une ligne contenant « [[ » suivi d'un espace (c'est le cas de la page « Bien démarrer ») : la ligne se coupe maintenant normalement.
+- **Retour sans titre** : « Envoyer » explique qu'il faut un titre au lieu de rester grisé.
+
+## Pour les administrateurs
+
+Dans **Comptes de l'équipe**, l'étiquette de l'app de bureau indique où en est sa mise à jour : *téléchargement*, *prête, attend un redémarrage* ou *échec*. L'app vérifie maintenant les mises à jour toutes les heures et quand on revient sur sa fenêtre.`
+  },
+  {
     id: '2026-11-03-activite-et-versions',
     date: '2026-11-03',
     title: 'Administration : dernière activité et version utilisée par chacun',

@@ -29,14 +29,37 @@ export function ClientsSeen({
       {clients.map((c) => {
         const version = desktopVersion(c.client)
         const outdated = version !== null && latest !== null && olderVersion(version, latest)
+        const update = version ? c.update : null
+        // What the app said of its own update, when it is about a newer version.
+        const progress =
+          update?.status === 'ready' && update.version && olderVersion(version!, update.version)
+            ? t('{version} prête, attend un redémarrage', { version: update.version })
+            : update?.status === 'downloading' && update.version
+              ? t('téléchargement de {version} ({percent} %)', {
+                  version: update.version,
+                  percent: update.percent ?? 0
+                })
+              : update?.status === 'error'
+                ? t('échec de la mise à jour')
+                : null
         return (
           <span
             key={c.client}
-            className={`client-seen${outdated ? ' outdated' : ''}`}
-            title={t('Utilisé le {when}', { when: when(c.seenAt) })}
+            className={`client-seen${outdated ? ' outdated' : ''}${update?.status === 'error' ? ' failed' : ''}`}
+            title={[
+              t('Utilisé le {when}', { when: when(c.seenAt) }),
+              update?.message ? `${t('Erreur')} : ${update.message}` : '',
+              update ? t('État de la mise à jour au {when}', { when: when(update.at) }) : ''
+            ]
+              .filter(Boolean)
+              .join('\n')}
           >
             {clientLabel(c.client)}
-            {outdated && <small>{t('à mettre à jour')}</small>}
+            {progress ? (
+              <small>{progress}</small>
+            ) : (
+              outdated && <small>{t('à mettre à jour')}</small>
+            )}
           </span>
         )
       })}

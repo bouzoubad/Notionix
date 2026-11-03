@@ -7,6 +7,7 @@ import {
   type SessionUser
 } from '../shared/collab'
 import { assetNameFromSrc, assetWebPath } from '../shared/assets'
+import { displaySrc, platform } from '../renderer/src/platform'
 import { json } from './http'
 import { webApi } from './api'
 import { locale, t } from '../shared/i18n'
@@ -248,6 +249,7 @@ function FeedbackItem({
     }
   }
   const shot = item.screenshot ? assetNameFromSrc(item.screenshot) : null
+  const [wholeShot, setWholeShot] = useState(false)
   return (
     <article className={`feedback-item status-${item.status}${focused ? ' focused' : ''}`}>
       <header>
@@ -262,10 +264,25 @@ function FeedbackItem({
         {when(item.createdAt)}
       </p>
       {item.body && <p className="feedback-body">{item.body}</p>}
-      {shot && (
+      {shot && item.screenshot && platform().kind === 'web' && (
         <a href={assetWebPath(shot)} target="_blank" rel="noreferrer">
           <img className="feedback-shot" src={assetWebPath(shot)} alt={t('Capture jointe')} />
         </a>
+      )}
+      {shot && item.screenshot && platform().kind !== 'web' && (
+        // Desktop app: the image comes through the app (fetched from the server); a click shows it whole.
+        <button
+          type="button"
+          className="feedback-shot-button"
+          aria-expanded={wholeShot}
+          onClick={() => setWholeShot((w) => !w)}
+        >
+          <img
+            className={`feedback-shot${wholeShot ? ' whole' : ''}`}
+            src={displaySrc(item.screenshot)}
+            alt={t('Capture jointe')}
+          />
+        </button>
       )}
       {admin && Object.keys(item.context).length > 0 && (
         <details className="feedback-context">

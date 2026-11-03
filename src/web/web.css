@@ -307,6 +307,19 @@
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+.feedback-shot.whole {
+  max-height: none;
+}
+.feedback-shot-button {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.feedback-shot-button[aria-expanded='true'] {
+  cursor: zoom-out;
+}
 .feedback-context {
   margin: 6px 0;
   font-size: 12px;

@@ -21,6 +21,23 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-03-captures-feedback-app',
+    date: '2026-11-03',
+    title: 'Correctif : captures d’écran des retours dans l’app de bureau',
+    summary:
+      'Dans l’app de bureau, les captures jointes aux retours (Feedback) s’affichent ; un clic les montre en grand.',
+    desktop: '1.1.5',
+    body: `**Pour qui :** les personnes qui utilisent l'app de bureau.
+
+## Ce qui est corrigé
+
+Dans la fenêtre **Feedback** de l'app de bureau, les captures d'écran jointes aux retours n'apparaissaient pas (image cassée). Elles s'affichent maintenant ; **un clic** sur une capture l'affiche en entier, un second la réduit.
+
+## App de bureau
+
+La version **1.1.5** s'installe toute seule (encart « Redémarrer »).`
+  },
+  {
     id: '2026-11-02-fenetres-app-de-bureau',
     date: '2026-11-02',
     title: 'Correctifs de l’app de bureau : page blanche et fenêtres',

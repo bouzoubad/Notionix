@@ -111,7 +111,9 @@ const MIGRATIONS = [
      id TEXT PRIMARY KEY,
      page_id TEXT NOT NULL,
      at INTEGER NOT NULL
-   );`
+   );`,
+  // Each person's colours (Apparence), JSON (src/shared/appearance.ts).
+  `ALTER TABLE users ADD COLUMN appearance TEXT;`
 ]
 
 export function openDatabase(dataDir: string): DatabaseSync {

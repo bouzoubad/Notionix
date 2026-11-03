@@ -1,3 +1,4 @@
+import type { Appearance } from '../../shared/appearance'
 import type { ComponentType } from 'react'
 import type { Extensions } from '@tiptap/core'
 import type { SessionUser, WorkspaceInfo } from '../../shared/collab'
@@ -68,6 +69,11 @@ export interface Platform {
   signInAgain?: boolean
   /** Notices of the platform shown with the release notes (desktop app: a new version) */
   Notices?: ComponentType
+  /** The person's colours (Apparence) kept in their account; absent: on this device only */
+  appearance?: {
+    load: () => Promise<Appearance | null>
+    save: (appearance: Appearance) => Promise<void>
+  }
 }
 
 let current: Platform = { kind: 'desktop', session: null }

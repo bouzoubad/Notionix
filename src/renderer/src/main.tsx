@@ -3,9 +3,12 @@ import './assets/main.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { setPlatform } from './platform'
+import { applyAppearance, storedAppearance } from './appearance'
 
 // This computer's pages; replaced by both places when the app is linked to a server.
 window.api = window.desktop!.api
+// The colours chosen last, before anything shows.
+applyAppearance(storedAppearance())
 
 /** The desktop app: on this computer only, or linked to a Notionix server. */
 async function start(): Promise<void> {

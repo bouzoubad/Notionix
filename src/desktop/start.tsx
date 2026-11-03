@@ -12,6 +12,8 @@ import { FeedbackDialog } from '../web/FeedbackDialog'
 import { combineApis, type CombinedApi } from './combinedApi'
 import { ConnectDialog } from './ConnectDialog'
 import { UpdateNotice } from './UpdateNotice'
+import { accountAppearance } from '../web/accountAppearance'
+import { loadAccountAppearance } from '../renderer/src/appearance'
 import { forgetKeptDocuments, keepDocuments } from './offline'
 import { OfflineQueue } from './offlineQueue'
 import { sendLocalPages, type ServerTarget } from './sendToServer'
@@ -104,8 +106,10 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
     origin: status.url,
     isLocal: api.isLocal,
     ServerConnect: ConnectDialog,
-    Notices: UpdateNotice
+    Notices: UpdateNotice,
+    appearance: accountAppearance
   })
+  void loadAccountAppearance()
   // The session ended meanwhile: the app starts again and asks for the password.
   whenSignedOut(() => location.reload())
   watchNetwork(api, user, session.onStatus)

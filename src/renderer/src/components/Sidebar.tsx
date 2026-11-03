@@ -1,3 +1,4 @@
+import { AppearanceSettings } from './AppearanceSettings'
 import { useEffect, useRef, useState } from 'react'
 import { childrenOf, pageHash, useStore } from '../store'
 import { Logo } from './Logo'
@@ -78,6 +79,7 @@ export function Sidebar(): React.JSX.Element {
   const [drop, setDrop] = useState<DropTarget>(null)
   const move = useStore((s) => s.move)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [appearanceOpen, setAppearanceOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const unread = useStore((s) => s.inboxUnread)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
@@ -226,6 +228,20 @@ export function Sidebar(): React.JSX.Element {
           </button>
         )}
         {!session && Connect && connectOpen && <Connect onClose={() => setConnectOpen(false)} />}
+        {!session && <button onClick={() => setAppearanceOpen(true)}>{t('Apparence')}</button>}
+        {!session && appearanceOpen && (
+          <div className="overlay" onMouseDown={() => setAppearanceOpen(false)}>
+            <div
+              className="dialog appearance"
+              role="dialog"
+              aria-label={t('Apparence')}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <h3>{t('Apparence')}</h3>
+              <AppearanceSettings />
+            </div>
+          </div>
+        )}
         <select
           className="language-select"
           style={{ alignSelf: 'flex-start', margin: '4px 10px', fontSize: 12 }}

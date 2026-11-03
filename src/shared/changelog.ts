@@ -21,6 +21,28 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-03-apparence-code-rouge',
+    date: '2026-11-03',
+    title: 'Code en rouge et apparence personnalisable',
+    summary:
+      'Le code dans le texte s’affiche en rouge, comme dans Notion ; dans Paramètres > Apparence, choisissez un thème et la couleur de chaque élément.',
+    desktop: '1.2.0',
+    body: `**Pour qui :** tout le monde (merci Solenne pour l'idée).
+
+## Le code en rouge
+
+Ce qui est écrit comme du code dans une phrase (écrit entre deux accents graves) s'affiche maintenant **en rouge**, en mode clair comme en mode sombre, comme dans Notion : il se repère d'un coup d'œil.
+
+## Paramètres > Apparence
+
+- **Mode** : Système, Clair ou Sombre (le raccourci ⌘⇧L bascule toujours de l'un à l'autre).
+- **Thème** : un jeu de couleurs complet pour les deux modes, comme dans les éditeurs de code : *Notionix* (par défaut), *Classique* (le code sans couleur, comme avant), *Contraste élevé*, *Sépia*, *Nord*, *Solarized*.
+- **Couleurs** : la couleur de chaque élément (fond, texte, titres, liens, accent, code, blocs de code, citations), réglable pour le mode affiché, avec un aperçu. **Par défaut** rend la couleur du thème ; **Tout réinitialiser** revient à Notionix.
+- Vos choix sont **enregistrés dans votre compte** : ils vous suivent dans le navigateur et dans l'app de bureau, sur tous vos appareils.
+
+Dans l'app de bureau, il faut la **version 1.2** (elle s'installe toute seule). Sans compte (app non reliée), **Apparence** est en bas de la barre latérale.`
+  },
+  {
     id: '2026-11-03-captures-feedback-app',
     date: '2026-11-03',
     title: 'Correctif : captures d’écran des retours dans l’app de bureau',

@@ -9,6 +9,8 @@
   --border: rgba(55, 53, 47, 0.12);
   --accent: #2383e2;
   --code-bg: rgba(135, 131, 120, 0.15);
+  /* Code within text: red, as in Notion (Apparence: other themes, own colours) */
+  --code-text: #eb5757;
   --mark: rgba(255, 212, 0, 0.35);
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(15, 15, 15, 0.06);
   --nx-gray: #787774;
@@ -41,6 +43,7 @@
     --text-muted: rgba(255, 255, 255, 0.5);
     --border: rgba(255, 255, 255, 0.12);
     --code-bg: rgba(255, 255, 255, 0.1);
+    --code-text: #ff7369;
     --shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
     --nx-gray: #9b9b9b;
     --nx-brown: #ba856f;
@@ -72,6 +75,7 @@
   --text-muted: rgba(255, 255, 255, 0.5);
   --border: rgba(255, 255, 255, 0.12);
   --code-bg: rgba(255, 255, 255, 0.1);
+  --code-text: #ff7369;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
   --nx-gray: #9b9b9b;
   --nx-brown: #ba856f;
@@ -484,6 +488,11 @@ main {
   margin: 0;
   padding: 3px 2px;
 }
+.editor h1,
+.editor h2,
+.editor h3 {
+  color: var(--heading, inherit);
+}
 .editor h1 {
   font-size: 1.875em;
   font-weight: 700;
@@ -533,7 +542,7 @@ main {
 .editor blockquote {
   margin: 4px 0;
   padding: 0 14px;
-  border-left: 3px solid currentColor;
+  border-left: 3px solid var(--quote, currentColor);
 }
 .editor hr {
   border: 0;
@@ -541,6 +550,7 @@ main {
   margin: 12px 0;
 }
 .editor code {
+  color: var(--code-text);
   background: var(--code-bg);
   border-radius: 4px;
   padding: 0.2em 0.4em;
@@ -548,19 +558,20 @@ main {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .editor pre {
-  background: var(--bg-sidebar);
+  background: var(--code-block-bg, var(--bg-sidebar));
   border-radius: 6px;
   padding: 24px 28px;
   margin: 4px 0;
   overflow-x: auto;
 }
 .editor pre code {
+  color: inherit;
   background: none;
   padding: 0;
   font-size: 14px;
 }
 .editor a {
-  color: inherit;
+  color: var(--link, inherit);
   text-decoration: underline;
   text-decoration-color: var(--text-muted);
   cursor: pointer;
@@ -4092,4 +4103,148 @@ main:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Apparence: mode, theme and colours of each element */
+.dialog.appearance {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 80vh;
+  margin-top: -6vh;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+.dialog.appearance h3 {
+  margin: 0 0 12px;
+}
+.appearance-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-size: 14px;
+}
+.appearance-settings h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.appearance-modes {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.appearance-modes button {
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.appearance-modes button.active {
+  background: var(--bg-active);
+  font-weight: 600;
+}
+.appearance-themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.appearance-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.appearance-theme.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.appearance-swatch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-weight: 600;
+}
+.appearance-swatch code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.appearance-swatch i {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.appearance-colors {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+.appearance-color {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 5px;
+}
+.appearance-color:hover {
+  background: var(--bg-hover);
+}
+.appearance-color > span:first-child {
+  flex: 1;
+}
+.appearance-color input[type='color'] {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.appearance-color button,
+.appearance-actions button {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.appearance-default {
+  min-width: 70px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.appearance-preview {
+  padding: 4px 14px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.appearance-preview h3 {
+  margin-top: 0.4em;
+}
+.appearance-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }

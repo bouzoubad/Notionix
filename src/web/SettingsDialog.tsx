@@ -4,6 +4,7 @@ import { json } from './http'
 import { Groups, Workspaces } from './TeamSettings'
 import { KeeperShare, type SignInKey } from './KeeperShare'
 import { useMacDownload } from './downloads'
+import { AppearanceSettings } from '../renderer/src/components/AppearanceSettings'
 import { AdminDashboard } from './AdminDashboard'
 import { locale, t } from '../shared/i18n'
 
@@ -34,7 +35,7 @@ export function SettingsDialog({
   onClose: () => void
 }): React.JSX.Element {
   const [tab, setTab] = useState<
-    'me' | 'dashboard' | 'accounts' | 'groups' | 'workspaces' | 'tokens'
+    'me' | 'appearance' | 'dashboard' | 'accounts' | 'groups' | 'workspaces' | 'tokens'
   >(user.role === 'admin' ? 'dashboard' : 'me')
   return (
     <div className="overlay" onMouseDown={onClose}>
@@ -73,6 +74,12 @@ export function SettingsDialog({
           <button className={tab === 'me' ? 'active' : ''} onClick={() => setTab('me')}>
             {t('Mon compte')}
           </button>
+          <button
+            className={tab === 'appearance' ? 'active' : ''}
+            onClick={() => setTab('appearance')}
+          >
+            {t('Apparence')}
+          </button>
           <button className={tab === 'tokens' ? 'active' : ''} onClick={() => setTab('tokens')}>
             {t('Jetons d’API')}
           </button>
@@ -88,6 +95,8 @@ export function SettingsDialog({
             <Workspaces />
           ) : tab === 'tokens' ? (
             <Tokens />
+          ) : tab === 'appearance' ? (
+            <AppearanceSettings />
           ) : (
             <MyAccount user={user} />
           )}

@@ -37,6 +37,7 @@ interface State {
   /** Forced theme, or the system's */
   theme: 'system' | 'light' | 'dark'
   toggleTheme: () => void
+  setTheme: (theme: 'system' | 'light' | 'dark') => void
   /** Page chooser (link-to-page block…) */
   pagePicker: { title: string; onPick: (id: PageId) => void; kind?: 'database' } | null
   pickPage: (title: string, onPick: (id: PageId) => void, kind?: 'database') => void
@@ -293,6 +294,10 @@ export const useStore = create<State>((set, get) => ({
           : 'light'
         : get().theme
     const theme = shown === 'dark' ? 'light' : 'dark'
+    applyTheme(theme)
+    set({ theme })
+  },
+  setTheme: (theme) => {
     applyTheme(theme)
     set({ theme })
   },

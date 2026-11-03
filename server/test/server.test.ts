@@ -1420,3 +1420,24 @@ describe('the web client session', () => {
     again.destroy()
   })
 })
+
+describe('appearance kept in the account', () => {
+  it('follows the person, safe colours only', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const other = await createUser(admin, 'autre@example.com', 'editor')
+    expect((await api('/api/me/appearance', { token: admin })).body).toEqual({ appearance: null })
+    const saved = await api('/api/me/appearance', {
+      method: 'PUT',
+      token: admin,
+      json: {
+        appearance: { theme: 'nord', custom: { dark: { 'code-text': '#ff0000', text: 'red;}' } } }
+      }
+    })
+    expect(saved.status).toBe(200)
+    expect((await api('/api/me/appearance', { token: admin })).body).toEqual({
+      appearance: { theme: 'nord', custom: { light: {}, dark: { 'code-text': '#ff0000' } } }
+    })
+    // Another person keeps theirs.
+    expect((await api('/api/me/appearance', { token: other })).body).toEqual({ appearance: null })
+  })
+})

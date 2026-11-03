@@ -14,6 +14,15 @@ import { Login } from './Login'
 import { t } from '../shared/i18n'
 import { SettingsDialog } from './SettingsDialog'
 import { FeedbackDialog } from './FeedbackDialog'
+import { accountAppearance } from './accountAppearance'
+import {
+  applyAppearance,
+  loadAccountAppearance,
+  storedAppearance
+} from '../renderer/src/appearance'
+
+// The colours chosen last on this device, before anything shows.
+applyAppearance(storedAppearance())
 
 const root = createRoot(document.getElementById('root')!)
 
@@ -52,8 +61,10 @@ async function startApp(user: SessionUser): Promise<void> {
         return name ? assetWebPath(name) : src
       },
       stored: assetSrcFromWebPath
-    }
+    },
+    appearance: accountAppearance
   })
+  void loadAccountAppearance()
   whenSignedOut(() => location.reload())
   const { default: App } = await import('../renderer/src/App')
   root.render(

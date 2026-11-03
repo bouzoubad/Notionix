@@ -6,6 +6,7 @@ import web from './web'
 import main from './main'
 import server from './server'
 import desktop from './desktop'
+import appearance from './appearance'
 
 /** English, keyed by the French source texts (see ../../i18n.ts). */
 const en: Record<string, string> = {
@@ -16,6 +17,7 @@ const en: Record<string, string> = {
   ...web,
   ...main,
   ...server,
-  ...desktop
+  ...desktop,
+  ...appearance
 }
 export default en

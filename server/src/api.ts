@@ -36,6 +36,7 @@ import {
 } from '../../src/shared/collab'
 import { inLanguage } from '../../src/shared/i18n'
 import type { GitMirror } from './mirror'
+import { parseAppearance } from '../../src/shared/appearance'
 
 export const SERVER_VERSION = '0.2.0'
 const MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -375,6 +376,28 @@ export function createApi({
         send(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(req, '', 0) })
       } else if (path === '/api/me' && method === 'GET') {
         send(res, 200, { user: requireUser(req) })
+      } else if (path === '/api/me/appearance' && (method === 'GET' || method === 'PUT')) {
+        // The person's colours, the same on all their devices.
+        const user = requireUser(req)
+        if (method === 'GET') {
+          const row = accounts.db
+            .prepare('SELECT appearance FROM users WHERE id = ?')
+            .get(user.id) as { appearance: string | null } | undefined
+          let appearance: unknown = null
+          try {
+            appearance = row?.appearance ? parseAppearance(JSON.parse(row.appearance)) : null
+          } catch {
+            appearance = null
+          }
+          send(res, 200, { appearance })
+        } else {
+          const body = await readJson(req)
+          const appearance = parseAppearance(body.appearance)
+          accounts.db
+            .prepare('UPDATE users SET appearance = ? WHERE id = ?')
+            .run(JSON.stringify(appearance), user.id)
+          send(res, 200, { appearance })
+        }
       } else if (path === '/api/me/password' && method === 'POST') {
         const user = requireUser(req)
         const body = await readJson(req)

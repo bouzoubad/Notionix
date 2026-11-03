@@ -14,9 +14,15 @@ rm -f "$file" "$zip" dist/latest-mac.yml
 npm run build:mac
 test -f "$file" && test -f "$zip" && test -f dist/latest-mac.yml
 ssh "$host" "mkdir -p '$repo/server/downloads'"
-# The feed last: an app never sees a version whose zip is not there yet.
-scp "$file" "$zip" "$host:$repo/server/downloads/"
-scp dist/latest-mac.yml "$host:$repo/server/downloads/"
+# Sent under a temporary name, then renamed: nobody downloads a file half sent
+# (the server offers the newest dmg). The feed last: an app never sees a
+# version whose zip is not there yet.
+dir="$repo/server/downloads"
+for f in "$file" "$zip" dist/latest-mac.yml; do
+  name=$(basename "$f")
+  scp "$f" "$host:$dir/$name.part"
+  ssh "$host" "mv '$dir/$name.part' '$dir/$name'"
+done
 # Only the latest is kept (disk space).
 ssh "$host" "cd '$repo/server/downloads' && ls notionix-* | grep -vx -e 'notionix-$version-universal.dmg' -e 'notionix-$version-universal-mac.zip' | xargs rm -f"
 echo "Publié : $(basename "$file") et la mise à jour automatique sur $host"

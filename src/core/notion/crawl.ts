@@ -36,6 +36,8 @@ export interface PageSnapshot {
   page: NotionPage
   blocks: NotionBlock[]
   comments: NotionComment[]
+  /** Comments on its blocks were read too */
+  blockComments?: boolean
 }
 
 export interface DataSourceSnapshot {
@@ -193,6 +195,28 @@ export async function crawlNotion(
   }
   await files.save()
   await writeJson(join(dir, 'index.json'), index)
+  if (options.blockComments) {
+    // Comments on blocks: one request per block, for the pages read earlier without them.
+    const ids = Object.keys(index.pages)
+    let k = 0
+    for (const id of ids) {
+      k += 1
+      const path = objectPath(dir, id)
+      const snapshot = await readJson<PageSnapshot>(path)
+      if (!snapshot || snapshot.kind !== 'page' || snapshot.blockComments) continue
+      const known = new Set(snapshot.comments.map((c) => c.id))
+      for (const blockId of blockIdsOf(snapshot.blocks)) {
+        for (const c of await commentsOf(client, blockId)) {
+          if (known.has(c.id)) continue
+          known.add(c.id)
+          snapshot.comments.push(c)
+        }
+      }
+      snapshot.blockComments = true
+      await writeJson(path, snapshot)
+      if (k % 50 === 0 || k === ids.length) log(`commentaires : page ${k}/${ids.length}`)
+    }
+  }
   log(`Terminé : ${client.requests} requête(s) à Notion, ${index.errors.length} erreur(s).`)
   return index
 }
@@ -271,7 +295,6 @@ async function fetchPage(
     warn(listed.id, 'page illisible seule, reprise telle que listée par sa base')
   }
   await rowFiles(client, page, files)
-  const blockIds: string[] = []
   const children = async (id: string, depth: number): Promise<NotionBlock[]> => {
     let blocks: NotionBlock[]
     try {
@@ -283,7 +306,6 @@ async function fetchPage(
       return []
     }
     for (const block of blocks) {
-      blockIds.push(block.id)
       await blockFiles(block, files)
       // Sub-pages and databases are fetched on their own.
       if (
@@ -297,24 +319,42 @@ async function fetchPage(
     return blocks
   }
   const blocks = await children(page.id, 0)
-  const comments: NotionComment[] = []
-  const commentsOf = async (id: string): Promise<void> => {
-    try {
-      comments.push(...(await client.all<NotionComment>('GET', `/comments?block_id=${id}`)))
-    } catch (e) {
-      // Comments Notion will not give (no capability, page it does not open for this): the page goes without.
-      if (!(e instanceof NotionApiError) || e.status >= 500 || e.status === 429) throw e
-    }
-  }
-  await commentsOf(page.id)
-  if (blockComments) for (const id of blockIds) await commentsOf(id)
+  const comments: NotionComment[] = [...(await commentsOf(client, page.id))]
+  if (blockComments)
+    for (const id of blockIdsOf(blocks)) comments.push(...(await commentsOf(client, id)))
   const seen = new Set<string>()
   return {
     kind: 'page',
     page,
     blocks,
-    comments: comments.filter((c) => !seen.has(c.id) && seen.add(c.id))
+    comments: comments.filter((c) => !seen.has(c.id) && seen.add(c.id)),
+    blockComments
   }
+}
+
+/** Unresolved comments of a page or block; none when Notion will not give them. */
+async function commentsOf(client: NotionClient, id: string): Promise<NotionComment[]> {
+  try {
+    return await client.all<NotionComment>('GET', `/comments?block_id=${id}`)
+  } catch (e) {
+    // No capability, or a block Notion does not open for this: the page goes without.
+    if (!(e instanceof NotionApiError) || e.status >= 500 || e.status === 429) throw e
+    return []
+  }
+}
+
+/** Ids of the blocks of a page that can be commented (sub-pages have their own comments). */
+function blockIdsOf(blocks: NotionBlock[]): string[] {
+  const out: string[] = []
+  const walk = (list: NotionBlock[]): void => {
+    for (const b of list) {
+      if (b.type === 'child_page' || b.type === 'child_database') continue
+      out.push(b.id)
+      if (b.children) walk(b.children)
+    }
+  }
+  walk(blocks)
+  return out
 }
 
 async function blockFiles(block: NotionBlock, files: FileStore): Promise<void> {

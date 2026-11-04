@@ -47,6 +47,12 @@ export interface MigrateOptions {
   timeZone?: string
   /** E-mail of the account the pages of no teamspace belong to (default: the token's creator) */
   owner?: string | null
+  /**
+   * Notion people of this e-mail domain without an account get one, disabled
+   * (no sign-in until an administrator activates it), so that their pages,
+   * mentions and « Person » values keep them
+   */
+  createAccountsFor?: string | null
 }
 
 interface TeamspacesFile {
@@ -60,11 +66,42 @@ export async function migrateNotion(
   options: MigrateOptions
 ): Promise<{ plan: MigrationPlan; reportFile: string }> {
   const accounts = new Accounts(db, 30)
-  const users = accounts.list().filter((u) => !u.disabled)
   const file: TeamspacesFile = options.teamspacesFile
     ? (JSON.parse(readFileSync(options.teamspacesFile, 'utf8')) as TeamspacesFile)
     : { teamspaces: [] }
   const teamspaces = file.teamspaces
+  // Disabled accounts count: they are people of the team, kept as authors.
+  const users: { id: string; email: string }[] = accounts
+    .list()
+    .map((u) => ({ id: u.id, email: u.email }))
+  const createdAccounts: string[] = []
+  if (options.createAccountsFor) {
+    const domain = `@${options.createAccountsFor.toLowerCase().replace(/^@/, '')}`
+    const fromApi = existsSync(join(options.dir, 'users.json'))
+      ? (JSON.parse(readFileSync(join(options.dir, 'users.json'), 'utf8')) as {
+          name?: string | null
+          person?: { email?: string }
+        }[])
+      : []
+    const people = new Map<string, string>()
+    for (const p of [
+      ...(file.users ?? []).map((u) => ({ email: u.email, name: u.name })),
+      ...fromApi.map((u) => ({ email: u.person?.email ?? null, name: u.name ?? null }))
+    ]) {
+      const email = p.email?.trim().toLowerCase()
+      if (!email?.endsWith(domain) || users.some((u) => u.email === email)) continue
+      people.set(email, p.name?.trim() || email.split('@')[0])
+    }
+    for (const [email, name] of people) {
+      if (options.dryRun) users.push({ id: `a-creer:${email}`, email })
+      else {
+        const user = await accounts.create({ email, name, role: 'editor', password: null })
+        await accounts.update(user.id, { disabled: true })
+        users.push({ id: user.id, email })
+      }
+      createdAccounts.push(`${name} <${email}>`)
+    }
+  }
   // Teamspace logos: links the API never gave, fetched now.
   const logos = teamspaces.map((t) => t.icon ?? '').filter((i) => /^https?:\/\//.test(i))
   if (logos.length) await fetchExtraFiles(options.dir, logos)
@@ -98,7 +135,7 @@ export async function migrateNotion(
     teamspaces,
     notionUsers: file.users,
     owner,
-    accounts: users.map((u) => ({ id: u.id, email: u.email })),
+    accounts: users,
     saveAsset: (workspace, bytes, name) => store(workspace).saveFile(bytes, name),
     timeZone: options.timeZone
   })
@@ -193,6 +230,13 @@ export async function migrateNotion(
     ),
     `- Espace principal : ${plan.nodes.filter((n) => n.workspace === MAIN).length} page(s)`,
     ...(summary.length ? ['', '## Écrit', ...summary.map((s) => `- ${s}`)] : []),
+    ...(createdAccounts.length
+      ? [
+          '',
+          `## Comptes ${options.dryRun ? 'à créer' : 'créés'}, désactivés (${createdAccounts.length}) : à activer par Keeper le moment venu`,
+          ...createdAccounts.map((a) => `- ${a}`)
+        ]
+      : []),
     ...(r.unassigned.length
       ? [
           '',

@@ -675,18 +675,40 @@ describe('Notion migration', () => {
       teamspaces,
       JSON.stringify({
         teamspaces: [{ id: 'team-wiki', name: 'Wiki', icon: null, memberEmails: [], pages: [P1] }],
-        users: [{ id: 'u1', email: 'alice@example.com', name: 'Alice' }]
+        users: [
+          { id: 'u1', email: 'alice@example.com', name: 'Alice' },
+          { id: 'u2', email: 'bob@example.com', name: 'Bob' },
+          { id: 'u3', email: 'eve@elsewhere.org', name: 'Eve' }
+        ]
       })
     )
+    // A trial only lists the accounts it would make.
+    const trial = await migrateNotion(db, dataDir, {
+      dir,
+      teamspacesFile: teamspaces,
+      dryRun: true,
+      replaceImports: false,
+      createAccountsFor: 'example.com'
+    })
+    expect(readFileSync(trial.reportFile, 'utf8')).toContain('Bob <bob@example.com>')
+    const accounts = new Accounts(db, 30)
+    expect(accounts.list().map((u) => u.email)).toEqual(['alice@example.com'])
+
     await migrateNotion(db, dataDir, {
       dir,
       teamspacesFile: teamspaces,
       dryRun: false,
-      replaceImports: false
+      replaceImports: false,
+      createAccountsFor: 'example.com'
     })
     const registry = new Workspaces(db, dataDir)
     const wiki = registry.get(registry.list().find((w) => w.name === 'Wiki')!.id)!
     expect(wiki.pages.get(P1)!.createdBy).toBe(alice)
+    // People of the team's domain get a disabled account and keep their edits; others do not.
+    const bob = accounts.list().find((u) => u.email === 'bob@example.com')!
+    expect(bob).toMatchObject({ disabled: true, name: 'Bob', role: 'editor' })
+    expect(wiki.pages.get(P1)!.updatedBy).toBe(bob.id)
+    expect(accounts.list().some((u) => u.email === 'eve@elsewhere.org')).toBe(false)
   })
 
   it('keeps unknown blocks as text and counts them', async () => {
@@ -715,10 +737,7 @@ describe('Notion migration', () => {
     )
     expect(out[0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'notes' }] })
     expect(JSON.stringify(out[1])).toContain('https://example.com/a.png')
-    expect(notes).toEqual([
-      'Bloc « tab » non pris en charge',
-      'Image non récupérée (lien gardé)'
-    ])
+    expect(notes).toEqual(['Bloc « tab » non pris en charge', 'Image non récupérée (lien gardé)'])
   })
 
   it('refuses a token file that holds no Notion token', async () => {

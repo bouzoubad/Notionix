@@ -51,6 +51,14 @@ Notionix est une réimplémentation originale (aucun code ni asset Notion) : pag
 
 > Validé sur de vrais exports Notion (espace de 85 pages et 10 bases, dates en français, multi-sélections, bases dans les pages, images, tâches, callouts, équations). Pas encore confronté à un vrai export avec relations entre bases, colonnes nombre ou case à cocher, ni toggles : la lecture de ces cas suit le format connu de Notion. `npm run build && node scripts/import-check.mjs export.zip` importe un export dans un profil jetable et affiche le rapport, l'arborescence et les schémas déduits.
 
+**Migration complète d'un espace Notion (serveur, par l'API Notion).** Pour tout reprendre d'un coup, espaces d'équipe compris, avec icônes, logos, couvertures, fichiers, vues, formules, relations, rollups, personnes, commentaires et émojis personnalisés :
+
+1. Dans Notion (propriétaire de l'espace) : _Paramètres > Connexions > Développer ou gérer des intégrations_, nouvelle intégration **interne**, capacités _Lire le contenu_, _Lire les commentaires_, _Lire les informations des utilisateurs (avec e-mail)_ ; onglet _Accès_ : toutes les pages des espaces d'équipe. Copier le secret (`ntn_…`) dans un fichier.
+2. Sur le Mac qui a l'app Notion (après avoir ouvert chaque espace d'équipe dans sa barre latérale) : `python3 scripts/notion-teamspaces.py "<espace Notion>" teamspaces.json` (l'API ne dit pas à quel espace d'équipe appartient une page ; l'app Notion le sait : noms, icônes, membres, pages de premier niveau).
+3. Serveur : `node main.mjs notion-fetch <fichier-jeton> <dossier>` (lit tout dans un dossier, fichiers téléchargés aussitôt, relançable : les pages inchangées ne sont pas relues), puis `node main.mjs notion-migrate <dossier> --teamspaces teamspaces.json --dry-run` (rapport sans rien écrire), puis sans `--dry-run`.
+
+Chaque espace d'équipe devient un espace Notionix (membres retrouvés par e-mail), les pages gardent leurs identifiants Notion (liens, mentions, relations tels quels ; une seconde passe n'ajoute que le nouveau), leurs dates et auteurs ; les pictogrammes Notion deviennent les pictogrammes Lucide les plus proches, les couvertures de la galerie Notion des dégradés (jamais d'image de Notion copiée) ; un fichier d'un type que Notionix ne garde pas (CAO, DICOM…) est rangé dans un `.zip`. Les pages d'un ancien import d'export Notion vont à la corbeille (`--keep-imports` pour les garder). Rapport : `rapport.md` dans le dossier.
+
 **Dans l'autre sens.** « Exporter toutes les pages… » (archive `.zip`) ou « ⋯ > Exporter en Markdown » sur une page (sous-pages incluses) : un fichier `.md` par page, un dossier par page ayant des sous-pages, liens entre pages relatifs. Les bases sont exportées en CSV au format Notion, leurs lignes en pages. Notion sait réimporter ce format (_Importer > Texte & Markdown_, _CSV_). L'import par l'API Notion (jeton d'intégration) pourra venir avec la phase en ligne.
 
 ## Travailler à plusieurs (serveur Notionix)
@@ -151,8 +159,9 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 - Serveur : invitations et mot de passe oublié par e-mail (nécessite un serveur SMTP, mis de côté) ; adaptation mobile et installation sur téléphone (PWA, possible maintenant que le HTTPS est en place).
 - Hors périmètre décidé : intégrations externes (YouTube…), automatisations, IA.
 - Retours restants : aucun des 5 de gamma (2026-11-03) ; à suivre dans Feedback.
-- App de bureau reliée : option « garder toutes les pages d'équipe sur le Mac » (pas seulement ouvertes, favorites et récentes), mise de côté à la demande (2 nov. 2026) ; hors ligne, modifier les bases (lignes, propriétés) et les commentaires de l'équipe, créer une ligne de base ; commentaires des pages écrites hors ligne (pas envoyés avec elles) ; signature Developer ID + notarisation Apple (compte Apple Developer) pour supprimer « Ouvrir quand même » à la première installation ; version Windows de l'app. Miroir git : miroir local des pages privées de l'app de bureau (dépôt sur le Mac, jamais poussé) ; autres espaces que l'espace principal.
-- Phase 4 : finitions UI (raccourcis, onglets), packaging, import par l'API Notion.
+- App de bureau reliée : option « garder toutes les pages d'équipe sur le Mac » (pas seulement ouvertes, favorites et récentes), mise de côté à la demande (2 nov. 2026) ; hors ligne, modifier les bases (lignes, propriétés) et les commentaires de l'équipe, créer une ligne de base ; commentaires des pages écrites hors ligne (pas envoyés avec elles) ; signature Developer ID + notarisation Apple (compte Apple Developer) pour supprimer « Ouvrir quand même » à la première installation ; version Windows de l'app. Miroir git : miroir local des pages privées de l'app de bureau (dépôt sur le Mac, jamais poussé).
+- Phase 4 : finitions UI (raccourcis, onglets), packaging.
+- Migration Notion par l'API (2026-11-04) : outil écrit et testé sur une fausse API ; à lancer sur l'espace PrediSurge dès que l'intégration (jeton) est créée et que les espaces d'équipe sont ouverts dans l'app Notion (pages de premier niveau de 4 espaces sur 6 encore inconnues du cache).
 
 ## Limites connues
 

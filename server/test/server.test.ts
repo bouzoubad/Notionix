@@ -1155,6 +1155,17 @@ describe('Git mirror of the team pages', () => {
     // The first export (README only), then the pages.
     await api('/api/admin/mirror/sync', { method: 'POST', token: admin })
 
+    // Another workspace goes into espaces/<its name>/.
+    const team = await api('/api/workspaces', {
+      token: admin,
+      json: { name: 'Équipe R/D', icon: null, memberIds: [] }
+    })
+    const teamId = (team.body.workspace as { id: string }).id
+    await api('/api/rpc', {
+      token: admin,
+      headers: { 'X-Notionix-Workspace': teamId },
+      json: { method: 'pages.createWith', args: [null, { title: 'Essais', content: doc('Banc') }] }
+    })
     await rpc(editor, 'pages.createWith', null, {
       title: 'Compte rendu',
       content: doc('Ouvert à tous')
@@ -1173,6 +1184,7 @@ describe('Git mirror of the team pages', () => {
     expect(tree).toContain('pages/Compte rendu.md')
     expect(tree).not.toContain('Brouillon')
     expect(readFileSync(join(clone, 'pages/Compte rendu.md'), 'utf8')).toContain('Ouvert à tous')
+    expect(readFileSync(join(clone, 'espaces/Équipe R D/Essais.md'), 'utf8')).toContain('Banc')
     expect(
       execFileSync('git', ['log', '-1', '--format=%an'], { cwd: clone, encoding: 'utf8' })
     ).toBe('claire\n')

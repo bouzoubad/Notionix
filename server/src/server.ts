@@ -55,6 +55,32 @@ const MIRROR_VIEWER: User = {
   mustChangePassword: false
 }
 
+/**
+ * Folder of each workspace in the Git mirror: pages/ for the main one,
+ * espaces/<name>/ for the others (a name used twice gets its id).
+ */
+export function mirrorFolders(list: { id: string; name: string }[]): Map<string, string> {
+  const out = new Map<string, string>()
+  const safe = (name: string): string =>
+    name
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^\.+/, '')
+      .slice(0, 80) || 'Espace'
+  const counts = new Map<string, number>()
+  for (const w of list)
+    if (w.id !== MAIN_WORKSPACE) counts.set(safe(w.name), (counts.get(safe(w.name)) ?? 0) + 1)
+  for (const w of list) {
+    if (w.id === MAIN_WORKSPACE) out.set(w.id, 'pages')
+    else {
+      const name = safe(w.name)
+      out.set(w.id, `espaces/${(counts.get(name) ?? 0) > 1 ? `${name} (${w.id})` : name}`)
+    }
+  }
+  return out
+}
+
 export interface NotionixServer {
   server: Server<CollabContext>
   accounts: Accounts
@@ -98,23 +124,28 @@ export async function startServer(config: Config): Promise<NotionixServer> {
     },
     notifyUsers
   }
-  // The Git mirror of the pages open to the whole main workspace (Administration > Miroir git).
+  // The Git mirror of the pages open to a whole workspace (Administration > Miroir git):
+  // the main workspace in pages/, the others in espaces/<name>/.
   const mirror = new GitMirror(config.mirrorDir, {
     snapshot: async () => {
       if (server) documents.projectOpenPages(server.hocuspocus)
-      const ws = workspaces.main
-      const ctx = new CallContext(ws, MIRROR_VIEWER, () => accounts.list())
-      const { files, attachments } = await exportPagesAsMarkdown(
-        ctx.filter(ws.pages.list()),
-        (id) => (ctx.level(id) === 'none' ? null : ws.pages.get(id)),
-        (src) => ws.assets.read(src),
-        null,
-        (id) => (ctx.level(id) === 'none' ? null : ws.databases.get(id)),
-        ctx.people()
-      )
       const out: MirrorFiles = new Map()
-      for (const f of files) out.set(`pages/${f.path}`, f.markdown)
-      for (const a of attachments) out.set(`pages/${a.path}`, a.bytes)
+      const folders = mirrorFolders(workspaces.list().filter((w) => !w.archived))
+      for (const [id, folder] of folders) {
+        const ws = workspaces.get(id)
+        if (!ws) continue
+        const ctx = new CallContext(ws, MIRROR_VIEWER, () => accounts.list())
+        const { files, attachments } = await exportPagesAsMarkdown(
+          ctx.filter(ws.pages.list()),
+          (pageId) => (ctx.level(pageId) === 'none' ? null : ws.pages.get(pageId)),
+          (src) => ws.assets.read(src),
+          null,
+          (dbId) => (ctx.level(dbId) === 'none' ? null : ws.databases.get(dbId)),
+          ctx.people()
+        )
+        for (const f of files) out.set(`${folder}/${f.path}`, f.markdown)
+        for (const a of attachments) out.set(`${folder}/${a.path}`, a.bytes)
+      }
       return out
     },
     person: (id) => {
@@ -126,7 +157,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
   if (mirror.status().configured) mirror.touch(null)
   // Edits of a shared page: activity, and a notice to the people newly mentioned.
   const documents = new PageDocuments(db, workspaces, (workspace, pageId, before, actorId) => {
-    if (workspace === workspaces.main) mirror.touch(actorId)
+    mirror.touch(actorId)
     const actor = actorId ? accounts.byId(actorId) : null
     if (!actor) return
     const ctx = new CallContext(workspace, actor, () => accounts.list(), live)
@@ -158,8 +189,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
         })
       },
       changed: (user, workspaceId) => {
-        if (workspaceId === MAIN_WORKSPACE)
-          mirror.touch(user.id === SYSTEM_USER.id ? null : user.id)
+        mirror.touch(user.id === SYSTEM_USER.id ? null : user.id)
         if (!server) return
         documents.forgetDeletedPages(server.hocuspocus)
         announceChange(server.hocuspocus, user, workspaceId)
@@ -245,7 +275,7 @@ export async function startServer(config: Config): Promise<NotionixServer> {
       // Recurring templates due: their rows, announced like any change.
       const changed = workspace.databases.runDueRecurrences()
       if (changed.length && server) announceChange(server.hocuspocus, SYSTEM_USER, id)
-      if (changed.length && id === MAIN_WORKSPACE) mirror.touch(null)
+      if (changed.length) mirror.touch(null)
       const due = workspace.team
         .takeDueReminders()
         .filter((r) => docHasMention(workspace.pages.get(r.pageId)?.content ?? '', reminderKey(r)))

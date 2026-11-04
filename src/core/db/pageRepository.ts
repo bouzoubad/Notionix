@@ -88,6 +88,26 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 const EMPTY_DOC = '{"type":"doc","content":[{"type":"paragraph"}]}'
 
+/** A page brought from another tool with its own id, dates and authors. */
+export interface MigratedPage {
+  id: PageId
+  parentId: PageId | null
+  title: string
+  icon: string | null
+  cover: string | null
+  content: string
+  position: number
+  createdAt: number
+  updatedAt: number
+  source: string | null
+  kind: 'page' | 'database' | 'synced'
+  dbSchema: string | null
+  properties: string | null
+  options: string | null
+  createdBy: string | null
+  updatedBy: string | null
+}
+
 export interface ImportNode {
   id: PageId
   /** Parent page id, or null for a top-level node */
@@ -722,6 +742,98 @@ export class PageRepository {
   }
 
   /** Id of the page previously imported from `source`, trashed or not. */
+  /**
+   * Inserts pages migrated from another tool, keeping their ids, dates and
+   * authors. Parents come before their children. A page whose id already
+   * exists is left as it is (a second run adds only what is new).
+   */
+  insertMigrated(nodes: MigratedPage[]): { created: number; skipped: number } {
+    return this.inTransaction(() => {
+      const insert = this.db.prepare(
+        `INSERT INTO pages (id, parent_id, title, icon, cover, content, position, created_at, updated_at, source, kind, db_schema, properties, is_template, options, access, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'inherit', ?, ?)`
+      )
+      const has = this.db.prepare('SELECT 1 FROM pages WHERE id = ?')
+      const bySource = this.db.prepare('SELECT 1 FROM pages WHERE source = ?')
+      let created = 0
+      let skipped = 0
+      for (const n of nodes) {
+        if (has.get(n.id) || (n.source && bySource.get(n.source))) {
+          skipped += 1
+          continue
+        }
+        insert.run(
+          n.id,
+          n.parentId,
+          n.title,
+          n.icon,
+          n.cover,
+          n.content,
+          n.position,
+          n.createdAt,
+          n.updatedAt,
+          n.source,
+          n.kind,
+          n.dbSchema,
+          n.properties,
+          n.options,
+          n.createdBy,
+          n.updatedBy
+        )
+        this.reindex(n.id)
+        created += 1
+      }
+      return { created, skipped }
+    })
+  }
+
+  /**
+   * Moves to the trash what an earlier import of Notion exports created (its
+   * « Importé de Notion » pages and the pages under them), and frees their
+   * provenance so that a full migration can bring the same pages again.
+   */
+  trashNotionImports(): { roots: number; pages: number } {
+    return this.inTransaction(() => {
+      const imported = this.db
+        .prepare(
+          `SELECT id, parent_id FROM pages
+           WHERE trashed_at IS NULL AND (source LIKE 'notion-folder:%'
+             -- a migrated page keeps Notion's id: only the imports' own ids differ from it
+             OR (source LIKE 'notion:%' AND replace(id, '-', '') != substr(source, 8)))`
+        )
+        .all() as { id: string; parent_id: string | null }[]
+      const importedIds = new Set(imported.map((r) => r.id))
+      const parentOf = this.db.prepare(
+        'SELECT id, parent_id, title, source FROM pages WHERE id = ?'
+      )
+      const roots = new Set<string>()
+      for (const row of imported) {
+        let top = row.id
+        let parent = row.parent_id
+        while (parent) {
+          const p = parentOf.get(parent) as
+            | { id: string; parent_id: string | null; title: string; source: string | null }
+            | undefined
+          if (!p) break
+          const container =
+            p.source === null && /^Importé de Notion \(\d{4}-\d{2}-\d{2}\)$/.test(p.title)
+          if (!importedIds.has(p.id) && !container) break
+          top = p.id
+          parent = p.parent_id
+        }
+        roots.add(top)
+      }
+      for (const id of roots) this.trash(id)
+      const freed = this.db
+        .prepare(
+          `UPDATE pages SET source = 'replaced-' || source
+           WHERE trashed_at IS NOT NULL AND (source LIKE 'notion:%' OR source LIKE 'notion-folder:%')`
+        )
+        .run()
+      return { roots: roots.size, pages: Number(freed.changes) }
+    })
+  }
+
   findIdBySource(source: string): PageId | undefined {
     const row = this.db.prepare('SELECT id FROM pages WHERE source = ?').get(source) as
       { id: string } | undefined

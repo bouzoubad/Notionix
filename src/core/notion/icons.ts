@@ -1,0 +1,368 @@
+import { icons } from 'lucide'
+
+/**
+ * Notion's own icons (its pictogram set, and its gallery of covers) are not
+ * copied: a Notion pictogram becomes the closest open Lucide pictogram in
+ * the same colour, a Notion gallery cover one of Notionix's gradients.
+ */
+
+const kebab = (name: string): string =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase()
+
+let names: Set<string> | null = null
+const lucide = (): Set<string> => (names ??= new Set(Object.keys(icons).map(kebab)))
+
+/** Notion pictogram names whose Lucide counterpart is named differently. */
+const SYNONYMS: Record<string, string> = {
+  home: 'house',
+  'light-bulb': 'lightbulb',
+  bulb: 'lightbulb',
+  gear: 'settings',
+  gears: 'settings',
+  cog: 'settings',
+  snippet: 'code',
+  'command-line': 'terminal',
+  'arch-bridge': 'bridge',
+  'suspension-bridge': 'bridge',
+  private: 'lock',
+  'unlock-keyhole': 'lock-keyhole-open',
+  unlock: 'lock-open',
+  document: 'file-text',
+  'document-text': 'file-text',
+  page: 'file-text',
+  checkmark: 'check',
+  'checkmark-square': 'square-check',
+  'checkmark-circle': 'circle-check',
+  'check-square': 'square-check',
+  people: 'users',
+  group: 'users',
+  person: 'user',
+  'user-circle': 'circle-user',
+  'person-circle': 'circle-user',
+  chat: 'message-circle',
+  'chat-bubble': 'message-circle',
+  'chat-bubbles': 'messages-square',
+  comment: 'message-square',
+  envelope: 'mail',
+  email: 'mail',
+  'magnifying-glass': 'search',
+  question: 'circle-help',
+  'question-mark': 'circle-help',
+  info: 'info',
+  warning: 'triangle-alert',
+  alert: 'triangle-alert',
+  error: 'circle-x',
+  'bar-chart': 'chart-column',
+  'chart-bar': 'chart-column',
+  'pie-chart': 'chart-pie',
+  'line-chart': 'chart-line',
+  graph: 'chart-line',
+  money: 'banknote',
+  dollar: 'dollar-sign',
+  euro: 'euro',
+  bank: 'landmark',
+  museum: 'landmark',
+  airplane: 'plane',
+  robot: 'bot',
+  fire: 'flame',
+  water: 'droplet',
+  drop: 'droplet',
+  lightning: 'zap',
+  bolt: 'zap',
+  computer: 'monitor',
+  desktop: 'monitor',
+  mobile: 'smartphone',
+  'mobile-phone': 'smartphone',
+  microphone: 'mic',
+  gamepad: 'gamepad',
+  grid: 'layout-grid',
+  'bulleted-list': 'list',
+  'numbered-list': 'list-ordered',
+  'to-do': 'list-todo',
+  todo: 'list-todo',
+  tree: 'tree-pine',
+  flask: 'flask-conical',
+  beaker: 'flask-conical',
+  cube: 'box',
+  tools: 'wrench',
+  tool: 'wrench',
+  graduate: 'graduation-cap',
+  education: 'graduation-cap',
+  pin: 'pin',
+  thumbtack: 'pin',
+  newspaper: 'newspaper',
+  news: 'newspaper',
+  library: 'library',
+  books: 'library-big',
+  notebook: 'notebook',
+  pencil: 'pencil',
+  edit: 'pencil',
+  trash: 'trash-2',
+  calendar: 'calendar',
+  'calendar-day': 'calendar-days',
+  clock: 'clock',
+  time: 'clock',
+  timer: 'timer',
+  stopwatch: 'timer',
+  hourglass: 'hourglass',
+  sparkle: 'sparkles',
+  sparkles: 'sparkles',
+  star: 'star',
+  heart: 'heart',
+  'heart-rate': 'heart-pulse',
+  'heart-beat': 'heart-pulse',
+  medical: 'stethoscope',
+  hospital: 'hospital',
+  health: 'heart-pulse',
+  pill: 'pill',
+  rocket: 'rocket',
+  target: 'target',
+  bullseye: 'target',
+  trophy: 'trophy',
+  flag: 'flag',
+  globe: 'globe',
+  world: 'globe',
+  earth: 'earth',
+  map: 'map',
+  'map-pin': 'map-pin',
+  location: 'map-pin',
+  compass: 'compass',
+  building: 'building',
+  office: 'building-2',
+  factory: 'factory',
+  warehouse: 'warehouse',
+  truck: 'truck',
+  shipping: 'truck',
+  car: 'car',
+  bike: 'bike',
+  bicycle: 'bike',
+  train: 'train-front',
+  bus: 'bus',
+  ship: 'ship',
+  boat: 'sailboat',
+  'shopping-cart': 'shopping-cart',
+  cart: 'shopping-cart',
+  bag: 'shopping-bag',
+  'shopping-bag': 'shopping-bag',
+  receipt: 'receipt',
+  invoice: 'receipt',
+  'credit-card': 'credit-card',
+  wallet: 'wallet',
+  tag: 'tag',
+  label: 'tag',
+  ticket: 'ticket',
+  gift: 'gift',
+  puzzle: 'puzzle',
+  'puzzle-piece': 'puzzle',
+  link: 'link',
+  chain: 'link',
+  paperclip: 'paperclip',
+  attachment: 'paperclip',
+  eye: 'eye',
+  bell: 'bell',
+  notification: 'bell',
+  megaphone: 'megaphone',
+  announcement: 'megaphone',
+  broadcast: 'radio',
+  phone: 'phone',
+  camera: 'camera',
+  photo: 'image',
+  image: 'image',
+  picture: 'image',
+  video: 'video',
+  film: 'film',
+  movie: 'film',
+  music: 'music',
+  headphones: 'headphones',
+  database: 'database',
+  server: 'server',
+  cloud: 'cloud',
+  shield: 'shield',
+  security: 'shield',
+  key: 'key',
+  lock: 'lock',
+  wrench: 'wrench',
+  hammer: 'hammer',
+  bug: 'bug',
+  atom: 'atom',
+  dna: 'dna',
+  brain: 'brain',
+  code: 'code',
+  terminal: 'terminal',
+  git: 'git-branch',
+  branch: 'git-branch',
+  box: 'box',
+  package: 'package',
+  archive: 'archive',
+  inbox: 'inbox',
+  folder: 'folder',
+  'folder-open': 'folder-open',
+  clipboard: 'clipboard',
+  briefcase: 'briefcase',
+  handshake: 'handshake',
+  'thumbs-up': 'thumbs-up',
+  sun: 'sun',
+  moon: 'moon',
+  leaf: 'leaf',
+  plant: 'sprout',
+  battery: 'battery',
+  plug: 'plug',
+  wifi: 'wifi',
+  laptop: 'laptop',
+  printer: 'printer',
+  keyboard: 'keyboard',
+  mouse: 'mouse',
+  presentation: 'presentation',
+  school: 'school',
+  scale: 'scale',
+  gavel: 'gavel',
+  law: 'scale',
+  layers: 'layers',
+  stack: 'layers',
+  table: 'table',
+  kanban: 'kanban',
+  board: 'kanban',
+  list: 'list',
+  'arrow-right': 'arrow-right',
+  play: 'play',
+  pause: 'pause',
+  stop: 'square',
+  circle: 'circle',
+  square: 'square',
+  triangle: 'triangle',
+  hexagon: 'hexagon',
+  diamond: 'diamond',
+  crown: 'crown',
+  anchor: 'anchor',
+  umbrella: 'umbrella',
+  coffee: 'coffee',
+  cup: 'coffee',
+  utensils: 'utensils',
+  food: 'utensils',
+  pizza: 'pizza',
+  apple: 'apple',
+  cake: 'cake',
+  paw: 'paw-print',
+  dog: 'dog',
+  cat: 'cat',
+  fish: 'fish',
+  bird: 'bird',
+  smile: 'smile',
+  'smiley-face': 'smile',
+  emoji: 'smile',
+  ruler: 'ruler',
+  'pen-ruler': 'pencil-ruler',
+  design: 'palette',
+  palette: 'palette',
+  paint: 'paintbrush',
+  brush: 'brush',
+  wand: 'wand-sparkles',
+  magic: 'wand-sparkles',
+  filter: 'filter',
+  sliders: 'sliders-horizontal',
+  settings: 'settings',
+  dashboard: 'layout-dashboard',
+  window: 'app-window',
+  cursor: 'mouse-pointer',
+  'cursor-click': 'mouse-pointer-click',
+  download: 'download',
+  upload: 'upload',
+  refresh: 'refresh-cw',
+  sync: 'refresh-cw',
+  repeat: 'repeat',
+  shuffle: 'shuffle',
+  'external-link': 'external-link',
+  share: 'share-2',
+  send: 'send',
+  'paper-plane': 'send',
+  mail: 'mail',
+  at: 'at-sign',
+  hashtag: 'hash',
+  hash: 'hash',
+  percent: 'percent',
+  calculator: 'calculator',
+  abacus: 'calculator',
+  sigma: 'sigma',
+  infinity: 'infinity',
+  binoculars: 'binoculars',
+  microscope: 'microscope',
+  telescope: 'telescope',
+  thermometer: 'thermometer',
+  syringe: 'syringe',
+  bandage: 'bandage',
+  'first-aid': 'cross',
+  cross: 'cross',
+  activity: 'activity',
+  pulse: 'activity'
+}
+
+const COLOR: Record<string, string> = {
+  lightgray: 'default',
+  gray: 'gray',
+  brown: 'brown',
+  orange: 'orange',
+  yellow: 'yellow',
+  green: 'green',
+  blue: 'blue',
+  purple: 'purple',
+  pink: 'pink',
+  red: 'red'
+}
+
+/** The Lucide pictogram standing for a Notion pictogram, or null when none is close. */
+export function lucideFor(notionName: string): string | null {
+  const set = lucide()
+  const name = notionName.toLowerCase().replace(/[^a-z0-9-]/g, '-')
+  const candidates = [
+    SYNONYMS[name],
+    name,
+    name.replace(/-(alternate|alt|filled|fill|outline|solid|simple|small|large|2)$/, ''),
+    name.replace(/s$/, ''),
+    SYNONYMS[name.replace(/-(alternate|alt|filled|fill|outline|solid|simple|small|large|2)$/, '')],
+    SYNONYMS[name.replace(/s$/, '')],
+    SYNONYMS[name.split('-')[0]],
+    name.split('-')[0]
+  ]
+  for (const c of candidates) if (c && set.has(c)) return c
+  return null
+}
+
+/**
+ * A Notion pictogram as a Notionix page icon (`icon:<name>:<colour>`); the
+ * ones without a close Lucide pictogram become a generic page pictogram in
+ * their colour, so the page keeps a pictogram.
+ */
+export function pictogramFor(
+  notionName: string,
+  notionColor: string | undefined
+): {
+  icon: string
+  matched: boolean
+} {
+  const name = lucideFor(notionName)
+  const color = COLOR[(notionColor ?? '').toLowerCase()] ?? 'default'
+  return { icon: `icon:${name ?? 'file-text'}:${color}`, matched: name !== null }
+}
+
+/** Notion's pictogram given as a link (older pages): https://www.notion.so/icons/<name>_<colour>.svg */
+export function notionIconUrl(url: string): { name: string; color: string } | null {
+  const m =
+    /^(?:https?:\/\/(?:www\.)?notion\.(?:so|com))?\/icons\/([a-z0-9-]+?)(?:_([a-z]+))?\.svg/i.exec(
+      url
+    )
+  return m ? { name: m[1], color: m[2] ?? 'gray' } : null
+}
+
+/** Notion's gallery covers are Notion's images: they become one of the gradients (6). */
+export function isNotionGalleryCover(url: string): boolean {
+  return /^(?:https?:\/\/(?:www\.)?notion\.(?:so|com))?\/images\/page-cover\//i.test(url)
+}
+
+export function gradientFor(url: string, count = 6): string {
+  let h = 0
+  for (const c of url) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return `gradient:${h % count}`
+}

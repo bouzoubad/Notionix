@@ -50,9 +50,10 @@ const SYSTEM_AUTHOR = { name: 'Notionix', email: 'notionix@localhost' }
 
 const README = `# Miroir Notionix
 
-Copie automatique, en Markdown, des pages de Notionix ouvertes à tout l'espace
-principal (\`pages/\`) : une page par fichier \`.md\`, ses sous-pages et ses images
-dans le dossier du même nom, les bases de données en \`.csv\`.
+Copie automatique, en Markdown, des pages de Notionix ouvertes à tout leur
+espace : l'espace principal dans \`pages/\`, chacun des autres espaces dans
+\`espaces/<nom de l'espace>/\`. Une page par fichier \`.md\`, ses sous-pages et
+ses images dans le dossier du même nom, les bases de données en \`.csv\`.
 
 Écrit par le serveur Notionix à chaque modification (regroupées par minute) :
 l'auteur d'un commit est la personne qui a modifié les pages. **Ne pas modifier
@@ -115,7 +116,7 @@ const pruneEmpty = (dir: string): void => {
 
 /** Title of a page from its file's path, for commit messages. */
 const pageOf = (path: string): string | null =>
-  path.startsWith('pages/') && /\.(md|csv)$/.test(path)
+  (path.startsWith('pages/') || path.startsWith('espaces/')) && /\.(md|csv)$/.test(path)
     ? path
         .split('/')
         .pop()!

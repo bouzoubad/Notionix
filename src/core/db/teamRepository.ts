@@ -148,6 +148,34 @@ export class TeamRepository {
     return this.comment(id)!
   }
 
+  /** A comment brought from another tool, with its own id and date; false when already there. */
+  importComment(c: {
+    id: string
+    pageId: PageId
+    threadId: string
+    authorId: string | null
+    body: string
+    quote: string | null
+    createdAt: number
+  }): boolean {
+    if (!c.body.trim()) return false
+    const res = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO comments (id, page_id, thread_id, author_id, body, mentions, quote, created_at)
+         VALUES (?, ?, ?, ?, ?, '[]', ?, ?)`
+      )
+      .run(
+        c.id,
+        c.pageId,
+        c.threadId,
+        c.authorId,
+        c.body,
+        c.quote?.slice(0, 1000) ?? null,
+        c.createdAt
+      )
+    return res.changes > 0
+  }
+
   updateComment(id: string, body: string, mentions: string[]): Comment {
     const res = this.db
       .prepare('UPDATE comments SET body = ?, mentions = ?, edited_at = ? WHERE id = ?')

@@ -4,7 +4,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { common, createLowlight } from 'lowlight'
 import type { Page } from '../../../shared/types'
 import { createDocumentExtensions, pageIdFromHref } from '../../../shared/editorExtensions'
-import { pageHash, useStore } from '../store'
+import { openFromClick, useStore } from '../store'
 import { SlashCommands } from './slashCommands'
 import { InteractiveMention, MentionSuggestion, PageLinkSuggestion } from './mentions'
 import { EmojiSuggestion } from './emojiSuggestion'
@@ -99,7 +99,6 @@ function LoadedEditor({
 }): React.JSX.Element {
   const patch = useStore((s) => s.patch)
   const pages = useStore((s) => s.pages)
-  const open = useStore((s) => s.open)
   const summary = pages.find((p) => p.id === page.id)
   const [title, setTitle] = useState(page.title)
   const isRow = pages.some((p) => p.id === page.parentId && p.kind === 'database')
@@ -200,9 +199,7 @@ function LoadedEditor({
         const href = anchor?.getAttribute('href')
         if (!href) return false
         const target = pageIdFromHref(href)
-        if (target && (event.metaKey || event.ctrlKey) && platform().kind === 'web')
-          window.open(pageHash(target), '_blank')
-        else if (target) open(target)
+        if (target) openFromClick(event, target)
         else window.open(href)
         return true
       }

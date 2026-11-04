@@ -58,6 +58,13 @@ await command('tab:close')
 await win.waitForFunction(() => document.querySelectorAll('.tab-bar [role="tab"]').length === 2)
 await win.locator('.page-tab-close').last().click()
 await win.locator('.tab-bar').waitFor({ state: 'detached' })
+// The row's menu opens a page in a new tab too
+await win.locator('.sidebar [role="treeitem"]', { hasText: 'Bien démarrer' }).focus()
+await win.keyboard.press('ContextMenu')
+await win.getByRole('button', { name: 'Ouvrir dans un nouvel onglet' }).click()
+await win.locator('.tab-bar [role="tab"]').nth(1).waitFor()
+await win.locator('.page-tab-close').last().click()
+await win.locator('.tab-bar').waitFor({ state: 'detached' })
 
 // The sidebar tree with the keyboard: arrows, then Enter opens
 const first = win.locator('.sidebar [role="treeitem"]').first()

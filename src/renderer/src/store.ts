@@ -128,6 +128,21 @@ function applyTheme(theme: Theme): void {
 /** Address of a page inside the app: #/page/<id>. */
 export const pageHash = (id: PageId): string => `#/page/${id}`
 
+/** Opens a page in a new tab: the browser's on the web, the app's on the desktop. */
+export function openInNewTab(id: PageId): void {
+  if (platform().kind === 'web') window.open(pageHash(id), '_blank')
+  else useStore.getState().newTab(id)
+}
+
+/** A click on a link to a page: Cmd/Ctrl-click or a middle click opens a new tab. */
+export function openFromClick(
+  e: { metaKey: boolean; ctrlKey: boolean; button: number },
+  id: PageId
+): void {
+  if (e.metaKey || e.ctrlKey || e.button === 1) openInNewTab(id)
+  else useStore.getState().open(id)
+}
+
 export function pageIdFromHash(hash: string): PageId | null {
   const match = /^#\/page\/([A-Za-z0-9_-]{1,64})$/.exec(hash)
   return match ? match[1] : null

@@ -6,7 +6,7 @@ import Suggestion from '@tiptap/suggestion'
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react'
 import { Mention, type MentionAttrs } from '../../../shared/mention'
 import { newId } from '../../../shared/database'
-import { useStore } from '../store'
+import { openFromClick, useStore } from '../store'
 import { canReference, platform } from '../platform'
 import { createMenuController, type SlashItem } from './slashCommands'
 import { PageIcon } from '../components/PageIcon'
@@ -245,7 +245,6 @@ function MentionView({
     attrs.kind === 'page' ? s.pages.find((p) => p.id === attrs.id) : null
   )
   const pageId = useStore((s) => s.currentId)
-  const open = useStore((s) => s.open)
   const [editing, setEditing] = useState(false)
 
   // A date with a reminder notifies whoever set it, at its time.
@@ -288,9 +287,12 @@ function MentionView({
     <NodeViewWrapper as="span" className={`mention mention-${attrs.kind}`} data-mention="">
       <span
         role="button"
-        onClick={() => {
-          if (attrs.kind === 'page' && page) open(page.id)
+        onClick={(e) => {
+          if (attrs.kind === 'page' && page) openFromClick(e, page.id)
           if (attrs.kind === 'date' && editor.isEditable) setEditing(true)
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 1 && attrs.kind === 'page' && page) openFromClick(e, page.id)
         }}
       >
         {content}

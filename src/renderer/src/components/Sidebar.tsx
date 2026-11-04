@@ -1,6 +1,6 @@
 import { AppearanceSettings } from './AppearanceSettings'
 import { useEffect, useRef, useState } from 'react'
-import { childrenOf, pageHash, useStore } from '../store'
+import { childrenOf, openInNewTab, useStore } from '../store'
 import { Logo } from './Logo'
 import { isLocalPage, platform, type ServerSession } from '../platform'
 import { Avatars } from './PageTopBar'
@@ -58,11 +58,6 @@ function treeKey(
     default:
       return false
   }
-}
-
-const openInNewTab = (id: string): void => {
-  if (platform().kind === 'web') window.open(pageHash(id), '_blank')
-  else useStore.getState().newTab(id)
 }
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
@@ -706,6 +701,9 @@ function Row(props: RowProps): React.JSX.Element {
             }}
             ref={menuRef}
           >
+            <button onClick={() => (setMenu(false), openInNewTab(page.id))}>
+              {t('Ouvrir dans un nouvel onglet')}
+            </button>
             <button
               onClick={() => (setMenu(false), void patch(page.id, { favorite: !page.favorite }))}
             >

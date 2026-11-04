@@ -13,7 +13,7 @@ import {
   type ButtonAttrs
 } from '../../../shared/blocks'
 import { assetKind, assetNameFromSrc } from '../../../shared/assets'
-import { useStore } from '../store'
+import { openFromClick, useStore } from '../store'
 import { displaySrc } from '../platform'
 import { PageSubEditor, SubEditor } from './SubEditor'
 import { PageIcon } from '../components/PageIcon'
@@ -86,11 +86,13 @@ export const InteractiveTableOfContents = TableOfContents.extend({
 function PageLinkView({ node }: ReactNodeViewProps): React.JSX.Element {
   const id = String(node.attrs.pageId ?? '')
   const page = useStore((s) => s.pages.find((p) => p.id === id))
-  const open = useStore((s) => s.open)
   return (
     <NodeViewWrapper className="page-link-block" contentEditable={false}>
       {page && !page.trashedAt ? (
-        <button onClick={() => open(id)}>
+        <button
+          onClick={(e) => openFromClick(e, id)}
+          onAuxClick={(e) => e.button === 1 && openFromClick(e, id)}
+        >
           <span className="page-link-icon">
             <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
           </span>

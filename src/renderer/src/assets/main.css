@@ -888,7 +888,8 @@ main {
 .editor {
   position: relative;
 }
-.editor .ProseMirror img {
+/* Image blocks only: a page icon or a team emoji keeps the size of a letter. */
+.editor .ProseMirror img:not(.page-icon-image):not(.custom-emoji) {
   display: block;
   max-width: 100%;
   height: auto;
@@ -1150,7 +1151,7 @@ main {
 img.page-icon-image {
   width: 1.1em;
   height: 1.1em;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 3px;
   vertical-align: -0.2em;
 }

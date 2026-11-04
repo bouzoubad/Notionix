@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { PageIcon } from './PageIcon'
 import type { PageSummary } from '../../../shared/types'
-import { useStore } from '../store'
+import { openFromClick, useStore } from '../store'
 import { t } from '../../../shared/i18n'
 
 /** "N rétroliens": the pages linking to this one, listed on demand. */
 export function Backlinks({ pageId }: { pageId: string }): React.JSX.Element | null {
   const revision = useStore((s) => s.revision)
   const updatedAt = useStore((s) => s.pages.length)
-  const open = useStore((s) => s.open)
   const [links, setLinks] = useState<PageSummary[]>([])
   const [shown, setShown] = useState(false)
   useEffect(() => {
@@ -33,7 +32,11 @@ export function Backlinks({ pageId }: { pageId: string }): React.JSX.Element | n
       {shown && (
         <div className="backlinks-list">
           {links.map((p) => (
-            <button key={p.id} onClick={() => open(p.id)}>
+            <button
+              key={p.id}
+              onClick={(e) => openFromClick(e, p.id)}
+              onAuxClick={(e) => e.button === 1 && openFromClick(e, p.id)}
+            >
               <PageIcon icon={p.icon} fallback={p.kind === 'database' ? '🗃️' : '📄'} />{' '}
               {p.title || t('Sans titre')}
             </button>

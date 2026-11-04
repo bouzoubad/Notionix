@@ -21,6 +21,31 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-04-onglets-icones',
+    date: '2026-11-04',
+    title: 'Onglets plus faciles à ouvrir, icônes à la bonne taille',
+    summary:
+      'Cmd-clic sur n’importe quel lien de page l’ouvre dans un nouvel onglet ; les icônes image et les émojis de l’équipe ne débordent plus dans les pages.',
+    desktop: '1.4.1',
+    body: `**Pour qui :** tout le monde (merci pour vos retours).
+
+## Ouvrir une page dans un nouvel onglet
+
+L'app de bureau a des **onglets**, comme Notion. La barre d'onglets apparaît dès que deux pages sont ouvertes. Pour ouvrir une page dans un nouvel onglet :
+
+- **Cmd-clic** (ou clic du milieu) sur un lien de page dans le texte, une mention **@page**, un rétrolien ou une page de la barre latérale ;
+- **Ouvrir dans un nouvel onglet**, dans le menu **⋯** d'une page de la barre latérale ;
+- **Cmd T** ouvre un onglet vide, **Cmd W** le ferme, **Ctrl Tab** passe au suivant.
+
+Dans le navigateur, les mêmes gestes ouvrent un onglet du navigateur.
+
+## Icônes et émojis à la bonne taille
+
+Une page dont l'icône est une image haute ou large (par exemple « Stents ») l'affichait en grand dans les liens vers elle. Les icônes image et les émojis de l'équipe gardent maintenant la taille d'une lettre, en entier.
+
+**App de bureau :** ces changements arrivent avec la version 1.4.1, téléchargée toute seule ; cliquez **Redémarrer** quand le bouton apparaît en bas à droite.`
+  },
+  {
     id: '2026-11-04-app-1-4-0',
     date: '2026-11-04',
     title: 'App de bureau 1.4.0 : les espaces dans la barre latérale',

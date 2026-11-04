@@ -4,7 +4,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { MAIN_WORKSPACE } from '../../src/shared/collab'
 import { AssetStore } from '../../src/core/assets'
 import { NotionClient } from '../../src/core/notion/client'
-import { crawlNotion } from '../../src/core/notion/crawl'
+import { crawlNotion, fetchExtraFiles } from '../../src/core/notion/crawl'
 import {
   MAIN,
   planMigration,
@@ -65,6 +65,9 @@ export async function migrateNotion(
     ? (JSON.parse(readFileSync(options.teamspacesFile, 'utf8')) as TeamspacesFile)
     : { teamspaces: [] }
   const teamspaces = file.teamspaces
+  // Teamspace logos: links the API never gave, fetched now.
+  const logos = teamspaces.map((t) => t.icon ?? '').filter((i) => /^https?:\/\//.test(i))
+  if (logos.length) await fetchExtraFiles(options.dir, logos)
   // The owner of the private pages: given, or the creator of a personal token.
   const accountOf = (email: string | null | undefined): string | null =>
     (email && users.find((u) => u.email === email.toLowerCase())?.id) || null
@@ -215,6 +218,13 @@ export async function migrateNotion(
           '',
           `## Fichiers non récupérés (${r.filesMissing.length})`,
           ...r.filesMissing.slice(0, 200).map((t) => `- ${t}`)
+        ]
+      : []),
+    ...(r.crawlWarnings.length
+      ? [
+          '',
+          '## Parties de pages que Notion n’a pas données (page gardée)',
+          ...r.crawlWarnings.map((w) => `- ${w}`)
         ]
       : []),
     ...(r.crawlErrors.length

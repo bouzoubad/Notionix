@@ -130,6 +130,8 @@ export interface MigrationReport {
   missingPeople: string[]
   notes: Record<string, number>
   crawlErrors: { id: string; message: string }[]
+  /** Parts of pages Notion would not give (page title: what) */
+  crawlWarnings: string[]
 }
 
 const UNASSIGNED_ID = '6e6f7469-6f6e-4d69-8772-61746564000a'
@@ -154,7 +156,8 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
     unassigned: [],
     missingPeople: [],
     notes: {},
-    crawlErrors: index.errors
+    crawlErrors: index.errors,
+    crawlWarnings: []
   }
   const note = (what: string): void => {
     report.notes[what] = (report.notes[what] ?? 0) + 1
@@ -165,7 +168,8 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
   const databases = new Map<string, DatabaseSnapshot>()
   for (const id of [...Object.keys(index.databases), ...Object.keys(index.pages)]) {
     const snapshot = await readJson<ObjectSnapshot>(objectPath(input.dir, id))
-    if (snapshot?.kind === 'page') pages.set(id, snapshot)
+    // (Earlier readings took a wiki's nested databases for rows: not pages.)
+    if (snapshot?.kind === 'page' && snapshot.page.object === 'page') pages.set(id, snapshot)
     else if (snapshot?.kind === 'database' && !snapshot.database.in_trash)
       databases.set(id, snapshot)
   }
@@ -196,6 +200,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
   const sourceToPage = new Map<string, string>()
   const sources = new Map<string, { snapshot: DataSourceSnapshot; database: DatabaseSnapshot }>()
   for (const db of databases.values()) {
+    for (const s of db.sources) s.rows = s.rows.filter((r) => r.object === 'page')
     db.sources.forEach((s, i) => {
       sourceToPage.set(s.source.id, i === 0 ? db.database.id : s.source.id)
       sources.set(s.source.id, { snapshot: s, database: db })
@@ -300,6 +305,17 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
     return plainText(source?.title) || 'Source sans titre'
   }
 
+  // What Notion would not give, once per page and kind (nested wiki databases read
+  // as rows by earlier readings are not pages: left out).
+  const warned = new Map<string, number>()
+  for (const w of index.warnings ?? []) {
+    const page = pages.has(w.id) ? w.id : blockOwner.get(w.id)
+    if (!page) continue
+    const line = `${titleOf(page)} : ${w.message}`
+    warned.set(line, (warned.get(line) ?? 0) + 1)
+  }
+  for (const [line, n] of warned) report.crawlWarnings.push(n > 1 ? `${line} (×${n})` : line)
+
   // --- Files
   const stored = new Map<string, Promise<{ src: string; name: string; size: number } | null>>()
   const asset = (workspace: string) => (url: string, name?: string) => {
@@ -321,10 +337,13 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
     try {
       let bytes: Uint8Array = new Uint8Array(await readFile(join(input.dir, 'files', entry.file)))
       let fileName = name || entry.name
+      const typed = extensionOf(entry.contentType)
       if (!/\.[A-Za-z0-9]{1,8}$/.test(fileName)) {
         // A name without extension (external image links): its type says it.
-        const ext = extensionOf(entry.contentType)
-        if (ext) fileName = `${fileName}.${ext}`
+        if (typed) fileName = `${fileName}.${typed}`
+      } else if (typed === 'svg' && !/\.svg$/i.test(fileName)) {
+        // A drawing served under a .png name (logos found on the web).
+        fileName = fileName.replace(/\.[A-Za-z0-9]{1,8}$/, '.svg')
       }
       if (!assetExtension(fileName)) {
         // A type Notionix does not keep as is (CAD, DICOM…): kept inside a zip.

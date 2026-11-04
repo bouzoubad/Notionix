@@ -68,6 +68,8 @@ export interface CrawlIndex {
   databases: Record<string, string>
   fetchedAt: string
   errors: { id: string; message: string }[]
+  /** Parts of pages Notion would not give; the pages are kept */
+  warnings: { id: string; message: string }[]
 }
 
 export interface CrawlOptions {
@@ -95,7 +97,8 @@ export async function crawlNotion(
     pages: {},
     databases: {},
     fetchedAt: new Date().toISOString(),
-    errors: []
+    errors: [],
+    warnings: []
   }
 
   // Who the token acts as (a personal token: its creator; an integration: a bot).
@@ -137,6 +140,9 @@ export async function crawlNotion(
   }
   log(`${pages.length} page(s), ${databaseIds.size} base(s)`)
 
+  const warn = (id: string, message: string): void => {
+    index.warnings.push({ id, message })
+  }
   const fail = (id: string, e: unknown): void => {
     index.errors.push({ id, message: errorText(e) })
     log(`  ${id} : ${errorText(e)}`)
@@ -174,7 +180,7 @@ export async function crawlNotion(
     const path = objectPath(dir, page.id)
     if (previous?.pages[page.id] === page.last_edited_time && existsSync(path)) continue
     try {
-      const snapshot = await fetchPage(client, page, files, options.blockComments === true)
+      const snapshot = await fetchPage(client, page, files, options.blockComments === true, warn)
       await writeJson(path, snapshot)
       if (n % 25 === 0 || n === allPages.size) {
         log(`page ${n}/${allPages.size}`)
@@ -212,7 +218,10 @@ async function fetchDatabase(
   const sources: DataSourceSnapshot[] = []
   for (const [i, ref] of (database.data_sources ?? []).entries()) {
     const source = await client.request<NotionDataSource>('GET', `/data_sources/${ref.id}`)
-    const rows = await client.all<NotionPage>('POST', `/data_sources/${ref.id}/query`, {})
+    // A wiki's query also lists its nested databases: they are read as databases.
+    const rows = (await client.all<NotionPage>('POST', `/data_sources/${ref.id}/query`, {})).filter(
+      (r) => r.object === 'page'
+    )
     for (const row of rows) await rowFiles(client, row, files)
     const own = views.filter((v) =>
       v.data_source_id ? v.data_source_id === ref.id : i === 0 && v.type !== 'dashboard'
@@ -249,14 +258,30 @@ async function fetchPage(
   client: NotionClient,
   listed: NotionPage,
   files: FileStore,
-  blockComments: boolean
+  blockComments: boolean,
+  warn: (id: string, message: string) => void
 ): Promise<PageSnapshot> {
   // Read again: the links to Notion's files in the listing have expired after an hour.
-  const page = await client.request<NotionPage>('GET', `/pages/${listed.id}`)
+  // Some rows listed by their database cannot be read alone (empty rows): the listing stays.
+  let page = listed
+  try {
+    page = await client.request<NotionPage>('GET', `/pages/${listed.id}`)
+  } catch (e) {
+    if (!(e instanceof NotionApiError) || e.status !== 404) throw e
+    warn(listed.id, 'page illisible seule, reprise telle que listée par sa base')
+  }
   await rowFiles(client, page, files)
   const blockIds: string[] = []
   const children = async (id: string, depth: number): Promise<NotionBlock[]> => {
-    const blocks = await client.all<NotionBlock>('GET', `/blocks/${id}/children`)
+    let blocks: NotionBlock[]
+    try {
+      blocks = await client.all<NotionBlock>('GET', `/blocks/${id}/children`)
+    } catch (e) {
+      // A block the API refuses to open (Notion AI blocks…): the rest of the page is kept.
+      if (!(e instanceof NotionApiError) || e.status >= 500 || e.status === 429) throw e
+      warn(id, `contenu illisible (${e.message.split(' : ').pop()?.slice(0, 120)})`)
+      return []
+    }
     for (const block of blocks) {
       blockIds.push(block.id)
       await blockFiles(block, files)
@@ -277,8 +302,8 @@ async function fetchPage(
     try {
       comments.push(...(await client.all<NotionComment>('GET', `/comments?block_id=${id}`)))
     } catch (e) {
-      // Without the "read comments" capability, the page goes without its comments.
-      if (!(e instanceof NotionApiError) || e.status !== 403) throw e
+      // Comments Notion will not give (no capability, page it does not open for this): the page goes without.
+      if (!(e instanceof NotionApiError) || e.status >= 500 || e.status === 429) throw e
     }
   }
   await commentsOf(page.id)
@@ -385,6 +410,18 @@ class FileStore {
     }
     this.entries[key] = entry
   }
+}
+
+/** Downloads files the API does not name (teamspace icons from the Notion app) into the folder. */
+export async function fetchExtraFiles(
+  dir: string,
+  urls: string[],
+  options: { fetch?: typeof fetch; log?: (m: string) => void } = {}
+): Promise<void> {
+  const files = new FileStore(dir, options.fetch ?? fetch, options.log ?? (() => undefined))
+  await files.load()
+  for (const url of urls) await files.fetch(url)
+  await files.save()
 }
 
 export const objectPath = (dir: string, id: string): string => join(dir, 'objects', `${id}.json`)

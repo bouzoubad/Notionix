@@ -17,6 +17,20 @@ const lucide = (): Set<string> => (names ??= new Set(Object.keys(icons).map(keba
 
 /** Notion pictogram names whose Lucide counterpart is named differently. */
 const SYNONYMS: Record<string, string> = {
+  iterate: 'iteration-cw',
+  report: 'file-chart-column',
+  checklist: 'list-checks',
+  'new-alert': 'badge-alert',
+  archery: 'target',
+  'fire-truck': 'truck',
+  screwdriver: 'wrench',
+  follow: 'user-plus',
+  'bell-notification': 'bell-ring',
+  groups: 'users',
+  friends: 'users',
+  'blood-pressure': 'heart-pulse',
+  // Notion's own logo is not drawn: a notebook stands for it.
+  notion: 'notebook',
   home: 'house',
   'light-bulb': 'lightbulb',
   bulb: 'lightbulb',

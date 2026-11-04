@@ -91,6 +91,7 @@ export async function runCli(command: string, args: string[], config: Config): P
     return 0
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e))
+    if (process.env.NOTIONIX_DEBUG) console.error(e)
     return 1
   } finally {
     db.close()

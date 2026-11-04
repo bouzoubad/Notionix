@@ -704,7 +704,7 @@ describe('Notion migration', () => {
     }
     const out = await convertBlocks(
       [
-        block(1, 'meeting_notes', { rich_text: [text('notes')] }),
+        block(1, 'tab', { rich_text: [text('notes')] }),
         block(2, 'image', {
           type: 'external',
           external: { url: 'https://example.com/a.png' },
@@ -716,7 +716,7 @@ describe('Notion migration', () => {
     expect(out[0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'notes' }] })
     expect(JSON.stringify(out[1])).toContain('https://example.com/a.png')
     expect(notes).toEqual([
-      'Bloc « meeting_notes » non pris en charge',
+      'Bloc « tab » non pris en charge',
       'Image non récupérée (lien gardé)'
     ])
   })

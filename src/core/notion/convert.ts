@@ -483,6 +483,26 @@ async function convertBlock(block: NotionBlock, ctx: ConvertContext): Promise<Js
     case 'button':
       ctx.note(`Bloc « ${block.type} » non repris`)
       return []
+    case 'unsupported': {
+      // A block the API cannot read (button, form…): only counted.
+      const kind = (block.unsupported as { block_type?: string } | undefined)?.block_type
+      ctx.note(`Bloc « ${kind ?? 'inconnu'} » illisible par l’API Notion`)
+      return []
+    }
+    case 'meeting_notes': {
+      // Notion AI meeting notes: its notes and transcript, without the empty paragraphs.
+      const kids = (await children()).filter((n) => n.type !== 'paragraph' || n.content?.length)
+      if (kids.length === 0) return []
+      ctx.note('Notes de réunion Notion reprises en texte')
+      return [
+        {
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: 'Notes de réunion' }]
+        },
+        ...kids
+      ]
+    }
     default: {
       ctx.note(`Bloc « ${block.type} » non pris en charge`)
       const text = d.rich_text ? await richText(d.rich_text, ctx) : []

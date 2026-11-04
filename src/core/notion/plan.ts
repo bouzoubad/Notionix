@@ -50,7 +50,14 @@ export interface TeamspaceInfo {
 export interface PlanInput {
   dir: string
   teamspaces: TeamspaceInfo[]
+  /** Notion's people, when the token cannot list them (personal token): from the Notion app */
+  notionUsers?: { id: string; email: string | null; name: string | null }[]
   accounts: { id: string; email: string }[]
+  /**
+   * Account whose private pages these are: pages of no teamspace go under one
+   * page private to it (a personal token sees its creator's private pages)
+   */
+  owner?: string | null
   /** Stores a file in a workspace (MAIN for the main one); returns its src */
   saveAsset(workspace: string, bytes: Uint8Array, name: string): Promise<string>
   timeZone?: string
@@ -71,6 +78,7 @@ export interface MigrationNode {
   dbSchema: string | null
   properties: string | null
   options: string | null
+  access?: 'restricted'
   source: string
   position: number
   createdAt: number
@@ -165,6 +173,15 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
   // --- People
   const accountByEmail = new Map(input.accounts.map((a) => [a.email.toLowerCase(), a.id]))
   const notionUsers = new Map(users.map((u) => [u.id, u]))
+  for (const u of input.notionUsers ?? [])
+    if (!notionUsers.has(u.id))
+      notionUsers.set(u.id, {
+        object: 'user',
+        id: u.id,
+        type: 'person',
+        name: u.name,
+        person: u.email ? { email: u.email } : {}
+      })
   const missingPeople = new Set<string>()
   const userId = (notionId: string): string | null => {
     const user = notionUsers.get(notionId)
@@ -570,12 +587,16 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
     }
   }
 
-  // --- Pages of no teamspace: under one page of the main workspace
+  // --- Pages of no teamspace (private pages, mostly): under one page of the
+  // main workspace private to the owner of the token
   if (unassigned) {
     nodes.set(UNASSIGNED_ID, {
       ...base(UNASSIGNED_ID, null, MAIN),
       title: 'Notion : pages hors espaces d’équipe',
       icon: '📥',
+      access: 'restricted',
+      createdBy: input.owner ?? null,
+      updatedBy: input.owner ?? null,
       source: 'notion-migration:unassigned',
       content: JSON.stringify({
         type: 'doc',
@@ -585,7 +606,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
             content: [
               {
                 type: 'text',
-                text: 'Pages Notion dont l’espace d’équipe n’a pas été retrouvé (pages privées partagées avec la migration, ou espace inconnu). Déplacez-les où il faut.'
+                text: 'Pages Notion d’aucun espace d’équipe (vos pages privées, ou un espace non retrouvé). Cette page et ce qu’elle contient ne sont visibles que par vous : déplacez ou partagez ce qui doit l’être.'
               }
             ]
           }

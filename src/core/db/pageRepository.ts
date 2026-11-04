@@ -106,6 +106,8 @@ export interface MigratedPage {
   options: string | null
   createdBy: string | null
   updatedBy: string | null
+  /** 'restricted': private to its creator; default 'inherit' */
+  access?: PageAccess
 }
 
 export interface ImportNode {
@@ -751,7 +753,7 @@ export class PageRepository {
     return this.inTransaction(() => {
       const insert = this.db.prepare(
         `INSERT INTO pages (id, parent_id, title, icon, cover, content, position, created_at, updated_at, source, kind, db_schema, properties, is_template, options, access, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'inherit', ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`
       )
       const has = this.db.prepare('SELECT 1 FROM pages WHERE id = ?')
       const bySource = this.db.prepare('SELECT 1 FROM pages WHERE source = ?')
@@ -777,6 +779,7 @@ export class PageRepository {
           n.dbSchema,
           n.properties,
           n.options,
+          n.access ?? 'inherit',
           n.createdBy,
           n.updatedBy
         )

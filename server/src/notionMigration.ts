@@ -30,8 +30,7 @@ export async function fetchNotion(
   options: { blockComments: boolean }
 ): Promise<void> {
   const token = readFileSync(tokenFile, 'utf8').trim()
-  if (!/^(ntn_|secret_)\S+$/.test(token))
-    throw new Error(`Jeton Notion illisible dans ${tokenFile}.`)
+  if (!/^\S{20,}$/.test(token)) throw new Error(`Jeton Notion illisible dans ${tokenFile}.`)
   const client = new NotionClient({ token, log: (m) => console.log(m) })
   await crawlNotion(client, dir, {
     blockComments: options.blockComments,
@@ -46,6 +45,13 @@ export interface MigrateOptions {
   /** Moves the pages of earlier Notion imports to the trash */
   replaceImports: boolean
   timeZone?: string
+  /** E-mail of the account the pages of no teamspace belong to (default: the token's creator) */
+  owner?: string | null
+}
+
+interface TeamspacesFile {
+  teamspaces: TeamspaceInfo[]
+  users?: { id: string; email: string | null; name: string | null }[]
 }
 
 export async function migrateNotion(
@@ -55,10 +61,26 @@ export async function migrateNotion(
 ): Promise<{ plan: MigrationPlan; reportFile: string }> {
   const accounts = new Accounts(db, 30)
   const users = accounts.list().filter((u) => !u.disabled)
-  const teamspaces: TeamspaceInfo[] = options.teamspacesFile
-    ? (JSON.parse(readFileSync(options.teamspacesFile, 'utf8')) as { teamspaces: TeamspaceInfo[] })
-        .teamspaces
-    : []
+  const file: TeamspacesFile = options.teamspacesFile
+    ? (JSON.parse(readFileSync(options.teamspacesFile, 'utf8')) as TeamspacesFile)
+    : { teamspaces: [] }
+  const teamspaces = file.teamspaces
+  // The owner of the private pages: given, or the creator of a personal token.
+  const accountOf = (email: string | null | undefined): string | null =>
+    (email && users.find((u) => u.email === email.toLowerCase())?.id) || null
+  let owner = accountOf(options.owner)
+  if (options.owner && !owner) throw new Error(`Aucun compte Notionix pour ${options.owner}.`)
+  if (!owner) {
+    const me = existsSync(join(options.dir, 'me.json'))
+      ? (JSON.parse(readFileSync(join(options.dir, 'me.json'), 'utf8')) as {
+          bot?: { owner?: { type?: string; user?: { id?: string; person?: { email?: string } } } }
+        })
+      : null
+    const creator = me?.bot?.owner?.type === 'user' ? me.bot.owner.user : undefined
+    owner = accountOf(
+      creator?.person?.email ?? file.users?.find((u) => u.id === creator?.id)?.email
+    )
+  }
   // Files are stored first under the migration's folder, one store per target
   // workspace, then copied into the workspaces (same names: content addressed).
   const staging = join(options.dir, 'staging')
@@ -71,6 +93,8 @@ export async function migrateNotion(
   const plan = await planMigration({
     dir: options.dir,
     teamspaces,
+    notionUsers: file.users,
+    owner,
     accounts: users.map((u) => ({ id: u.id, email: u.email })),
     saveAsset: (workspace, bytes, name) => store(workspace).saveFile(bytes, name),
     timeZone: options.timeZone
@@ -78,6 +102,11 @@ export async function migrateNotion(
 
   const lines: string[] = []
   const summary: string[] = []
+  const privateRoot = plan.nodes.find((n) => n.access === 'restricted' && n.parentId === null)
+  if (privateRoot && !owner && !options.dryRun)
+    throw new Error(
+      'Des pages ne sont dans aucun espace d’équipe : indiquez à qui elles sont (--owner <e-mail>).'
+    )
   if (!options.dryRun) {
     const registry = new Workspaces(db, dataDir)
     const ids = new Map<string, string>([[MAIN, MAIN_WORKSPACE]])
@@ -147,6 +176,11 @@ export async function migrateNotion(
     '',
     `- ${r.pages} page(s), ${r.databases} base(s) et ${r.rows} ligne(s) de base, ${r.syncedBlocks} bloc(s) synchronisé(s)`,
     `- ${plan.comments.length} commentaire(s), ${plan.emojis.length} émoji(s) de l’équipe, ${r.files} fichier(s) gardé(s)`,
+    ...(privateRoot
+      ? [
+          `- Pages hors espaces d’équipe : sous « ${privateRoot.title} », privée à ${owner ? users.find((u) => u.id === owner)?.email : 'PERSONNE (indiquer --owner)'}`
+        ]
+      : []),
     '',
     '## Espaces',
     ...plan.workspaces.map(

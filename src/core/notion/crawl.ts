@@ -98,12 +98,18 @@ export async function crawlNotion(
     errors: []
   }
 
+  // Who the token acts as (a personal token: its creator; an integration: a bot).
+  try {
+    await writeJson(join(dir, 'me.json'), await client.request('GET', '/users/me'))
+  } catch (e) {
+    index.errors.push({ id: 'users/me', message: errorText(e) })
+  }
   log('Comptes Notion…')
   let users: NotionUser[] = []
   try {
     users = await client.all<NotionUser>('GET', '/users')
   } catch (e) {
-    // Without « read user information », people stay unknown (pages keep no author).
+    // Personal tokens cannot list people: they come from the Notion app (notion-teamspaces.py).
     index.errors.push({ id: 'users', message: errorText(e) })
   }
   await writeJson(join(dir, 'users.json'), users)

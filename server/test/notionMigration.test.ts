@@ -274,7 +274,7 @@ const ROWS = [
   })
 ]
 
-function fakeNotion(): typeof fetch {
+function fakeNotion(options: { personal?: boolean } = {}): typeof fetch {
   const list = (results: unknown[]) => ({ results, has_more: false, next_cursor: null })
   const pages: Record<string, unknown> = {
     [P1]: page(P1, { type: 'workspace', workspace: true }, title('Accueil'), {
@@ -325,6 +325,15 @@ function fakeNotion(): typeof fetch {
     }
     expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer ntn_test')
     const path = url.pathname.replace('/v1', '')
+    if (path === '/users/me')
+      return json({
+        object: 'user',
+        id: 'bot',
+        type: 'bot',
+        bot: { owner: { type: 'user', user: { id: 'u1', person: { email: 'alice@example.com' } } } }
+      })
+    if (path === '/users' && options.personal)
+      return json({ code: 'restricted_resource', message: 'Not available to personal tokens' }, 403)
     if (path === '/users')
       return json(
         list([
@@ -421,9 +430,9 @@ function fakeNotion(): typeof fetch {
   }) as typeof fetch
 }
 
-async function crawled(): Promise<string> {
+async function crawled(options: { personal?: boolean } = {}): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'nx-notion-'))
-  const fetch = fakeNotion()
+  const fetch = fakeNotion(options)
   const client = new NotionClient({
     token: 'ntn_test',
     fetch,
@@ -431,7 +440,8 @@ async function crawled(): Promise<string> {
     sleep: async () => undefined
   })
   const index = await crawlNotion(client, dir, { fetch })
-  expect(index.errors).toEqual([])
+  // A personal token cannot list the people.
+  expect(index.errors.map((e) => e.id)).toEqual(options.personal ? ['users'] : [])
   return dir
 }
 
@@ -632,7 +642,10 @@ describe('Notion migration', () => {
     const main = registry.main.pages
     const privee = main.get(P3)!
     expect(privee.icon).toMatch(/^notionix-asset:\/\/file\/[0-9a-f]{64}\.png$/)
-    expect(main.get(privee.parentId!)!.title).toContain('hors espaces')
+    const privateRoot = main.get(privee.parentId!)!
+    expect(privateRoot.title).toContain('hors espaces')
+    // Private pages of the token's creator stay private to them.
+    expect(privateRoot).toMatchObject({ access: 'restricted', createdBy: alice })
     expect(db.prepare('SELECT name FROM custom_emojis').all()).toEqual([{ name: 'logo_pse' }])
 
     // The earlier import is in the trash, its provenance freed.
@@ -652,6 +665,28 @@ describe('Notion migration', () => {
     )
     expect(registry.list()).toHaveLength(2)
     expect(main.get(P3)!.trashedAt).toBeNull()
+  })
+
+  it('with a personal token, finds people from the Notion app', async () => {
+    const dir = await crawled({ personal: true })
+    const { dataDir, db, alice } = await server()
+    const teamspaces = join(dir, 'teamspaces.json')
+    writeFileSync(
+      teamspaces,
+      JSON.stringify({
+        teamspaces: [{ id: 'team-wiki', name: 'Wiki', icon: null, memberEmails: [], pages: [P1] }],
+        users: [{ id: 'u1', email: 'alice@example.com', name: 'Alice' }]
+      })
+    )
+    await migrateNotion(db, dataDir, {
+      dir,
+      teamspacesFile: teamspaces,
+      dryRun: false,
+      replaceImports: false
+    })
+    const registry = new Workspaces(db, dataDir)
+    const wiki = registry.get(registry.list().find((w) => w.name === 'Wiki')!.id)!
+    expect(wiki.pages.get(P1)!.createdBy).toBe(alice)
   })
 
   it('keeps unknown blocks as text and counts them', async () => {

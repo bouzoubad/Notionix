@@ -5,7 +5,10 @@ Notion's public API does not say which teamspace a top-level page belongs
 to; the Notion app on this Mac knows it. This writes, for the migration
 (`node main.mjs notion-migrate … --teamspaces <file>`):
 
-  {"teamspaces": [{"id", "name", "icon", "memberEmails", "pages", "unresolvedGroups"}]}
+  {"teamspaces": [{"id", "name", "icon", "memberEmails", "pages", "unresolvedGroups"}],
+   "users": [{"id", "email", "name"}]}
+
+The people (with e-mails) are what a personal Notion token cannot list.
 
 Usage: python3 scripts/notion-teamspaces.py "<Notion workspace name>" teamspaces.json
 
@@ -40,6 +43,10 @@ def main() -> int:
         return 1
     space_id = space[0]
     emails = {r[0]: r[1] for r in db.execute('SELECT id, email FROM notion_user WHERE email IS NOT NULL')}
+    people = {
+        r[0]: {'id': r[0], 'email': r[1], 'name': r[2]}
+        for r in db.execute('SELECT id, email, name FROM notion_user')
+    }
     group_members: dict[str, set[str]] = {}
     for group, user in db.execute(
         'SELECT space_permission_group_id, user_id FROM space_permission_group_member WHERE removed_at IS NULL'
@@ -91,10 +98,11 @@ def main() -> int:
         if not page_ids:
             missing.append(name)
     with open(out, 'w') as f:
-        json.dump({'teamspaces': teamspaces}, f, ensure_ascii=False, indent=2)
+        json.dump({'teamspaces': teamspaces, 'users': list(people.values())}, f, ensure_ascii=False, indent=2)
     for t in teamspaces:
         groups = f' ; groupes non résolus : {", ".join(t["unresolvedGroups"])}' if t['unresolvedGroups'] else ''
         print(f'{t["name"]} : {len(t["pages"])} page(s), {len(t["memberEmails"])} membre(s){groups}')
+    print(f'{len(people)} personne(s) de Notion')
     if missing:
         print(f'Sans pages connues (ouvrez-les dans la barre latérale de Notion) : {", ".join(missing)}')
     shutil.rmtree(tmp)

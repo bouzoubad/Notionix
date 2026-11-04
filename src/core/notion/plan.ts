@@ -58,6 +58,11 @@ export interface PlanInput {
    * page private to it (a personal token sees its creator's private pages)
    */
   owner?: string | null
+  /**
+   * Only the pages of the teamspaces given: the others stay in Notion for a
+   * later run (links to them already carry their ids)
+   */
+  onlyTeamspaces?: boolean
   /** Stores a file in a workspace (MAIN for the main one); returns its src */
   saveAsset(workspace: string, bytes: Uint8Array, name: string): Promise<string>
   timeZone?: string
@@ -126,6 +131,8 @@ export interface MigrationReport {
   orphans: string[]
   /** Top-level pages of no known teamspace */
   unassigned: string[]
+  /** Pages left in Notion (onlyTeamspaces) */
+  leftInNotion: number
   /** People of Notion without a Notionix account (e-mail or name) */
   missingPeople: string[]
   notes: Record<string, number>
@@ -154,6 +161,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
     filesMissing: [],
     orphans: [],
     unassigned: [],
+    leftInNotion: 0,
     missingPeople: [],
     notes: {},
     crawlErrors: index.errors,
@@ -282,16 +290,19 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
     return current
   }
   const workspaceOf = new Map<string, string>()
+  const left = new Set<string>()
   let unassigned = false
   for (const id of parentOf.keys()) {
     const root = rootOf(id)
     const team = teamOfRoot.get(root)
     workspaceOf.set(id, team ?? MAIN)
+    if (!team && input.onlyTeamspaces) left.add(id)
     if (!team && root === id) {
       unassigned = true
       report.unassigned.push(titleOf(id))
     }
   }
+  report.leftInNotion = left.size
 
   function titleOf(id: string): string {
     const page = pages.get(id)?.page
@@ -448,7 +459,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
       const id = stableUuid(`notion-synced:${originalId}`)
       synced.set(originalId, id)
       const owner = blockOwner.get(originalId)
-      const parent = owner && parentOf.has(owner) ? owner : pageId
+      const parent = owner && parentOf.has(owner) && !left.has(owner) ? owner : pageId
       const where = workspaceOf.get(parent) ?? workspace
       const original = blockById.get(originalId)
       const content = await documentOf(
@@ -523,6 +534,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
   const comments: MigrationComment[] = []
 
   for (const [id, db] of databases) {
+    if (left.has(id)) continue
     const workspace = workspaceOf.get(id) ?? MAIN
     const d = db.database
     const ctx = contextFor(id, workspace)
@@ -557,6 +569,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
   }
 
   for (const [id, snapshot] of pages) {
+    if (left.has(id)) continue
     const workspace = workspaceOf.get(id) ?? MAIN
     const page = snapshot.page
     const ctx = contextFor(id, workspace)
@@ -608,7 +621,7 @@ export async function planMigration(input: PlanInput): Promise<MigrationPlan> {
 
   // --- Pages of no teamspace (private pages, mostly): under one page of the
   // main workspace private to the owner of the token
-  if (unassigned) {
+  if (unassigned && !input.onlyTeamspaces) {
     nodes.set(UNASSIGNED_ID, {
       ...base(UNASSIGNED_ID, null, MAIN),
       title: 'Notion : pages hors espaces d’équipe',

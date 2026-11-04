@@ -694,13 +694,16 @@ describe('Notion migration', () => {
     const accounts = new Accounts(db, 30)
     expect(accounts.list().map((u) => u.email)).toEqual(['alice@example.com'])
 
-    await migrateNotion(db, dataDir, {
+    const real = await migrateNotion(db, dataDir, {
       dir,
       teamspacesFile: teamspaces,
       dryRun: false,
       replaceImports: false,
-      createAccountsFor: 'example.com'
+      createAccountsFor: 'example.com',
+      onlyTeamspaces: true
     })
+    // Only the teamspace's pages: the private one stays in Notion for later.
+    expect(readFileSync(real.reportFile, 'utf8')).toMatch(/Laissées dans Notion[^\n]*\n- Privée/)
     const registry = new Workspaces(db, dataDir)
     const wiki = registry.get(registry.list().find((w) => w.name === 'Wiki')!.id)!
     expect(wiki.pages.get(P1)!.createdBy).toBe(alice)
@@ -709,6 +712,7 @@ describe('Notion migration', () => {
     expect(bob).toMatchObject({ disabled: true, name: 'Bob', role: 'editor' })
     expect(wiki.pages.get(P1)!.updatedBy).toBe(bob.id)
     expect(accounts.list().some((u) => u.email === 'eve@elsewhere.org')).toBe(false)
+    expect(registry.main.pages.get(P3)).toBeNull()
   })
 
   it('keeps unknown blocks as text and counts them', async () => {

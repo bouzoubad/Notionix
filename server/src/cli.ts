@@ -15,7 +15,7 @@ const USAGE = `Commandes :
   backup <dossier>                                    copie cohérente des bases (à chaud) dans un dossier
   notion-fetch <fichier-jeton> <dossier> [--block-comments]
                                                       lit Notion (intégration) dans un dossier
-  notion-migrate <dossier> [--teamspaces <fichier>] [--dry-run] [--keep-imports] [--tz <fuseau>] [--owner <e-mail>] [--create-accounts <domaine>]
+  notion-migrate <dossier> [--teamspaces <fichier>] [--dry-run] [--keep-imports] [--tz <fuseau>] [--owner <e-mail>] [--create-accounts <domaine>] [--only-teamspaces]
                                                       écrit dans Notionix ce que notion-fetch a lu`
 
 async function askPassword(): Promise<string> {
@@ -81,7 +81,8 @@ export async function runCli(command: string, args: string[], config: Config): P
         replaceImports: !args.includes('--keep-imports'),
         timeZone: option('--tz') ?? undefined,
         owner: option('--owner'),
-        createAccountsFor: option('--create-accounts')
+        createAccountsFor: option('--create-accounts'),
+        onlyTeamspaces: args.includes('--only-teamspaces')
       })
       console.log(readFileSync(reportFile, 'utf8'))
       console.log(`Rapport : ${reportFile}`)

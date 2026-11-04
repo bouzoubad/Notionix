@@ -53,6 +53,8 @@ export interface MigrateOptions {
    * mentions and « Person » values keep them
    */
   createAccountsFor?: string | null
+  /** Only the pages of the teamspaces in the file; the others stay in Notion */
+  onlyTeamspaces?: boolean
 }
 
 interface TeamspacesFile {
@@ -135,6 +137,7 @@ export async function migrateNotion(
     teamspaces,
     notionUsers: file.users,
     owner,
+    onlyTeamspaces: options.onlyTeamspaces,
     accounts: users,
     saveAsset: (workspace, bytes, name) => store(workspace).saveFile(bytes, name),
     timeZone: options.timeZone
@@ -237,7 +240,14 @@ export async function migrateNotion(
           ...createdAccounts.map((a) => `- ${a}`)
         ]
       : []),
-    ...(r.unassigned.length
+    ...(r.unassigned.length && options.onlyTeamspaces
+      ? [
+          '',
+          `## Laissées dans Notion pour plus tard (${r.leftInNotion} page(s) sous ces pages de premier niveau)`,
+          ...r.unassigned.map((t) => `- ${t}`)
+        ]
+      : []),
+    ...(r.unassigned.length && !options.onlyTeamspaces
       ? [
           '',
           '## Pages hors espaces d’équipe (rangées dans l’espace principal)',

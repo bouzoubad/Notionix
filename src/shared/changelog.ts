@@ -21,6 +21,41 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-04-notion-espaces',
+    date: '2026-11-04',
+    title: 'Vos pages Notion sont arrivées : PrediSurge Wiki et Innovation',
+    summary:
+      'Les espaces d’équipe PrediSurge Wiki et Innovation de Notion sont dans Notionix, avec leurs icônes, logos, bases et fichiers. Chaque espace est une section de la barre latérale.',
+    body: `**Pour qui :** tout le monde.
+
+## Deux espaces d'équipe venus de Notion
+
+**PrediSurge Wiki** et **Innovation** ont été repris de Notion, tels qu'ils étaient le 4 novembre :
+
+- toutes leurs pages et sous-pages, avec leurs **icônes et logos** (les pictogrammes de Notion sont remplacés par des pictogrammes équivalents, dans la même couleur) et leurs **couvertures** ;
+- les **bases de données** avec leurs vues (tableau, liste, galerie, board), filtres, tris, statuts, personnes et relations ;
+- les **images et fichiers** joints (un fichier d'un type que Notionix ne garde pas tel quel est rangé dans un .zip) ;
+- les **liens et mentions** entre pages, les **équations**, tableaux, colonnes et blocs de code ;
+- les **émojis personnalisés** de Notion, devenus des émojis de l'équipe (**:nom**) ;
+- les auteurs et les dates de chaque page.
+
+Les autres espaces de Notion (Général, SMSI, Application, Solution) n'ont pas encore été repris. Un lien vers une de leurs pages s'ouvrira quand ils le seront. Les blocs Google Drive, les blocs IA et les boutons de Notion ne sont pas lisibles par l'API de Notion : ils manquent.
+
+## Les espaces dans la barre latérale
+
+Comme les espaces d'équipe de Notion, chaque espace est maintenant une **section de la barre latérale** :
+
+- la flèche **▸** déplie un espace et montre ses pages ;
+- un clic sur une page, ou sur le nom de l'espace, l'ouvre ;
+- l'espace ouvert est en gras, avec ses pages comme avant ; la section **Privé** reste en dessous.
+
+Dans l'app de bureau, cette présentation arrive avec la prochaine version ; d'ici là, le menu en haut de la barre latérale reste disponible.
+
+## Comptes
+
+Les personnes de PrediSurge citées dans Notion qui n'avaient pas encore de compte en ont un, **désactivé** : leur nom reste sur les pages qu'elles ont écrites. Un administrateur peut les activer (lien d'activation transmis par Keeper).`
+  },
+  {
     id: '2026-11-03-emojis-equipe-icones',
     date: '2026-11-03',
     title: 'Émojis de l’équipe, couleurs de peau et icônes',

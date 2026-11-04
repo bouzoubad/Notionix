@@ -700,7 +700,8 @@ describe('Notion migration', () => {
       dryRun: false,
       replaceImports: false,
       createAccountsFor: 'example.com',
-      onlyTeamspaces: true
+      onlyTeamspaces: true,
+      allMembers: true
     })
     // Only the teamspace's pages: the private one stays in Notion for later.
     expect(readFileSync(real.reportFile, 'utf8')).toMatch(/Laissées dans Notion[^\n]*\n- Privée/)
@@ -713,6 +714,13 @@ describe('Notion migration', () => {
     expect(wiki.pages.get(P1)!.updatedBy).toBe(bob.id)
     expect(accounts.list().some((u) => u.email === 'eve@elsewhere.org')).toBe(false)
     expect(registry.main.pages.get(P3)).toBeNull()
+    // Everyone of the team is a member, the new (disabled) accounts too.
+    expect(
+      registry
+        .list()
+        .find((w) => w.name === 'Wiki')!
+        .memberIds!.sort()
+    ).toEqual([alice, bob.id].sort())
   })
 
   it('keeps unknown blocks as text and counts them', async () => {

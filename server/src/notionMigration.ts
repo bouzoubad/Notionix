@@ -55,6 +55,8 @@ export interface MigrateOptions {
   createAccountsFor?: string | null
   /** Only the pages of the teamspaces in the file; the others stay in Notion */
   onlyTeamspaces?: boolean
+  /** Every account becomes a member of the workspaces made (Notion's groups cannot be read) */
+  allMembers?: boolean
 }
 
 interface TeamspacesFile {
@@ -143,6 +145,11 @@ export async function migrateNotion(
     timeZone: options.timeZone
   })
 
+  if (options.allMembers)
+    for (const w of plan.workspaces) {
+      w.memberIds = users.map((u) => u.id).filter((id) => !id.startsWith('a-creer:'))
+      w.missingMembers = []
+    }
   const lines: string[] = []
   const summary: string[] = []
   const privateRoot = plan.nodes.find((n) => n.access === 'restricted' && n.parentId === null)

@@ -10,3 +10,4 @@ server/certs/*.pem
 server/certs/*.key
 server/certs/*.crt
 server/downloads
+.playwright-mcp/

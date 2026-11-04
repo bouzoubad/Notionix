@@ -53,10 +53,17 @@ export function setTransport(next: Transport): void {
 
 export async function request(
   path: string,
-  init: { method?: string; json?: unknown; body?: BodyInit; type?: string } = {}
+  init: {
+    method?: string
+    json?: unknown
+    body?: BodyInit
+    type?: string
+    /** Another workspace than the one open (reading it from the sidebar) */
+    workspace?: string
+  } = {}
 ): Promise<Response> {
   const headers: Record<string, string> = {
-    [WORKSPACE_HEADER]: currentWorkspace(),
+    [WORKSPACE_HEADER]: init.workspace ?? currentWorkspace(),
     [LANGUAGE_HEADER]: language()
   }
   if (init.json !== undefined) headers['Content-Type'] = 'application/json'
@@ -76,5 +83,11 @@ export async function json<T>(path: string, init: Parameters<typeof request>[1] 
 /** Runs one workspace operation on the server. */
 export async function rpc<T>(method: string, ...args: unknown[]): Promise<T> {
   const { result } = await json<{ result: T }>('/api/rpc', { json: { method, args } })
+  return result
+}
+
+/** Runs one operation in another workspace than the one open. */
+export async function rpcIn<T>(workspace: string, method: string, ...args: unknown[]): Promise<T> {
+  const { result } = await json<{ result: T }>('/api/rpc', { json: { method, args }, workspace })
   return result
 }

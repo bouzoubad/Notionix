@@ -11,7 +11,8 @@ import {
   type WorkspaceInfo
 } from '../shared/collab'
 import type { Presence, ServerSession } from '../renderer/src/platform'
-import { json, request } from './http'
+import { json, request, rpcIn } from './http'
+import type { PageSummary } from '../shared/types'
 import { inboxChanged } from './api'
 import { currentWorkspace, switchWorkspace } from './workspace'
 
@@ -132,6 +133,7 @@ export function connect(
       current: currentWorkspace(),
       list: async () => (await json<{ workspaces: WorkspaceInfo[] }>('/api/workspaces')).workspaces,
       switchTo: switchWorkspace,
+      pagesOf: (id) => rpcIn<PageSummary[]>(id, 'pages.list'),
       locate: async (pageId) => {
         try {
           const { workspace } = await json<{ workspace: string }>(

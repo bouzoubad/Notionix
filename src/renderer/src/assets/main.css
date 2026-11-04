@@ -3810,36 +3810,43 @@ button:focus:not(:focus-visible) {
   gap: 8px;
 }
 
-/* Workspace switcher, at the top of the sidebar (server) */
-.workspace-switcher {
-  position: relative;
-  padding: 0 8px 6px;
+/* Workspaces of the server, as sections of the sidebar (like Notion's teamspaces) */
+.sidebar h4.sidebar-group {
+  margin-top: 12px;
 }
-.workspace-current {
+.tree-fold {
+  flex: none;
+  width: 16px;
+  padding: 0;
+  margin-right: 2px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 18px;
+}
+.tree-fold:hover {
+  background: var(--bg-hover);
+}
+.sidebar h4.tree-title .tree-title-label {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
-  padding: 4px 6px;
-  font-weight: 600;
-  text-align: left;
+  min-width: 0;
 }
-.workspace-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.tree-title-icon {
+  flex: none;
+  display: inline-flex;
 }
-.workspace-caret,
-.workspace-check {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin-left: auto;
+.workspace-section .tree-title-label {
+  color: var(--text);
+  font-size: 13px;
 }
-.workspace-menu .menu-item {
-  display: flex;
-  gap: 6px;
-  width: 100%;
+.workspace-section.current .tree-title-label {
+  font-weight: 700;
+}
+.workspace-open:hover {
+  text-decoration: underline;
 }
 
 /* Logo of the theme shown (see Logo.tsx) */

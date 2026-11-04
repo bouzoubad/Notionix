@@ -43,6 +43,8 @@ export interface ServerSession {
     list: () => Promise<WorkspaceInfo[]>
     /** Opens the workspace, on one of its pages when given */
     switchTo: (id: string, pageId?: string | null) => void
+    /** The pages of another workspace this person can open (shown in the sidebar) */
+    pagesOf: (id: string) => Promise<PageSummary[]>
     /** The workspace holding a page this person can open; null when there is none */
     locate: (pageId: string) => Promise<string | null>
   }

@@ -2,13 +2,13 @@ import { AppearanceSettings } from './AppearanceSettings'
 import { useEffect, useRef, useState } from 'react'
 import { childrenOf, pageHash, useStore } from '../store'
 import { Logo } from './Logo'
-import { isLocalPage, platform } from '../platform'
+import { isLocalPage, platform, type ServerSession } from '../platform'
 import { Avatars } from './PageTopBar'
 import { TemplatesDialog } from './TemplatesDialog'
-import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { PageIcon } from './PageIcon'
 import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
+import type { WorkspaceInfo } from '../../../shared/collab'
 import { LANGUAGES, language, setLanguage, t, type Language } from '../../../shared/i18n'
 
 /**
@@ -67,6 +67,31 @@ const openInNewTab = (id: string): void => {
 
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
 
+const WORKSPACES_KEY = 'notionix.sidebar.workspaces'
+
+/** Sections of the sidebar folded or unfolded by this person (this browser). */
+const FOLDED_KEY = 'notionix.sidebar.folded'
+function readFolded(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(FOLDED_KEY) ?? '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+function useFolded(key: string, foldedByDefault: boolean): [boolean, () => void] {
+  const [folded, setFolded] = useState(() => readFolded()[key] ?? foldedByDefault)
+  const toggle = (): void => {
+    const next = !folded
+    setFolded(next)
+    try {
+      localStorage.setItem(FOLDED_KEY, JSON.stringify({ ...readFolded(), [key]: next }))
+    } catch {
+      // Without storage the section is folded for this visit only.
+    }
+  }
+  return [folded, toggle]
+}
+
 export function Sidebar(): React.JSX.Element {
   const pages = useStore((s) => s.pages)
   const createPage = useStore((s) => s.createPage)
@@ -83,6 +108,38 @@ export function Sidebar(): React.JSX.Element {
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const unread = useStore((s) => s.inboxUnread)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
+  // The workspaces of the server, each a section of the sidebar as Notion's teamspaces.
+  // Kept from the last visit, so the sections do not appear late.
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>(() => {
+    try {
+      return session
+        ? (JSON.parse(localStorage.getItem(WORKSPACES_KEY) ?? '[]') as WorkspaceInfo[])
+        : []
+    } catch {
+      return []
+    }
+  })
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    session.workspaces
+      .list()
+      .then((list) => {
+        if (cancelled) return
+        const shown = list.filter((w) => !w.archived || w.id === session.workspaces.current)
+        setWorkspaces(shown)
+        try {
+          localStorage.setItem(WORKSPACES_KEY, JSON.stringify(shown))
+        } catch {
+          // kept for this visit only
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [session])
+  const sections = session !== null && workspaces.length > 1
 
   const favorites = pages.filter((p) => p.favorite && !p.trashedAt)
   const open = useStore((s) => s.open)
@@ -125,7 +182,6 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-brand">
         <Logo variant="wordmark" className="logo-sidebar" />
       </div>
-      {session && <WorkspaceSwitcher workspaces={session.workspaces} />}
       <div className="sidebar-actions">
         <button onClick={() => setSearchOpen(true)}>
           {t('Rechercher')} <kbd>⌘K</kbd>
@@ -170,14 +226,37 @@ export function Sidebar(): React.JSX.Element {
             rowProps={rowProps}
           />
         ))}
-        {(canCreate || team.length > 0) && (
-          <TreeSection
-            title={web ? t('Espace d’équipe') : t('Pages')}
-            onAdd={canCreate ? () => void createPage(null) : undefined}
-            pages={team}
-            rowProps={rowProps}
-            empty={t('Aucune page. Créez-en une.')}
-          />
+        {sections && session ? (
+          <>
+            <h4 className="sidebar-group">{t('Espaces d’équipe')}</h4>
+            {workspaces.map((w) =>
+              w.id === session.workspaces.current ? (
+                <TreeSection
+                  key={w.id}
+                  title={w.name}
+                  icon={w.icon || '🏢'}
+                  foldKey={`workspace:${w.id}`}
+                  className="workspace-section current"
+                  onAdd={canCreate ? () => void createPage(null) : undefined}
+                  pages={team}
+                  rowProps={rowProps}
+                  empty={t('Aucune page. Créez-en une.')}
+                />
+              ) : (
+                <OtherWorkspace key={w.id} info={w} session={session} />
+              )
+            )}
+          </>
+        ) : (
+          (canCreate || team.length > 0) && (
+            <TreeSection
+              title={web ? t('Espace d’équipe') : t('Pages')}
+              onAdd={canCreate ? () => void createPage(null) : undefined}
+              pages={team}
+              rowProps={rowProps}
+              empty={t('Aucune page. Créez-en une.')}
+            />
+          )
         )}
         {web && canCreate && (
           <TreeSection
@@ -265,6 +344,9 @@ export function Sidebar(): React.JSX.Element {
 
 function TreeSection({
   title,
+  icon,
+  foldKey,
+  className,
   onTitle,
   onAdd,
   pages,
@@ -272,21 +354,56 @@ function TreeSection({
   empty
 }: {
   title: string
+  /** Icon before the title (a workspace's) */
+  icon?: string
+  /** The section can be folded; its state is kept under this key */
+  foldKey?: string
+  className?: string
   onTitle?: () => void
   onAdd?: () => void
   pages: PageSummary[]
   rowProps: Omit<RowProps, 'page' | 'depth' | 'flat'>
   empty?: string
 }): React.JSX.Element {
+  const [folded, toggleFold] = useFolded(foldKey ?? '', false)
+  const hidden = foldKey !== undefined && folded
+  const label = (
+    <>
+      {icon && (
+        <span className="tree-title-icon">
+          <PageIcon icon={icon} />
+        </span>
+      )}
+      {title}
+    </>
+  )
   return (
-    <section className="tree" role="tree" aria-label={title}>
+    <section
+      className={['tree', className].filter(Boolean).join(' ')}
+      role="tree"
+      aria-label={title}
+    >
       <h4 className="tree-title">
+        {foldKey !== undefined && (
+          <button
+            className="tree-fold"
+            aria-expanded={!hidden}
+            aria-label={hidden ? t('Déplier {title}', { title }) : t('Replier {title}', { title })}
+            onClick={toggleFold}
+          >
+            {hidden ? '▸' : '▾'}
+          </button>
+        )}
         {onTitle ? (
           <button className="tree-title-label" onClick={onTitle}>
-            {title}
+            {label}
+          </button>
+        ) : foldKey !== undefined ? (
+          <button className="tree-title-label" onClick={toggleFold}>
+            {label}
           </button>
         ) : (
-          <span className="tree-title-label">{title}</span>
+          <span className="tree-title-label">{label}</span>
         )}
         {onAdd && (
           <button
@@ -299,11 +416,138 @@ function TreeSection({
           </button>
         )}
       </h4>
-      {pages.map((p) => (
-        <Row key={p.id} page={p} depth={0} {...rowProps} />
-      ))}
-      {pages.length === 0 && empty && <p className="empty">{empty}</p>}
+      {!hidden && pages.map((p) => <Row key={p.id} page={p} depth={0} {...rowProps} />)}
+      {!hidden && pages.length === 0 && empty && <p className="empty">{empty}</p>}
     </section>
+  )
+}
+
+/**
+ * Another workspace of the server, as a section of the sidebar: its pages are
+ * read when it is unfolded; opening one opens its workspace on it.
+ */
+function OtherWorkspace({
+  info,
+  session
+}: {
+  info: WorkspaceInfo
+  session: ServerSession
+}): React.JSX.Element {
+  const [folded, toggleFold] = useFolded(`workspace:${info.id}`, true)
+  const [pages, setPages] = useState<PageSummary[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (folded || pages) return
+    let cancelled = false
+    session.workspaces
+      .pagesOf(info.id)
+      .then((list) => !cancelled && setPages(list.filter((p) => !p.trashedAt)))
+      .catch(() => !cancelled && setFailed(true))
+    return () => {
+      cancelled = true
+    }
+  }, [folded, pages, info.id, session])
+  const go = (pageId: string | null): void => session.workspaces.switchTo(info.id, pageId)
+  const roots = pages ? childrenOf(pages, null).filter((p) => p.kind !== 'synced') : []
+  return (
+    <section className="tree workspace-section" role="tree" aria-label={info.name}>
+      <h4 className="tree-title">
+        <button
+          className="tree-fold"
+          aria-expanded={!folded}
+          aria-label={
+            folded
+              ? t('Déplier {title}', { title: info.name })
+              : t('Replier {title}', { title: info.name })
+          }
+          onClick={toggleFold}
+        >
+          {folded ? '▸' : '▾'}
+        </button>
+        <button
+          className="tree-title-label workspace-open"
+          title={t('Ouvrir l’espace {name}', { name: info.name })}
+          onClick={() => go(null)}
+        >
+          <span className="tree-title-icon">
+            <PageIcon icon={info.icon || '🏢'} />
+          </span>
+          {info.name}
+        </button>
+      </h4>
+      {!folded &&
+        (pages === null ? (
+          <p className="empty">
+            {failed ? t('Espace injoignable pour le moment.') : t('Chargement…')}
+          </p>
+        ) : roots.length === 0 ? (
+          <p className="empty">{t('Aucune page.')}</p>
+        ) : (
+          roots.map((p) => <RemoteRow key={p.id} page={p} pages={pages} depth={0} go={go} />)
+        ))}
+    </section>
+  )
+}
+
+/** A page of another workspace: opening it opens that workspace. */
+function RemoteRow({
+  page,
+  pages,
+  depth,
+  go
+}: {
+  page: PageSummary
+  pages: PageSummary[]
+  depth: number
+  go: (pageId: string) => void
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+  const kids = childrenOf(pages, page.id)
+  const label = page.title || t('Sans titre')
+  return (
+    <div role="none">
+      <div
+        className="row"
+        role="treeitem"
+        tabIndex={0}
+        aria-level={depth + 1}
+        aria-expanded={kids.length ? expanded : undefined}
+        aria-label={label}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={() => go(page.id)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return
+          const handled = treeKey(e.key, e.currentTarget, {
+            open: () => go(page.id),
+            expand: () => kids.length > 0 && !expanded && (setExpanded(true), true),
+            collapse: () => expanded && (setExpanded(false), true),
+            menu: () => undefined
+          })
+          if (handled) e.preventDefault()
+        }}
+      >
+        <button
+          className="chevron"
+          tabIndex={-1}
+          aria-hidden
+          onClick={(e) => (e.stopPropagation(), setExpanded(!expanded))}
+          style={{ visibility: kids.length ? 'visible' : 'hidden' }}
+        >
+          {expanded ? '▾' : '▸'}
+        </button>
+        <span className="icon">
+          <PageIcon icon={page.icon} fallback={page.kind === 'database' ? '🗃️' : '📄'} />
+        </span>
+        <span className="label">{label}</span>
+      </div>
+      {expanded && kids.length > 0 && (
+        <div role="group">
+          {kids.map((k) => (
+            <RemoteRow key={k.id} page={k} pages={pages} depth={depth + 1} go={go} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

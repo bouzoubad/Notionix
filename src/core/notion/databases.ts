@@ -375,7 +375,9 @@ export function convertView(
     const id = schema ? propertyId(sourceId, schema) : null
     return id ? props.find((p) => p.id === id) : undefined
   }
-  const out: ViewDef = { ...defaultView(type, view.name || 'Vue'), id: stableId('view', view.id) }
+  // A view Notion left unnamed (« Untitled ») takes the name of its type.
+  const named = view.name && !/^untitled$/i.test(view.name.trim()) ? view.name : undefined
+  const out: ViewDef = { ...defaultView(type, named), id: stableId('view', view.id) }
   const conf = (view.configuration ?? {}) as Record<string, unknown>
   const visible =
     (conf.properties as

@@ -134,9 +134,12 @@ try {
   await admin.locator('.ProseMirror', { hasText: 'relu par Bob' }).waitFor()
 
   // Bob switches to his other workspace and works there
-  await bob.locator('.workspace-current').click()
-  await bob.locator('.workspace-menu .menu-item', { hasText: 'Projet X' }).click()
-  await bob.locator('.workspace-current', { hasText: 'Projet X' }).waitFor()
+  // Each workspace is a section of the sidebar; another one shows its pages unfolded
+  await bob.locator('.workspace-section.current', { hasText: 'Espace principal' }).waitFor()
+  await bob.locator('.workspace-section', { hasText: 'Projet X' }).locator('.tree-fold').click()
+  await bob.locator('.workspace-section', { hasText: 'Projet X' }).locator('.empty').waitFor()
+  await bob.locator('.workspace-section', { hasText: 'Projet X' }).locator('.workspace-open').click()
+  await bob.locator('.workspace-section.current', { hasText: 'Projet X' }).waitFor()
   assert.equal(await bob.locator('.sidebar .row', { hasText: 'Feuille de route' }).count(), 0)
   await bob.getByRole('button', { name: '+ Nouvelle page' }).click()
   await bob.locator('.page-title').fill('Plan du projet')
@@ -147,7 +150,7 @@ try {
 
   // A link to that page, opened by the administrator from the main workspace, switches workspace
   await admin.goto(planLink)
-  await admin.locator('.workspace-current', { hasText: 'Projet X' }).waitFor()
+  await admin.locator('.workspace-section.current', { hasText: 'Projet X' }).waitFor()
   await admin.waitForFunction(
     () => document.querySelector('.page-title')?.value === 'Plan du projet'
   )

@@ -162,7 +162,7 @@ Les logos sont recadrés depuis une image de 1254 px : l'icône 1024 px est un a
 - App de bureau reliée : option « garder toutes les pages d'équipe sur le Mac » (pas seulement ouvertes, favorites et récentes), mise de côté à la demande (2 nov. 2026) ; hors ligne, modifier les bases (lignes, propriétés) et les commentaires de l'équipe, créer une ligne de base ; commentaires des pages écrites hors ligne (pas envoyés avec elles) ; signature Developer ID + notarisation Apple (compte Apple Developer) pour supprimer « Ouvrir quand même » à la première installation ; version Windows de l'app. Miroir git : miroir local des pages privées de l'app de bureau (dépôt sur le Mac, jamais poussé).
 - Phase 4 : finitions UI (raccourcis, onglets), packaging.
 - Migration Notion par l'API (2026-11-04) : PrediSurge lu en entier (952 pages, 45 bases, 707 Mo de fichiers, jeton personnel) ; espaces d'équipe PrediSurge Wiki et Innovation **migrés sur gamma** le 2026-11-04 (674 pages, 655 fichiers, 38 émojis, 12 comptes désactivés, sauvegarde préalable dans `/data/backup-avant-migration-notion-20261104`), après validation sur une copie locale. Restent dans Notion pour plus tard : Général, SMSI, Application, Solution (27 pages de premier niveau, espace inconnu du cache de l'app Notion) ; commentaires des blocs en cours de lecture, ajoutés par une seconde passe.
-- Barre latérale : chaque espace est une section repliable, comme les espaces d'équipe de Notion (app de bureau : avec la prochaine version publiée).
+- Barre latérale : chaque espace est une section repliable, comme les espaces d'équipe de Notion (web, et app de bureau 1.4.0 publiée sur gamma le 2026-11-04, mise à jour automatique).
 
 ## Limites connues
 

@@ -21,6 +21,19 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-04-app-1-4-0',
+    date: '2026-11-04',
+    title: 'App de bureau 1.4.0 : les espaces dans la barre latérale',
+    summary:
+      'L’app de bureau montre elle aussi chaque espace (PrediSurge Wiki, Innovation…) comme une section de la barre latérale.',
+    desktop: '1.4.0',
+    body: `**Pour qui :** les personnes qui utilisent l'app de bureau.
+
+La version 1.4.0 de l'app reprend la présentation du navigateur : chaque espace est une **section de la barre latérale**, comme les espaces d'équipe de Notion. La flèche **▸** déplie un espace ; un clic sur une page ou sur le nom de l'espace l'ouvre.
+
+**Mise à jour :** l'app la télécharge toute seule ; quand le bouton **Redémarrer** apparaît en bas à droite, cliquez-le. Rien à réinstaller.`
+  },
+  {
     id: '2026-11-04-notion-espaces',
     date: '2026-11-04',
     title: 'Vos pages Notion sont arrivées : PrediSurge Wiki et Innovation',
@@ -49,7 +62,7 @@ Comme les espaces d'équipe de Notion, chaque espace est maintenant une **sectio
 - un clic sur une page, ou sur le nom de l'espace, l'ouvre ;
 - l'espace ouvert est en gras, avec ses pages comme avant ; la section **Privé** reste en dessous.
 
-Dans l'app de bureau, cette présentation arrive avec la prochaine version ; d'ici là, le menu en haut de la barre latérale reste disponible.
+Dans l'app de bureau, cette présentation arrive avec la version 1.4.0 (mise à jour automatique) ; d'ici là, le menu en haut de la barre latérale reste disponible.
 
 ## Comptes
 

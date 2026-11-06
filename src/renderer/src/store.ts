@@ -430,6 +430,11 @@ export const useStore = create<State>((set, get) => ({
       tabs: kept.map(({ id, i }) => (i === tab && !valid ? null : id)),
       tab: kept.findIndex(({ i }) => i === tab)
     })
+    // Opened from the address (a link, a workspace switch): remembered like any page opened.
+    if (valid && localStorage.getItem('currentId') !== currentId) {
+      localStorage.setItem('currentId', currentId)
+      rememberRecent(currentId)
+    }
     // The address names a page this workspace does not have: maybe another one does.
     const linked = pageIdFromHash(location.hash)
     if (linked && !pages.some((p) => p.id === linked)) void openElsewhere(linked)

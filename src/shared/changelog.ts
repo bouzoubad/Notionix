@@ -21,6 +21,44 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026-11-06-favoris-prive-hors-ligne',
+    date: '2026-11-06',
+    title:
+      'Favoris personnels, pages privées toujours visibles, barre latérale réglable, app hors ligne',
+    summary:
+      'Vos favoris et pages privées restent dans la barre latérale quel que soit l’espace ouvert ; une étoile ajoute un favori ; la barre latérale s’élargit ou se masque ; l’app de bureau s’ouvre tout de suite sans VPN.',
+    desktop: '1.5.0',
+    body: `**Pour qui :** tout le monde (merci Solenne pour vos retours).
+
+## Vos pages privées ne disparaissent plus
+
+La section **Privé** ne montrait que les pages privées de l'espace ouvert : en passant sur **Innovation** ou **PrediSurge Wiki**, vos pages privées de l'Espace principal semblaient avoir disparu. Elles étaient toujours là. Désormais, **Privé** montre vos pages privées de **tous les espaces**, où que vous soyez ; un clic ouvre la page dans son espace.
+
+## Favoris
+
+- Une **étoile ☆** en haut à droite de chaque page l'ajoute à vos **Favoris** (★ : cliquez à nouveau pour la retirer). Le menu **⋯** d'une page le permet aussi.
+- Vos favoris sont **à vous seul** : les autres ne les voient pas. Les personnes en lecture seule peuvent aussi en avoir.
+- Comme les pages privées, les favoris de tous les espaces sont dans la section **Favoris**, en haut de la barre latérale.
+
+## Barre latérale plus large, plus étroite ou masquée
+
+- **Glissez son bord droit** pour l'élargir (et lire les titres en entier) ou la rétrécir ; un double-clic sur le bord lui rend sa largeur d'origine.
+- Le bouton **«** en haut de la barre latérale la masque (ou **Cmd** + **\\\\**) ; le bouton **»** en haut à gauche la fait revenir.
+- La largeur et l'état masqué sont gardés sur votre appareil.
+
+## App de bureau sans réseau (sans VPN)
+
+Sans le VPN, l'app restait sur un écran noir ou vide pendant de longues minutes : chaque demande au serveur attendait qu'il réponde. Maintenant :
+
+- l'app s'ouvre **tout de suite**, avec ce qu'elle a gardé de la dernière connexion, dans chaque espace (y compris en changeant d'espace hors ligne) ;
+- une page jamais ouverte sur ce Mac affiche aussitôt « pas disponible hors ligne », puis s'ouvre toute seule au retour du réseau ;
+- l'app reprend contact avec le serveur dès que le réseau revient.
+
+Hors ligne, l'app garde vos pages privées (et tout ce qu'elles contiennent), vos favoris et vos pages récentes. Garder **toutes** les pages de l'équipe sur le Mac est à l'étude.
+
+**App de bureau :** ces changements arrivent avec la version 1.5.0, téléchargée toute seule ; cliquez **Redémarrer** quand le bouton apparaît en bas à droite.`
+  },
+  {
     id: '2026-11-04-onglets-icones',
     date: '2026-11-04',
     title: 'Onglets plus faciles à ouvrir, icônes à la bonne taille',

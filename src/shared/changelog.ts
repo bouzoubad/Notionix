@@ -24,9 +24,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     id: '2026-11-06-favoris-prive-hors-ligne',
     date: '2026-11-06',
     title:
-      'Favoris personnels, pages privées toujours visibles, barre latérale réglable, app hors ligne',
+      'Favoris personnels, pages privées toujours visibles, barre latérale réglable, toutes les pages hors ligne',
     summary:
-      'Vos favoris et pages privées restent dans la barre latérale quel que soit l’espace ouvert ; une étoile ajoute un favori ; la barre latérale s’élargit ou se masque ; l’app de bureau s’ouvre tout de suite sans VPN.',
+      'Vos favoris et pages privées restent dans la barre latérale quel que soit l’espace ouvert ; une étoile ajoute un favori ; la barre latérale s’élargit ou se masque ; l’app de bureau garde toutes les pages sur le Mac et s’ouvre tout de suite sans VPN.',
     desktop: '1.5.0',
     body: `**Pour qui :** tout le monde (merci Solenne pour vos retours).
 
@@ -46,15 +46,18 @@ La section **Privé** ne montrait que les pages privées de l'espace ouvert : en
 - Le bouton **«** en haut de la barre latérale la masque (ou **Cmd** + **\\\\**) ; le bouton **»** en haut à gauche la fait revenir.
 - La largeur et l'état masqué sont gardés sur votre appareil.
 
-## App de bureau sans réseau (sans VPN)
+## App de bureau : toutes les pages, même sans réseau
 
 Sans le VPN, l'app restait sur un écran noir ou vide pendant de longues minutes : chaque demande au serveur attendait qu'il réponde. Maintenant :
 
-- l'app s'ouvre **tout de suite**, avec ce qu'elle a gardé de la dernière connexion, dans chaque espace (y compris en changeant d'espace hors ligne) ;
-- une page jamais ouverte sur ce Mac affiche aussitôt « pas disponible hors ligne », puis s'ouvre toute seule au retour du réseau ;
-- l'app reprend contact avec le serveur dès que le réseau revient.
+- l'app s'ouvre **tout de suite**, avec ce qu'elle a gardé, dans chaque espace (y compris en changeant d'espace hors ligne) ;
+- elle garde sur le Mac **toutes les pages de tous vos espaces**, avec leurs images et fichiers (PDF, zip, vidéos…), et les tient à jour en arrière-plan : seules les pages modifiées sont téléchargées à nouveau. La première fois, comptez une dizaine de minutes et environ 700 Mo ;
+- hors ligne, le texte des pages se modifie comme d'habitude (tout est fusionné au retour du réseau) ; les bases et les commentaires de l'équipe se lisent mais ne se modifient qu'en ligne ;
+- en bas de la barre latérale, **« Synchronisé il y a … »** dit quand l'app a tout récupéré pour la dernière fois (ou combien de pages il reste) ; hors ligne, chaque page indique la date de sa copie.
 
-Hors ligne, l'app garde vos pages privées (et tout ce qu'elles contiennent), vos favoris et vos pages récentes. Garder **toutes** les pages de l'équipe sur le Mac est à l'étude.
+**Comme OneDrive**, vous choisissez ce que le Mac garde : un clic sur « Synchronisé… » ouvre la fenêtre **Hors ligne**, où chaque espace est **gardé sur cet ordinateur** ou **en ligne uniquement** (avec la place utilisée) ; le menu **⋯** d'une page propose la même chose pour elle et ses sous-pages. « En ligne uniquement » libère la place sur le Mac. Vos pages privées, favoris et pages récentes restent toujours gardés.
+
+Les copies sont dans le dossier de l'app sur le Mac (\`~/Library/Application Support/notionix\`) ; activez **FileVault** pour qu'elles soient chiffrées. Se déconnecter les efface.
 
 **App de bureau :** ces changements arrivent avec la version 1.5.0, téléchargée toute seule ; cliquez **Redémarrer** quand le bouton apparaît en bas à droite.`
   },

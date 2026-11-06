@@ -23,8 +23,18 @@ export const CACHED_CALLS: ReadonlySet<string> = new Set([
   'databases.recurrences'
 ])
 
-/** Requests other than operations whose answer is kept too. */
-export const CACHED_PATHS: ReadonlySet<string> = new Set(['/api/me', '/api/workspaces'])
+/**
+ * Requests other than operations whose answer is kept too: they are about the
+ * account, the same in every workspace (kept once, read from any of them).
+ */
+export const CACHED_PATHS: ReadonlySet<string> = new Set([
+  '/api/me',
+  '/api/workspaces',
+  '/api/emojis',
+  '/api/me/appearance'
+])
+/** Stands for the workspace in the key of an answer that is the same in all of them. */
+const ANY_WORKSPACE = '*'
 
 /**
  * Last answers of the server, per server, workspace and request. Only read
@@ -82,7 +92,8 @@ export function cacheKeyOf(
   path: string,
   body: string | null
 ): string | null {
-  if (method === 'GET' && CACHED_PATHS.has(path)) return ServerCache.key(server, workspace, path)
+  if (method === 'GET' && CACHED_PATHS.has(path))
+    return ServerCache.key(server, ANY_WORKSPACE, path)
   if (method !== 'POST' || path !== '/api/rpc' || body === null) return null
   try {
     const call = JSON.parse(body) as { method?: unknown; args?: unknown }

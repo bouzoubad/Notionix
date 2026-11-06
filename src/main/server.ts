@@ -57,6 +57,26 @@ const jsonAnswer = (
   body: new TextEncoder().encode(JSON.stringify(body))
 })
 
+/**
+ * How long the server may take to start answering: a request to a server out
+ * of reach (no VPN: nothing answers, nothing refuses) would otherwise wait for
+ * the system to give up, more than a minute, with the app empty meanwhile.
+ */
+export interface LinkTiming {
+  /** An operation that only reads (its last answer is kept): then served from what was kept */
+  answer: number
+  /** Signing in, activating, signing out */
+  call: number
+  /** Checking that the server can be reached */
+  probe: number
+  /** Out of reach: how often the server is tried again; requests in between answer at once */
+  retry: number
+}
+export const LINK_TIMING: LinkTiming = { answer: 10_000, call: 15_000, probe: 3_000, retry: 5_000 }
+
+/** Answers of a proxy in front of a server that is not running (Caddy while it restarts). */
+const GATEWAY_ERRORS = new Set([502, 503, 504])
+
 /** Chromium's network errors that mean the server's certificate is not trusted. */
 const isCertificateError = (e: unknown): boolean =>
   /CERT|SSL|certificate/i.test(e instanceof Error ? `${e.message} ${String(e.cause ?? '')}` : '')
@@ -69,13 +89,22 @@ const isCertificateError = (e: unknown): boolean =>
  */
 export class ServerLink {
   private saved: Saved | null = null
+  /** The server could not be reached the last time it was tried */
+  private unreachable = false
+  /** When it was last tried */
+  private triedAt = 0
+  /** The check under way, which requests wait for */
+  private probing: Promise<boolean> | null = null
+  private readonly timing: LinkTiming
 
   constructor(
     private readonly file: string,
     private readonly cache: ServerCache,
     private readonly secrets: SecretBox,
-    private readonly fetch: Fetch
+    private readonly fetch: Fetch,
+    timing: Partial<LinkTiming> = {}
   ) {
+    this.timing = { ...LINK_TIMING, ...timing }
     try {
       if (existsSync(file)) {
         const data = JSON.parse(readFileSync(file, 'utf8')) as Partial<Saved>
@@ -91,6 +120,8 @@ export class ServerLink {
     } catch {
       this.saved = null
     }
+    // Known before the app's first request: without network it opens from what was kept at once.
+    if (this.saved?.token) void this.probe()
   }
 
   status(): ServerLinkStatus | null {
@@ -174,6 +205,7 @@ export class ServerLink {
       user: body.user,
       token: this.secrets.seal(body.token)
     }
+    this.unreachable = false
     this.write()
     return { ok: true, status: this.status()! }
   }
@@ -185,7 +217,7 @@ export class ServerLink {
   ): Promise<{ ok: true; body: unknown } | { ok: false; error: ServerLoginError }> {
     let res: Response
     try {
-      res = await this.fetch(url, init)
+      res = await this.timed(url, init, this.timing.call)
     } catch (e) {
       return { ok: false, error: { kind: isCertificateError(e) ? 'certificate' : 'unreachable' } }
     }
@@ -199,13 +231,16 @@ export class ServerLink {
 
   async logout(): Promise<void> {
     const token = this.token()
-    if (this.saved && token) {
-      await this.fetch(`${this.saved.url}/api/logout`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      }).catch(() => undefined)
+    // Without network the session stays open on the server until it expires.
+    if (this.saved && token && (await this.reachable())) {
+      await this.timed(
+        `${this.saved.url}/api/logout`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+        this.timing.call
+      ).catch(() => undefined)
     }
     this.saved = null
+    this.unreachable = false
     this.cache.clear()
     rmSync(this.file, { force: true })
   }
@@ -232,23 +267,16 @@ export class ServerLink {
       path.split('?')[0],
       typeof init.body === 'string' ? init.body : null
     )
-    let res: Response
-    try {
-      res = await this.fetch(`${s.url}${path}`, {
-        method: init.method,
-        headers,
-        body: init.body as BodyInit | undefined
-      })
-    } catch {
-      const kept = key ? this.cache.get(key) : null
-      if (kept)
+    const kept = (): ProxyResponse => {
+      const answer = key ? this.cache.get(key) : null
+      if (answer)
         return {
           status: 200,
           headers: {
             'content-type': 'application/json; charset=utf-8',
-            [OFFLINE_HEADER]: String(kept.at)
+            [OFFLINE_HEADER]: String(answer.at)
           },
-          body: kept.body
+          body: answer.body
         }
       return jsonAnswer(
         503,
@@ -256,7 +284,33 @@ export class ServerLink {
         { [OFFLINE_HEADER]: '0' }
       )
     }
-    const body = NO_BODY.has(res.status) ? null : new Uint8Array(await res.arrayBuffer())
+    if (!(await this.reachable())) return kept()
+    let res: Response
+    try {
+      // A change is never cut short (it may be under way on the server); a reading is.
+      res = await this.timed(
+        `${s.url}${path}`,
+        { method: init.method, headers, body: init.body as BodyInit | undefined },
+        key ? this.timing.answer : 0
+      )
+    } catch {
+      this.failed()
+      return kept()
+    }
+    if (GATEWAY_ERRORS.has(res.status)) {
+      await res.body?.cancel().catch(() => undefined)
+      this.failed()
+      return kept()
+    }
+    let body: Uint8Array | null
+    try {
+      body = NO_BODY.has(res.status) ? null : new Uint8Array(await res.arrayBuffer())
+    } catch {
+      // Cut off while answering.
+      this.failed()
+      return kept()
+    }
+    this.unreachable = false
     // The session has ended: the person signs in again.
     if (res.status === 401) this.expire()
     else if (res.ok && key && body) this.cache.put(key, body)
@@ -273,13 +327,71 @@ export class ServerLink {
     const s = this.saved
     const token = this.token()
     if (!s || !token || !ASSET_NAME.test(name)) return null
+    if (!(await this.reachable())) return null
     try {
-      const res = await this.fetch(`${s.url}/api/assets/${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await this.timed(
+        `${s.url}/api/assets/${encodeURIComponent(name)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        this.timing.answer
+      )
+      if (GATEWAY_ERRORS.has(res.status)) this.failed()
       return res.ok ? new Uint8Array(await res.arrayBuffer()) : null
     } catch {
+      this.failed()
       return null
+    }
+  }
+
+  /**
+   * Whether to try the server now: yes unless it was out of reach a moment
+   * ago (then what was kept answers at once, and it is tried again every few
+   * seconds).
+   */
+  private reachable(): Promise<boolean> {
+    if (this.probing) return this.probing
+    if (!this.unreachable) return Promise.resolve(true)
+    if (Date.now() - this.triedAt < this.timing.retry) return Promise.resolve(false)
+    return this.probe()
+  }
+
+  /** Checks now whether the server can be reached (the page asks when its connection is back). */
+  probe(): Promise<boolean> {
+    const s = this.saved
+    if (!s) return Promise.resolve(false)
+    this.probing ??= this.timed(`${s.url}/api/health`, { method: 'GET' }, this.timing.probe)
+      .then(
+        async (res) => {
+          await res.body?.cancel().catch(() => undefined)
+          return !GATEWAY_ERRORS.has(res.status)
+        },
+        () => false
+      )
+      .then((ok) => {
+        this.unreachable = !ok
+        this.triedAt = Date.now()
+        this.probing = null
+        return ok
+      })
+    return this.probing
+  }
+
+  private failed(): void {
+    this.unreachable = true
+    this.triedAt = Date.now()
+  }
+
+  /**
+   * A request that gives up when the server has not started answering after
+   * `timeout` ms (0: waits). Once the answer has started, it may take its time.
+   */
+  private async timed(url: string, init: RequestInit, timeout: number): Promise<Response> {
+    if (!timeout) return this.fetch(url, init)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeout)
+    try {
+      return await this.fetch(url, { ...init, signal: controller.signal })
+    } finally {
+      clearTimeout(timer)
     }
   }
 
@@ -318,4 +430,5 @@ export function registerServerHandlers(ipc: IpcMain, link: ServerLink): void {
     return link.request(path, init as ProxyRequest)
   })
   ipc.handle('server:token', () => link.token())
+  ipc.handle('server:probe', () => link.probe())
 }

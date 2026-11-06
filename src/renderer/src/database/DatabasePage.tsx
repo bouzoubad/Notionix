@@ -31,7 +31,15 @@ export function DatabasePage({ page }: { page: PageSummary }): React.JSX.Element
           onBlur={() => title !== page.title && void patch(page.id, { title })}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
-        <DatabaseViewer databaseId={page.id} db={db} />
+        {db.offline && !db.data ? (
+          <div className="page-offline">
+            {t(
+              'Cette page n’est pas disponible hors ligne : ouvrez-la une fois connecté pour la garder sur cet ordinateur.'
+            )}
+          </div>
+        ) : (
+          <DatabaseViewer databaseId={page.id} db={db} />
+        )}
       </div>
     </div>
   )

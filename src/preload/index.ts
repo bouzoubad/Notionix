@@ -109,7 +109,8 @@ const server: DesktopServer = {
   activate: (link, password) => call('server:activate', link, password),
   logout: () => call('server:logout'),
   request: (path, init) => call('server:request', path, init),
-  token: () => call('server:token')
+  token: () => call('server:token'),
+  probe: () => call('server:probe')
 }
 
 const local: DesktopLocalStore = {

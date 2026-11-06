@@ -64,6 +64,8 @@ export interface DesktopServer {
   request(path: string, init: ProxyRequest): Promise<ProxyResponse>
   /** The session token, for the real-time connection */
   token(): Promise<string | null>
+  /** Checks now whether the server can be reached (requests then go to it again) */
+  probe(): Promise<boolean>
 }
 
 /**

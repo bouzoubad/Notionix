@@ -40,18 +40,27 @@ async function dropFiles(editor: Editor, files: File[], pos?: number): Promise<v
 const SAVE_DELAY_MS = 400
 
 export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | null {
-  const [loaded, setLoaded] = useState<{ id: string; page: Page | null } | null>(null)
+  const [loaded, setLoaded] = useState<{
+    id: string
+    page: Page | null
+    /** The server out of reach, and this page never read here */
+    offline?: boolean
+  } | null>(null)
   const contentReload = useStore((s) => s.contentReload)
+  // Not available without network: tried again once the connection is back.
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     let cancelled = false
     window.api.pages.get(pageId).then(
       (page) => !cancelled && setLoaded({ id: pageId, page }),
-      () => !cancelled && setLoaded({ id: pageId, page: null })
+      (e: unknown) =>
+        !cancelled &&
+        setLoaded({ id: pageId, page: null, offline: (e as { status?: unknown }).status === 503 })
     )
     return () => {
       cancelled = true
     }
-  }, [pageId, contentReload])
+  }, [pageId, contentReload, attempt])
   // On a server, the page's content is a document edited together.
   const session = sessionFor(pageId)
   const [shared, setShared] = useState<{ id: string; page: SharedPage | 'offline' } | null>(null)
@@ -68,10 +77,24 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
       cancelled = true
       opened.destroy()
     }
-  }, [session, pageId])
+  }, [session, pageId, attempt])
+  const unavailable =
+    (shared?.id === pageId && shared.page === 'offline') ||
+    (session !== null && loaded?.id === pageId && loaded.offline === true)
+  useEffect(() => {
+    if (!session || !unavailable) return
+    const retry = (): void => setAttempt((n) => n + 1)
+    // Back already (it came back while the page was being asked for): tried again now.
+    const timer = useStore.getState().connected ? window.setTimeout(retry, 0) : undefined
+    const stop = session.onStatus((connected) => connected && retry())
+    return () => {
+      window.clearTimeout(timer)
+      stop()
+    }
+  }, [session, unavailable])
   const page = loaded?.id === pageId ? loaded.page : null
   const sharedPage = shared?.id === pageId ? shared.page : null
-  if (sharedPage === 'offline')
+  if (unavailable || sharedPage === 'offline')
     return (
       <div className="page-offline">
         {t(

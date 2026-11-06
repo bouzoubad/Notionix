@@ -1,5 +1,9 @@
-import type { DesktopServer, ProxyRequest } from '../shared/desktop'
+import { OFFLINE_HEADER, type DesktopServer, type ProxyRequest } from '../shared/desktop'
 import type { Transport } from '../web/http'
+
+/** Whether the main process's last answer came from what it kept (server out of reach). */
+let unreachable = false
+export const serverUnreachable = (): boolean => unreachable
 
 /**
  * Requests of the web client's API, sent by the main process: it holds the
@@ -15,6 +19,7 @@ export function desktopTransport(server: DesktopServer): Transport {
       headers: init.headers,
       body
     })
+    unreachable = OFFLINE_HEADER in res.headers
     return new Response(res.body as BodyInit | null, { status: res.status, headers: res.headers })
   }
 }

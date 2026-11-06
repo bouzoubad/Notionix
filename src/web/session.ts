@@ -36,6 +36,26 @@ export interface KeptDocument {
 /** A shared page that cannot open: no network, and never kept on this device. */
 export class OfflinePageError extends Error {}
 
+/**
+ * How long the real-time connection may take to open. A server out of reach
+ * (no VPN) neither answers nor refuses: without this the connection would
+ * stay "connecting" for minutes, and a page never kept would wait as long.
+ */
+const CONNECT_TIMEOUT = 10_000
+
+/** A WebSocket that gives up (and is tried again) when it does not open in time. */
+class TimedWebSocket extends WebSocket {
+  constructor(url: string | URL, protocols?: string | string[]) {
+    super(url, protocols)
+    const timer = setTimeout(() => {
+      if (this.readyState === WebSocket.CONNECTING) this.close()
+    }, CONNECT_TIMEOUT)
+    const stop = (): void => clearTimeout(timer)
+    this.addEventListener('open', stop)
+    this.addEventListener('close', stop)
+  }
+}
+
 export interface ConnectOptions {
   /** The server's address (http… or https…); the page's own server by default */
   server?: string
@@ -45,6 +65,11 @@ export interface ConnectOptions {
   logout?: () => Promise<void>
   /** Keeps page documents on this device (desktop app) */
   keep?: (name: string, document: Y.Doc) => KeptDocument
+  /**
+   * Whether the server is known to be out of reach (desktop app: its last
+   * answers came from what was kept). A page never kept then says so at once.
+   */
+  unreachable?: () => boolean
 }
 
 /**
@@ -61,7 +86,8 @@ export function connect(
 ): ServerSession {
   const origin = options.server ?? `${location.protocol}//${location.host}`
   const url = `${origin.replace(/^http/, 'ws')}/collab`
-  const socket = new HocuspocusProviderWebsocket({ url })
+  const socket = new HocuspocusProviderWebsocket({ url, WebSocketPolyfill: TimedWebSocket })
+  const unreachable = options.unreachable ?? (() => false)
   const token = options.token ?? 'cookie'
 
   // The workspace channel announces changes to pages and databases.
@@ -117,8 +143,39 @@ export function connect(
   /** The page documents open now, and how many use each */
   const documents = new Map<
     string,
-    { provider: HocuspocusProvider; kept: KeptDocument | null; ready: Promise<void>; users: number }
+    {
+      provider: HocuspocusProvider
+      kept: KeptDocument | null
+      /** Null when not asked yet, or when it said "not available" (asked again then) */
+      ready: Promise<void> | null
+      users: number
+    }
   >()
+  /**
+   * When a document can be shown: synced with the server, or kept on this
+   * device; rejected when neither (no network, never kept here).
+   */
+  const readiness = (provider: HocuspocusProvider, kept: KeptDocument | null): Promise<void> =>
+    new Promise<void>((resolve, reject) => {
+      if (provider.isSynced) return resolve()
+      provider.on('synced', () => resolve())
+      if (!kept) return
+      // Kept on this device: it opens at once, the server's changes merge in when they come.
+      void kept.loaded.then(() => {
+        if (provider.document.store.clients.size > 0) return resolve()
+        const offline = (): void => {
+          if (!provider.isSynced) reject(new OfflinePageError())
+        }
+        if (status === 'disconnected' || (status !== 'connected' && unreachable())) return offline()
+        const watch = (event: { status: string }): void => {
+          if (event.status !== 'disconnected') return
+          socket.off('status', watch)
+          offline()
+        }
+        socket.on('status', watch)
+        provider.on('synced', () => socket.off('status', watch))
+      })
+    })
   const statusListeners = new Set<(connected: boolean) => void>()
   let status = 'connecting'
   socket.on('status', (event: { status: string }) => {
@@ -155,6 +212,8 @@ export function connect(
     },
     onStatus: (listener) => {
       statusListeners.add(listener)
+      // Out of reach since before: said now, not once the connection attempt gives up.
+      if (status !== 'connected' && unreachable()) listener(false)
       return () => statusListeners.delete(listener)
     },
     openPage: (pageId) => {
@@ -166,36 +225,24 @@ export function connect(
         const provider = new HocuspocusProvider({ websocketProvider: socket, name, token })
         const kept = options.keep?.(name, provider.document) ?? null
         provider.attach()
-        const ready = new Promise<void>((resolve, reject) => {
-          if (provider.isSynced) return resolve()
-          provider.on('synced', () => resolve())
-          if (!kept) return
-          // Kept on this device: it opens at once, the server's changes merge in when they come.
-          void kept.loaded.then(() => {
-            if (provider.document.store.clients.size > 0) return resolve()
-            const offline = (): void => {
-              if (!provider.isSynced) reject(new OfflinePageError())
-            }
-            if (status === 'disconnected') return offline()
-            const watch = (event: { status: string }): void => {
-              if (event.status !== 'disconnected') return
-              socket.off('status', watch)
-              offline()
-            }
-            socket.on('status', watch)
-            provider.on('synced', () => socket.off('status', watch))
-          })
-        })
-        // Read by each user of the document: never an unhandled rejection here.
-        ready.catch(() => undefined)
-        entry = { provider, kept, ready, users: 0 }
+        entry = { provider, kept, ready: null, users: 0 }
         documents.set(name, entry)
       }
       const shared = entry
+      // Not available a moment ago (no network): asked again, the network may be back.
+      let ready = shared.ready
+      if (!ready) {
+        const asked = readiness(shared.provider, shared.kept)
+        // Read by each user of the document: never an unhandled rejection here.
+        asked.catch(() => {
+          if (shared.ready === asked) shared.ready = null
+        })
+        ready = shared.ready = asked
+      }
       shared.users++
       let closed = false
       return {
-        ready: shared.ready,
+        ready,
         extensions: [
           Collaboration.configure({ document: shared.provider.document, field: PAGE_FIELD }),
           CollaborationCaret.configure({

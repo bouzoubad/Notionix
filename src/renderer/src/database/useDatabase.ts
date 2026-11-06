@@ -12,6 +12,8 @@ import { t } from '../../../shared/i18n'
 
 export interface DatabaseApi {
   data: DatabaseData | null
+  /** The server out of reach, and this database never read here */
+  offline: boolean
   reload: () => Promise<void>
   saveSchema: (schema: DatabaseSchema) => Promise<void>
   updateRow: (rowId: PageId, values: Record<string, PropertyValue>) => Promise<void>
@@ -29,6 +31,7 @@ const fail = (e: unknown): void =>
 /** Loads a database and applies edits optimistically, then with the stored result. */
 export function useDatabase(id: PageId): DatabaseApi {
   const [data, setData] = useState<DatabaseData | null>(null)
+  const [offline, setOffline] = useState(false)
   // Changes made by other people (server workspace) reload the database.
   const revision = useStore((s) => s.revision)
 
@@ -39,9 +42,14 @@ export function useDatabase(id: PageId): DatabaseApi {
 
   useEffect(() => {
     let cancelled = false
-    window.api.databases.get(id).then((next) => {
-      if (!cancelled) setData(next)
-    })
+    window.api.databases.get(id).then(
+      (next) => {
+        if (cancelled) return
+        setData(next)
+        setOffline(false)
+      },
+      (e: unknown) => !cancelled && setOffline((e as { status?: unknown }).status === 503)
+    )
     return () => {
       cancelled = true
     }
@@ -115,5 +123,5 @@ export function useDatabase(id: PageId): DatabaseApi {
     await reload()
   }
 
-  return { data, reload, saveSchema, updateRow, addRow, changeType }
+  return { data, offline, reload, saveSchema, updateRow, addRow, changeType }
 }

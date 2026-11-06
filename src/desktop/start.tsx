@@ -18,7 +18,7 @@ import { loadAccountAppearance } from '../renderer/src/appearance'
 import { forgetKeptDocuments, keepDocuments } from './offline'
 import { OfflineQueue } from './offlineQueue'
 import { sendLocalPages, type ServerTarget } from './sendToServer'
-import { desktopTransport } from './transport'
+import { desktopTransport, serverUnreachable } from './transport'
 
 /** The server out of reach: the main process answers 503 (and what it kept, for reading). */
 const isOffline = (e: unknown): boolean => e instanceof ServerError && e.status === 503
@@ -98,7 +98,8 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
         await forgetKeptDocuments()
         await bridge.server.logout()
       },
-      keep: keepDocuments(status.url, user.id)
+      keep: keepDocuments(status.url, user.id),
+      unreachable: serverUnreachable
     }
   )
   setPlatform({
@@ -156,7 +157,12 @@ function watchNetwork(
       }
     })())
   onStatus((connected) => {
-    if (connected) void catchUp()
+    // Connected again: the main process tries the server at once instead of answering from what it kept.
+    if (connected)
+      void window
+        .desktop!.server.probe()
+        .catch(() => false)
+        .then(() => catchUp())
   })
   setTimeout(() => void catchUp(), 3000)
   setInterval(() => void catchUp(), 60_000)

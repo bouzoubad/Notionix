@@ -6,7 +6,16 @@ import { isLocalPage, platform, sessionFor } from '../platform'
 import { ShareMenu } from './ShareMenu'
 import { HistoryDialog } from './HistoryDialog'
 import { PageOptionsMenu } from './PageOptionsMenu'
-import { t } from '../../../shared/i18n'
+import { locale, t } from '../../../shared/i18n'
+import { useOfflineStatus } from '../offline'
+
+const keptWhen = (ms: number): string =>
+  new Date(ms).toLocaleString(locale(), {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 
 /** Breadcrumbs of a page, and its actions (sharing…), above its content. */
 export function PageTopBar({
@@ -33,6 +42,10 @@ export function PageTopBar({
   // Sharing: pages of a server, not the private ones kept on this computer.
   const web = sessionFor(page.id) !== null
   const shared = page.access === 'restricted' || page.publicToken !== null
+  // Without network: when this copy of the page was kept here.
+  useOfflineStatus()
+  const offline = !useStore((s) => s.connected) && platform().offline !== undefined
+  const keptAt = offline ? (platform().offline?.keptAt(page.id) ?? null) : null
 
   return (
     <div className="breadcrumbs">
@@ -49,6 +62,16 @@ export function PageTopBar({
           )}
         >
           {t('À envoyer')}
+        </span>
+      )}
+      {offline && keptAt !== null && (
+        <span
+          className="kept-badge"
+          title={t('Copie gardée sur cet ordinateur, synchronisée le {date}', {
+            date: keptWhen(keptAt)
+          })}
+        >
+          {t('Copie du {date}', { date: keptWhen(keptAt) })}
         </span>
       )}
       {page.options.locked && (

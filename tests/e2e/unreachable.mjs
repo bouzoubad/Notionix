@@ -1,12 +1,15 @@
 // E2E of the desktop app linked to a server that becomes unreachable the way a
 // server behind a VPN does: nothing answers, nothing refuses (connections hang).
-// The app must start at once from what it kept, in any workspace, open the
-// pages already opened here (in each workspace), switch workspace, say plainly
-// that a page never opened here is not available, and come back with the network.
+// The app keeps every team page of every workspace on the computer (text,
+// images, databases), says when it last synced, starts at once from what it
+// kept, switches workspace without network, frees the copies of a workspace
+// set to "online only" (never a file a page of this computer uses), says
+// plainly that such a page is not here, and comes back with the network.
 // Run after `npm run build && npm run build:server`: node tests/e2e/unreachable.mjs
 import { _electron as electron } from 'playwright-core'
 import { spawn } from 'child_process'
-import { mkdtempSync, readFileSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync } from 'fs'
+import { createHash } from 'crypto'
 import { connect, createServer } from 'net'
 import { createServer as createTlsServer } from 'tls'
 import { tmpdir } from 'os'
@@ -116,11 +119,38 @@ const call = async (workspace, method, ...args) => {
   if (!res.ok) throw new Error(body.error)
   return body.result
 }
-const doc = (text) =>
+const doc = (text, ...images) =>
   JSON.stringify({
     type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+    content: [
+      { type: 'paragraph', content: [{ type: 'text', text }] },
+      ...images.map((name) => ({
+        type: 'image',
+        attrs: { src: `notionix-asset://file/${name}` }
+      }))
+    ]
   })
+/** A different image each time (a 1×1 PNG and one byte more), sent to a workspace. */
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+)
+let seed = 0
+const image = async (workspace) => {
+  const bytes = Buffer.concat([PNG, Buffer.from([++seed])])
+  const name = `${createHash('sha256').update(bytes).digest('hex')}.png`
+  const res = await fetch(`${api}/api/assets/${name}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Notionix-Workspace': workspace,
+      'X-Notionix-Client': 'web'
+    },
+    body: bytes
+  })
+  if (!res.ok) throw new Error(`image refused: ${res.status} ${await res.text()}`)
+  return name
+}
 const other = (
   await fetch(`${api}/api/workspaces`, {
     method: 'POST',
@@ -132,10 +162,41 @@ await call('main', 'pages.createWith', null, {
   title: 'Page équipe',
   content: doc('Bonjour équipe')
 })
-await call('main', 'pages.createWith', null, { title: 'Jamais ouverte', content: doc('Pas ici') })
+const imgMain = await image('main')
+await call('main', 'pages.createWith', null, {
+  title: 'Jamais ouverte',
+  content: doc('Pas ici', imgMain)
+})
+const table = await call('main', 'databases.create', null)
+await call('main', 'pages.update', table.id, { title: 'Suivi' })
+await call('main', 'databases.createRow', table.id, { title: 'Ligne 1' })
 await call(other.id, 'pages.createWith', null, { title: 'Page X', content: doc('Contenu X') })
+// Never opened here: kept by the sync all the same.
+const [imgA, imgB, imgC] = [await image(other.id), await image(other.id), await image(other.id)]
+await call(other.id, 'pages.createWith', null, { title: 'Page X3', content: doc('Texte X3', imgC) })
+await call(other.id, 'pages.createWith', null, {
+  title: 'Page X2',
+  content: doc('Texte X2', imgA, imgB)
+})
 
 const userData = join(tmp, 'desktop')
+const kept = (name) => existsSync(join(userData, 'assets', name))
+const until = async (check, what, ms = 60_000) => {
+  const end = Date.now() + ms
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error(`timeout: ${what}`)
+    await new Promise((r) => setTimeout(r, 200))
+  }
+}
+const imageShown = (win, text) =>
+  win.waitForFunction(
+    (t) =>
+      [...document.querySelectorAll('.editor')]
+        .filter((e) => e.textContent.includes(t))
+        .some((e) => [...e.querySelectorAll('img')].some((i) => i.complete && i.naturalWidth > 0)),
+    text,
+    { timeout: 10_000 }
+  )
 const launch = () =>
   electron.launch({
     args: [...CHROMIUM_FLAGS, '.', `--user-data-dir=${userData}`],
@@ -164,13 +225,16 @@ try {
   await editorWith(win, 'Bonjour équipe').waitFor()
   // Another workspace's page: the app switches to that workspace.
   await unfold(win, 'Projet X')
-  await section(win, 'Projet X').getByText('Page X').click()
+  await section(win, 'Projet X').getByText('Page X', { exact: true }).click()
   await win.locator('.workspace-section.current', { hasText: 'Projet X' }).waitFor()
   await editorWith(win, 'Contenu X').waitFor()
   // The main workspace's pages listed in its section (kept for later).
   await unfold(win, 'Espace principal')
   await section(win, 'Espace principal').getByText('Jamais ouverte').waitFor()
-  await win.waitForTimeout(1000)
+  // Every page of both workspaces, and their images, kept in the background.
+  await until(() => [imgMain, imgA, imgB, imgC].every(kept), 'images kept')
+  await win.locator('.offline-status', { hasText: /^Synchronisé/ }).waitFor({ timeout: 60_000 })
+  await win.waitForTimeout(1500)
 
   // The VPN off: the server's address swallows every connection.
   await app.close()
@@ -179,36 +243,69 @@ try {
   app = await launch()
   win = await app.firstWindow()
   watch(win)
-  await section(win, 'Projet X').getByText('Page X').waitFor()
+  await section(win, 'Projet X').getByText('Page X', { exact: true }).waitFor()
   const started = Date.now() - start
   assert.ok(started < 8000, `opened without network in ${started} ms`)
   await win.locator('.offline-banner').waitFor({ timeout: 5000 })
-  await section(win, 'Projet X').getByText('Page X').click()
+  await section(win, 'Projet X').getByText('Page X', { exact: true }).click()
   await editorWith(win, 'Contenu X').waitFor({ timeout: 5000 })
 
-  // Switching workspace without network: the pages opened there open again.
+  // A page never opened here: there all the same, with its image; and when it was kept.
+  await section(win, 'Projet X').getByText('Page X3').click()
+  await editorWith(win, 'Texte X3').waitFor({ timeout: 5000 })
+  await imageShown(win, 'Texte X3')
+  await win.locator('.kept-badge', { hasText: 'Copie du' }).waitFor()
+  await win.locator('.offline-status', { hasText: 'Hors ligne · synchronisé' }).waitFor()
+  if (process.env.E2E_SHOTS)
+    await win.screenshot({ path: join(process.env.E2E_SHOTS, 'offline-page.png') })
+
+  // Switching workspace without network: its pages are there too, databases included.
   start = Date.now()
   await unfold(win, 'Espace principal')
   await section(win, 'Espace principal').getByText('Page équipe').click()
   await win.locator('.workspace-section.current', { hasText: 'Espace principal' }).waitFor()
   await editorWith(win, 'Bonjour équipe').waitFor()
   assert.ok(Date.now() - start < 8000, `switched without network in ${Date.now() - start} ms`)
-  await win.locator('.offline-banner').waitFor({ timeout: 5000 })
-  // A page never opened here says so, instead of an empty window.
-  start = Date.now()
+  await win.locator('.offline-banner', { hasText: 'Synchronisé' }).waitFor({ timeout: 5000 })
   await section(win, 'Espace principal').getByText('Jamais ouverte').click()
+  await editorWith(win, 'Pas ici').waitFor({ timeout: 5000 })
+  await imageShown(win, 'Pas ici')
+  await section(win, 'Espace principal').getByText('Suivi').click()
+  await win.locator('.database-page', { hasText: 'Ligne 1' }).waitFor({ timeout: 5000 })
+
+  // A page written here without network uses one of Projet X's images.
+  await win.evaluate(
+    (content) => window.desktop.api.pages.createWith(null, { title: 'Locale', content }),
+    doc('Écrite ici', imgA)
+  )
+  // Projet X online only: its copies go, except the pages opened lately, and
+  // the files a page of this computer (or a page kept) still uses.
+  await win.locator('.offline-status').click()
+  await win.locator('.offline-dialog').waitFor()
+  const shot = (name) =>
+    process.env.E2E_SHOTS
+      ? win.screenshot({ path: join(process.env.E2E_SHOTS, `${name}.png`) })
+      : undefined
+  await shot('offline-dialog')
+  await win.getByLabel('Hors ligne : Projet X').selectOption('online')
+  await until(() => !kept(imgB), 'image of Page X2 freed', 10_000)
+  assert.ok(kept(imgA), 'image used by a page of this computer kept')
+  assert.ok(kept(imgC), 'image of a page opened lately kept')
+  assert.ok(kept(imgMain), 'image of the main workspace kept')
+  await win.locator('.offline-dialog').getByRole('button', { name: 'Fermer' }).click()
+  await unfold(win, 'Projet X')
+  await section(win, 'Projet X').getByText('Page X2').click()
+  await win.locator('.workspace-section.current', { hasText: 'Projet X' }).waitFor()
   await win.locator('.page-offline').waitFor({ timeout: 5000 })
-  assert.ok(Date.now() - start < 5000)
 
   // The VPN back: the app reconnects by itself, and the page shown opens.
   await setFront('pass')
   await win.locator('.offline-banner').waitFor({ state: 'detached', timeout: 60_000 })
-  await editorWith(win, 'Pas ici').waitFor()
+  await editorWith(win, 'Texte X2').waitFor()
   // Left and opened again: still there.
-  await section(win, 'Espace principal').getByText('Page équipe').click()
-  await editorWith(win, 'Bonjour équipe').waitFor()
-  await section(win, 'Espace principal').getByText('Jamais ouverte').click()
-  await editorWith(win, 'Pas ici').waitFor()
+  await section(win, 'Projet X').getByText('Page X', { exact: true }).click()
+  await section(win, 'Projet X').getByText('Page X2').click()
+  await editorWith(win, 'Texte X2').waitFor()
 
   assert.deepEqual(errors, [])
   console.log('unreachable server e2e: OK')

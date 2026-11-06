@@ -4,6 +4,7 @@ import { atLeast } from '../../../shared/types'
 import { pageUrl, useStore } from '../store'
 import { copyText } from '../clipboard'
 import { Popover } from '../database/Popover'
+import { OfflineChoice } from './OfflineStatus'
 import { locale, t } from '../../../shared/i18n'
 
 const FONTS: { value: NonNullable<PageOptions['font']>; label: string; sample: string }[] = [
@@ -125,6 +126,7 @@ export function PageOptionsMenu({
           {t('Mettre à la corbeille')}
         </button>
       )}
+      <OfflineChoice pageId={page.id} onDone={onClose} />
       <hr />
       <ViewStats pageId={page.id} />
     </Popover>

@@ -2,7 +2,7 @@ import type { SessionUser } from '../shared/collab'
 // The dialogs shared with the web client (feedback, account, administration) are styled there.
 import '../web/web.css'
 import { OFFLINE_HEADER, type ServerLinkStatus } from '../shared/desktop'
-import type { PageId, PageSummary } from '../shared/types'
+import type { PageSummary } from '../shared/types'
 import { setPlatform } from '../renderer/src/platform'
 import { webApi } from '../web/api'
 import { json, request, rpc, ServerError, setTransport, whenSignedOut } from '../web/http'
@@ -19,6 +19,8 @@ import { forgetKeptDocuments, keepDocuments } from './offline'
 import { OfflineQueue } from './offlineQueue'
 import { sendLocalPages, type ServerTarget } from './sendToServer'
 import { desktopTransport, serverUnreachable } from './transport'
+import { OfflineSync } from './offlineSync'
+import { OfflineDialog } from './OfflineDialog'
 
 /** The server out of reach: the main process answers 503 (and what it kept, for reading). */
 const isOffline = (e: unknown): boolean => e instanceof ServerError && e.status === 503
@@ -71,7 +73,8 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
   }
   // Copies kept by earlier versions could add a page's content twice: dropped.
   await forgetKeptDocuments(true)
-  const { useStore } = await import('../renderer/src/store')
+  const { useStore, recentPageIds } = await import('../renderer/src/store')
+  const { platform } = await import('../renderer/src/platform')
   const queue = new OfflineQueue(`notionix-queue:${status.url}|${user.id}`, storage())
   const api = combineApis(bridge.api, webApi, {
     currentPage: () => useStore.getState().currentId,
@@ -85,6 +88,18 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
     queue
   })
   window.api = api
+  // The team's pages kept on this computer for working without network.
+  const sync = new OfflineSync({
+    server: status.url,
+    user,
+    bridge: bridge.server,
+    storage: storage(),
+    pages: () => useStore.getState().pages,
+    recent: recentPageIds,
+    connected: () => useStore.getState().connected,
+    isLocal: api.isLocal,
+    session: () => platform().session
+  })
   const session = connect(
     user,
     () => void useStore.getState().remoteChange(),
@@ -95,6 +110,7 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
       token: async () => (await bridge.server.token()) ?? '',
       logout: async () => {
         queue.clear()
+        sync.forget()
         await forgetKeptDocuments()
         await bridge.server.logout()
       },
@@ -110,12 +126,15 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
     ServerConnect: ConnectDialog,
     Notices: UpdateNotice,
     appearance: accountAppearance,
-    emojis: teamEmojis
+    emojis: teamEmojis,
+    offline: sync.copies(({ onClose, connected }) => (
+      <OfflineDialog sync={sync} connected={connected} onClose={onClose} />
+    ))
   })
   void loadAccountAppearance()
   // The session ended meanwhile: the app starts again and asks for the password.
   whenSignedOut(() => location.reload())
-  watchNetwork(api, user, session.onStatus)
+  watchNetwork(api, user, session.onStatus, sync)
   return true
 }
 
@@ -127,7 +146,8 @@ export async function startLinked(status: ServerLinkStatus): Promise<boolean> {
 function watchNetwork(
   api: CombinedApi,
   user: SessionUser,
-  onStatus: (listener: (connected: boolean) => void) => () => void
+  onStatus: (listener: (connected: boolean) => void) => () => void,
+  sync: OfflineSync
 ): void {
   let running: Promise<void> | null = null
   const catchUp = (): Promise<void> =>
@@ -149,7 +169,8 @@ function watchNetwork(
               )
         for (const f of report.failed) console.warn('Page not sent to the server:', f)
         if (queued || report.sent.length) await useStore.getState().remoteChange()
-        if (!api.queue.pending && useStore.getState().connected) await keepPrivatePages(api, user)
+        // The copies for working without network, in the background (a long first pass).
+        if (!api.queue.pending && useStore.getState().connected) void sync.run()
       } catch (e) {
         if (!isOffline(e)) console.warn(e)
       } finally {
@@ -166,79 +187,21 @@ function watchNetwork(
   })
   setTimeout(() => void catchUp(), 3000)
   setInterval(() => void catchUp(), 60_000)
-  // A page written here is sent once the editor leaves it.
+  // A page written here is sent once the editor leaves it; pages changed by others are kept again.
   void import('../renderer/src/store').then(({ useStore }) => {
     let current = useStore.getState().currentId
+    let revision = useStore.getState().revision
+    let changed: number | undefined
     useStore.subscribe((s) => {
+      if (s.revision !== revision) {
+        revision = s.revision
+        window.clearTimeout(changed)
+        changed = window.setTimeout(() => s.connected && void sync.run(), 5000)
+      }
       if (s.currentId === current) return
       const left = current
       current = s.currentId
       if (left && api.isLocal(left)) void catchUp()
     })
   })
-}
-
-// v2: the copies of earlier versions were dropped (1.1.3), all are kept again.
-const KEPT_KEY = 'notionix-kept-at-2'
-
-/**
- * Keeps on this computer, for working without network, every private page
- * of the person (and what is under it), the favorites and the recent pages:
- * their shared document and what the server says of them. Only what changed
- * since the last time is fetched again.
- */
-async function keepPrivatePages(api: CombinedApi, user: SessionUser): Promise<void> {
-  const { useStore, recentPageIds } = await import('../renderer/src/store')
-  const { pages } = useStore.getState()
-  const live = pages.filter((p) => !p.trashedAt && !api.isLocal(p.id))
-  const wanted = new Set<PageId>()
-  const under = (id: PageId): void => {
-    wanted.add(id)
-    for (const p of live) if (p.parentId === id) under(p.id)
-  }
-  for (const p of live)
-    if (p.parentId === null && p.access === 'restricted' && p.createdBy === user.id) under(p.id)
-  for (const p of live) if (p.favorite) wanted.add(p.id)
-  for (const id of recentPageIds()) wanted.add(id)
-  let kept: Record<PageId, number> = {}
-  try {
-    kept = JSON.parse(storage()?.getItem(KEPT_KEY) ?? '{}') as Record<PageId, number>
-  } catch {
-    kept = {}
-  }
-  const byId = new Map(live.map((p) => [p.id, p]))
-  const stale = [...wanted].filter((id) => {
-    const page = byId.get(id)
-    return page && (kept[id] ?? 0) < page.updatedAt
-  })
-  for (const id of stale) {
-    if (!useStore.getState().connected) break
-    const page = byId.get(id)!
-    await api.pages.get(id).catch(() => null)
-    if (page.kind === 'database') await api.databases.get(id).catch(() => null)
-    await keepForOffline([id])
-    kept[id] = Date.now()
-    try {
-      storage()?.setItem(KEPT_KEY, JSON.stringify(kept))
-    } catch {
-      // Fetched again next time.
-    }
-  }
-}
-
-/** Keeps the shared documents of these server pages on this computer, to open them without network. */
-export async function keepForOffline(pageIds: string[]): Promise<void> {
-  const { platform, sessionFor } = await import('../renderer/src/platform')
-  for (const id of pageIds) {
-    const session = sessionFor(id)
-    if (!session || platform().session !== session) continue
-    const page = session.openPage(id)
-    await Promise.race([
-      page.ready.catch(() => undefined),
-      new Promise((resolve) => setTimeout(resolve, 15_000))
-    ])
-    // Leaves time to store what arrived.
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    page.destroy()
-  }
 }

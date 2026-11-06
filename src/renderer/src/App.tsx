@@ -17,6 +17,7 @@ import { PagePicker } from './components/PagePicker'
 import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { isLocalPage, platform } from './platform'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { syncedText, useOfflineStatus } from './offline'
 import { language, t } from '../../shared/i18n'
 
 document.documentElement.lang = language()
@@ -74,6 +75,7 @@ export default function App(): React.JSX.Element {
 
   // Server workspace: presence of the others, connection state, and this person's open page.
   const connected = useStore((s) => s.connected)
+  const offlineStatus = useOfflineStatus()
   const news = useStore((s) => s.news)
   const open = useStore((s) => s.open)
   const dismissNews = useStore((s) => s.dismissNews)
@@ -226,13 +228,17 @@ export default function App(): React.JSX.Element {
       </div>
       {!connected && (
         <div className="offline-banner">
-          {platform().kind === 'desktop'
-            ? t(
-                'Hors ligne : vos pages privées et les pages déjà ouvertes ici restent modifiables (texte, titre, place, nouvelles pages) ; les bases et commentaires de l’équipe en lecture seule. Tout part sur le serveur au retour du réseau.'
-              )
-            : t(
-                'Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.'
-              )}
+          {platform().offline
+            ? `${t(
+                'Hors ligne : les pages gardées sur cet ordinateur restent modifiables (texte, titre, place, nouvelles pages) ; les bases et commentaires de l’équipe en lecture seule. Tout part sur le serveur au retour du réseau.'
+              )}${offlineStatus && syncedText(offlineStatus) ? ` ${syncedText(offlineStatus)}.` : ''}`
+            : platform().kind === 'desktop'
+              ? t(
+                  'Hors ligne : vos pages privées et les pages déjà ouvertes ici restent modifiables (texte, titre, place, nouvelles pages) ; les bases et commentaires de l’équipe en lecture seule. Tout part sur le serveur au retour du réseau.'
+                )
+              : t(
+                  'Connexion au serveur perdue : reconnexion… Les modifications reprendront ensuite.'
+                )}
         </div>
       )}
     </div>

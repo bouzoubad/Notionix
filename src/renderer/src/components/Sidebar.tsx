@@ -14,6 +14,7 @@ import { isLocalPage, platform, type ServerSession } from '../platform'
 import { Avatars } from './PageTopBar'
 import { TemplatesDialog } from './TemplatesDialog'
 import { PageIcon } from './PageIcon'
+import { OfflineChoice, OfflineStatusLine } from './OfflineStatus'
 import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
 import type { PagesElsewhere, WorkspaceInfo } from '../../../shared/collab'
@@ -414,6 +415,7 @@ export function Sidebar(): React.JSX.Element {
         )}
       </div>
       <div className="sidebar-footer">
+        <OfflineStatusLine />
         {canCreate && <button onClick={() => setTemplatesOpen(true)}>{t('Modèles')}</button>}
         {templatesOpen && <TemplatesDialog onClose={() => setTemplatesOpen(false)} />}
         <button onClick={() => setTransferOpen(true)}>{t('Importer / Exporter')}</button>
@@ -879,6 +881,7 @@ function Row(props: RowProps): React.JSX.Element {
             <button onClick={() => (setMenu(false), void trash(page.id))}>
               {t('Mettre à la corbeille')}
             </button>
+            <OfflineChoice pageId={page.id} onDone={() => setMenu(false)} />
           </div>
         )}
       </div>

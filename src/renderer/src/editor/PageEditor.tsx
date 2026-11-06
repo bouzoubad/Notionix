@@ -98,7 +98,7 @@ export function PageEditor({ pageId }: { pageId: string }): React.JSX.Element | 
     return (
       <div className="page-offline">
         {t(
-          'Cette page n’est pas disponible hors ligne : ouvrez-la une fois connecté pour la garder sur cet ordinateur.'
+          'Cette page n’est pas gardée sur cet ordinateur : elle s’ouvrira au retour du réseau. Pour l’avoir hors ligne, choisissez « Garder sur cet ordinateur » dans son menu ⋯.'
         )}
       </div>
     )

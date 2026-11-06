@@ -9,7 +9,49 @@ export interface SharedPage {
   extensions: Extensions
   /** Resolves once the page's content has arrived from the server */
   ready: Promise<void>
+  /**
+   * Resolves once the server's version has arrived and is stored on this
+   * device (when it keeps documents); rejects when the server is out of reach
+   */
+  stored?: Promise<void>
   destroy: () => void
+}
+
+/** Where keeping the team's pages on this device stands (desktop app linked to a server). */
+export interface OfflineStatus {
+  /** Keeping pages up to date now */
+  running: boolean
+  /** Pages kept in this pass, out of `total` */
+  done: number
+  total: number
+  /** End of the last complete pass; null when never */
+  at: number | null
+}
+
+/** Where a page's choice comes from: its own, a parent's, its workspace's, or always kept. */
+export type OfflineSource = 'page' | 'parent' | 'workspace' | 'always'
+
+/**
+ * The copies of the team's pages kept on this device for working without
+ * network, chosen per workspace and per page (like OneDrive's "always keep
+ * on this device" and "online only").
+ */
+export interface OfflineCopies {
+  /** A new value after every change, told to `subscribe` */
+  status: () => OfflineStatus
+  subscribe: (listener: () => void) => () => void
+  /** Whether a page of the open workspace is kept here, why, and what it would be without its own choice */
+  availability: (pageId: string) => {
+    value: 'keep' | 'online'
+    source: OfflineSource
+    inherited: 'keep' | 'online'
+  }
+  /** A page's own choice, for it and its sub-pages (null: as its parent or workspace) */
+  setPage: (pageId: string, value: 'keep' | 'online' | null) => void
+  /** When the page was last kept here; null when never */
+  keptAt: (pageId: string) => number | null
+  /** The choices per workspace, and how much room the copies take */
+  Dialog: ComponentType<{ onClose: () => void; connected: boolean }>
 }
 
 /** Someone connected to the workspace, and the page they have open. */
@@ -71,6 +113,8 @@ export interface Platform {
   ServerConnect?: ComponentType<{ onClose: () => void }>
   /** Desktop app: the link to the server needs the password again */
   signInAgain?: boolean
+  /** Desktop app linked to a server: the copies of the team's pages kept on this computer */
+  offline?: OfflineCopies
   /** Notices of the platform shown with the release notes (desktop app: a new version) */
   Notices?: ComponentType
   /** The team's own emojis (server); absent: none (desktop app on its own) */

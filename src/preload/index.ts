@@ -110,7 +110,9 @@ const server: DesktopServer = {
   logout: () => call('server:logout'),
   request: (path, init) => call('server:request', path, init),
   token: () => call('server:token'),
-  probe: () => call('server:probe')
+  probe: () => call('server:probe'),
+  keepFiles: (names) => call('server:keepFiles', names),
+  forgetPages: (pageIds) => call('server:forgetPages', pageIds)
 }
 
 const local: DesktopLocalStore = {

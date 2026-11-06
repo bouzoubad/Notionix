@@ -2,8 +2,8 @@
 const dictionary: Record<string, string> = {
   'Hors ligne : vos pages privées et les pages déjà ouvertes ici restent modifiables (texte, titre, place, nouvelles pages) ; les bases et commentaires de l’équipe en lecture seule. Tout part sur le serveur au retour du réseau.':
     'Offline: your private pages and the pages already opened here can still be edited (text, title, place, new pages); the team’s databases and comments are read-only. Everything goes to the server when the network is back.',
-  'Cette page n’est pas disponible hors ligne : ouvrez-la une fois connecté pour la garder sur cet ordinateur.':
-    'This page is not available offline: open it once while connected to keep it on this computer.',
+  'Cette page n’est pas gardée sur cet ordinateur : elle s’ouvrira au retour du réseau. Pour l’avoir hors ligne, choisissez « Garder sur cet ordinateur » dans son menu ⋯.':
+    'This page is not kept on this computer: it will open when the network is back. To have it offline, choose « Keep on this computer » in its ⋯ menu.',
   'Se reconnecter au serveur': 'Sign in to the server again',
   'Se connecter à un serveur': 'Connect to a server',
   'Cet ordinateur ne reconnaît pas le certificat du serveur. Si c’est bien le serveur de votre équipe, demandez une version de l’app qui le connaît, ou installez le certificat de son autorité (notionix-ca.crt).':
@@ -33,6 +33,39 @@ const dictionary: Record<string, string> = {
   'Adresse invalide.': 'Invalid address.',
   'Lien invalide.': 'Invalid link.',
   'Réponse invalide du serveur.': 'Invalid answer from the server.',
-  'Serveur injoignable : vous êtes hors ligne.': 'Server unreachable: you are offline.'
+  'Serveur injoignable : vous êtes hors ligne.': 'Server unreachable: you are offline.',
+  'Hors ligne : les pages gardées sur cet ordinateur restent modifiables (texte, titre, place, nouvelles pages) ; les bases et commentaires de l’équipe en lecture seule. Tout part sur le serveur au retour du réseau.':
+    'Offline: the pages kept on this computer can still be edited (text, title, place, new pages); the team’s databases and comments are read-only. Everything goes to the server when the network is back.',
+  'le {date}': 'on {date}',
+  'Hors ligne · synchronisé {since}': 'Offline · synced {since}',
+  'Hors ligne · pas encore synchronisé': 'Offline · not synced yet',
+  'Synchronisation… {done} / {total} pages': 'Syncing… {done} / {total} pages',
+  'Synchronisé {since}': 'Synced {since}',
+  'Synchronisation en attente': 'Sync pending',
+  octets: 'bytes',
+  Ko: 'KB',
+  Mo: 'MB',
+  Go: 'GB',
+  'Pages gardées sur cet ordinateur pour travailler sans réseau':
+    'Pages kept on this computer to work without network',
+  'Choisi pour cette page et ses sous-pages': 'Chosen for this page and its sub-pages',
+  'Comme la page parente': 'Like the parent page',
+  'Comme son espace': 'Like its workspace',
+  'Toujours gardée : page privée, favorite ou ouverte récemment':
+    'Always kept: private, favorite or recently opened page',
+  'Hors ligne': 'Offline',
+  'Garder sur cet ordinateur': 'Keep on this computer',
+  'En ligne uniquement': 'Online only',
+  'Les pages gardées sur cet ordinateur s’ouvrent sans réseau : leur texte, leur titre et leur place s’y modifient ; les bases et commentaires de l’équipe s’y lisent. Tout part sur le serveur au retour du réseau.':
+    'The pages kept on this computer open without network: their text, title and place can be edited; the team’s databases and comments can be read. Everything goes to the server when the network is back.',
+  'Hors ligne : {name}': 'Offline: {name}',
+  '{n} pages gardées · {size}': '{n} pages kept · {size}',
+  '{n} pages réglées à part': '{n} pages set apart',
+  'Vos pages privées, vos favoris et les pages ouvertes récemment sont toujours gardés. Les copies sont dans le dossier de l’app (Bibliothèque > Application Support > Notionix) et sont effacées à la déconnexion ; FileVault les protège si l’ordinateur est perdu.':
+    'Your private pages, your favorites and the pages opened lately are always kept. The copies are in the app’s folder (Library > Application Support > Notionix) and are deleted when you sign out; FileVault protects them if the computer is lost.',
+  'Synchroniser maintenant': 'Sync now',
+  'Copie gardée sur cet ordinateur, synchronisée le {date}':
+    'Copy kept on this computer, synced on {date}',
+  'Copie du {date}': 'Copy of {date}'
 }
 export default dictionary

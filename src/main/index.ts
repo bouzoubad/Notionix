@@ -36,6 +36,7 @@ import { ASSET_SCHEME } from '../shared/assets'
 import { setLanguage, t, type Language } from '../shared/i18n'
 import { registerServerHandlers, ServerLink, type SecretBox } from './server'
 import { ServerCache } from '../core/serverCache'
+import { localAssets, OfflineFiles, registerOfflineHandlers } from './offlineFiles'
 import { loadAuthorities, trustServerAuthorities } from './trust'
 import { registerUpdates } from './updater'
 
@@ -173,19 +174,18 @@ app.whenReady().then(() => {
     () => BrowserWindow.getAllWindows().map((w) => w.webContents)
   )
   app.on('before-quit', () => serverCache.close())
-  // Files are named by their content: one of the server is fetched once, then kept here.
-  const locateAsset = async (name: string): Promise<string | null> => {
-    const path = assets.pathOf(name)
-    if (path) return path
-    const bytes = await link.asset(name)
-    if (!bytes) return null
-    try {
-      await assets.put(name, bytes)
-    } catch {
-      return null
-    }
-    return assets.pathOf(name)
-  }
+  // Files are named by their content: one of the server is fetched once, then kept here
+  // (and deleted again when no page kept for working without network needs it).
+  const offlineFiles = new OfflineFiles(
+    serverCache,
+    assets,
+    (name) => link.asset(name),
+    () => localAssets(db),
+    () => link.status()?.url ?? null
+  )
+  link.onCleared = () => void offlineFiles.free()
+  registerOfflineHandlers(ipcMain, offlineFiles)
+  const locateAsset = (name: string): Promise<string | null> => offlineFiles.locate(name)
   protocol.handle(ASSET_SCHEME, async (request) => {
     const name = decodeURIComponent(new URL(request.url).pathname.slice(1))
     const path = await locateAsset(name)

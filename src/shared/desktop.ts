@@ -66,6 +66,16 @@ export interface DesktopServer {
   token(): Promise<string | null>
   /** Checks now whether the server can be reached (requests then go to it again) */
   probe(): Promise<boolean>
+  /**
+   * Keeps these files of the server on this computer, for working without
+   * network (downloads the missing ones): the size of each one that is here
+   */
+  keepFiles(names: string[]): Promise<Record<string, number>>
+  /**
+   * Forgets what was kept of these pages ("online only"), and deletes the
+   * downloaded files nothing kept needs any more: the bytes freed
+   */
+  forgetPages(pageIds: string[]): Promise<number>
 }
 
 /**

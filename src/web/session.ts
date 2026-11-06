@@ -148,9 +148,28 @@ export function connect(
       kept: KeptDocument | null
       /** Null when not asked yet, or when it said "not available" (asked again then) */
       ready: Promise<void> | null
+      /** The server's version arrived and stored here (kept documents) */
+      stored: Promise<void>
       users: number
     }
   >()
+  /** Synced with the server, and what came stored on this device. */
+  const storedOf = (provider: HocuspocusProvider, kept: KeptDocument | null): Promise<void> =>
+    Promise.all([
+      new Promise<void>((resolve, reject) => {
+        if (provider.isSynced) return resolve()
+        provider.on('synced', () => resolve())
+        // Given up when the connection is down, or does not come.
+        const watch = (event: { status: string }): void => {
+          if (event.status !== 'disconnected' || provider.isSynced) return
+          socket.off('status', watch)
+          reject(new OfflinePageError())
+        }
+        socket.on('status', watch)
+        provider.on('synced', () => socket.off('status', watch))
+      }),
+      kept?.loaded ?? Promise.resolve()
+    ]).then(() => undefined)
   /**
    * When a document can be shown: synced with the server, or kept on this
    * device; rejected when neither (no network, never kept here).
@@ -225,7 +244,9 @@ export function connect(
         const provider = new HocuspocusProvider({ websocketProvider: socket, name, token })
         const kept = options.keep?.(name, provider.document) ?? null
         provider.attach()
-        entry = { provider, kept, ready: null, users: 0 }
+        const stored = storedOf(provider, kept)
+        stored.catch(() => undefined)
+        entry = { provider, kept, ready: null, stored, users: 0 }
         documents.set(name, entry)
       }
       const shared = entry
@@ -243,6 +264,7 @@ export function connect(
       let closed = false
       return {
         ready,
+        stored: shared.stored,
         extensions: [
           Collaboration.configure({ document: shared.provider.document, field: PAGE_FIELD }),
           CollaborationCaret.configure({

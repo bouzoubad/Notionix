@@ -96,6 +96,8 @@ export class ServerLink {
   /** The check under way, which requests wait for */
   private probing: Promise<boolean> | null = null
   private readonly timing: LinkTiming
+  /** Called once what was kept has been dropped (signed out, or another account) */
+  onCleared: () => void = () => undefined
 
   constructor(
     private readonly file: string,
@@ -198,7 +200,10 @@ export class ServerLink {
     if (typeof body.token !== 'string' || !body.user || typeof body.user.id !== 'string')
       return { ok: false, error: { kind: 'refused', message: 'Réponse invalide du serveur.' } }
     // Another server (or another person): what was kept belongs to the previous one.
-    if (this.saved?.url !== url || this.saved.user.id !== body.user.id) this.cache.clear()
+    if (this.saved?.url !== url || this.saved.user.id !== body.user.id) {
+      this.cache.clear()
+      this.onCleared()
+    }
     this.saved = {
       url,
       email: email ?? body.user.email,
@@ -242,6 +247,7 @@ export class ServerLink {
     this.saved = null
     this.unreachable = false
     this.cache.clear()
+    this.onCleared()
     rmSync(this.file, { force: true })
   }
 

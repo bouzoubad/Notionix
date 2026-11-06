@@ -71,6 +71,16 @@ export const assetKind = (name: string): AssetKind =>
 
 export const assetSrc = (name: string): string => `${ASSET_SCHEME}://file/${name}`
 
+/**
+ * Names of the files a text refers to (a page's content, a server answer
+ * kept for offline use): every `notionix-asset://file/<name>` in it.
+ */
+export function assetNamesIn(text: string, into: Set<string> = new Set()): Set<string> {
+  const pattern = new RegExp(`${ASSET_SCHEME}://file/([0-9a-f]{64}\\.[a-z0-9]{1,8})`, 'g')
+  for (const match of text.matchAll(pattern)) if (ASSET_NAME.test(match[1])) into.add(match[1])
+  return into
+}
+
 /** Stored file name of an asset src, or null when `src` is not a Notionix asset. */
 export function assetNameFromSrc(src: string): string | null {
   const prefix = `${ASSET_SCHEME}://file/`

@@ -1,6 +1,7 @@
 import { IndexeddbPersistence } from 'y-indexeddb'
 import type * as Y from 'yjs'
 import type { KeptDocument } from '../web/session'
+import { pageDocumentName } from '../shared/collab'
 
 /** Copies made before 1.1.3 came from documents started anew at each opening: dropped. */
 const PREFIX = 'notionix-page2:'
@@ -21,6 +22,22 @@ export function keepDocuments(server: string, userId: string) {
   }
 }
 
+const deleteDatabase = (name: string): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(name)
+    request.onsuccess = request.onerror = request.onblocked = () => resolve()
+  })
+
+/** Forgets the kept documents of these pages (set to "online only"). */
+export async function forgetDocuments(
+  server: string,
+  userId: string,
+  pageIds: Iterable<string>
+): Promise<void> {
+  for (const id of pageIds)
+    await deleteDatabase(`${PREFIX}${server}|${userId}|${pageDocumentName(id)}`)
+}
+
 /** Forgets every kept document (signing out); `old`: only the copies of earlier versions. */
 export async function forgetKeptDocuments(old = false): Promise<void> {
   const databases = await indexedDB.databases().catch(() => [])
@@ -28,12 +45,6 @@ export async function forgetKeptDocuments(old = false): Promise<void> {
   await Promise.all(
     databases
       .filter((d) => prefixes.some((p) => d.name?.startsWith(p)))
-      .map(
-        (d) =>
-          new Promise<void>((resolve) => {
-            const request = indexedDB.deleteDatabase(d.name!)
-            request.onsuccess = request.onerror = request.onblocked = () => resolve()
-          })
-      )
+      .map((d) => deleteDatabase(d.name!))
   )
 }

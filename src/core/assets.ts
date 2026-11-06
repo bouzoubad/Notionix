@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import {
   ASSET_NAME,
@@ -93,6 +93,24 @@ export class AssetStore {
     if (!ASSET_NAME.test(name)) return null
     const path = join(this.dir, name)
     return existsSync(path) ? path : null
+  }
+
+  /** Size in bytes of a stored asset, or null when it is not there. */
+  sizeOf(name: string): number | null {
+    const path = this.pathOf(name)
+    try {
+      return path ? statSync(path).size : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Deletes a stored asset (a file of the server no page kept here needs any more). */
+  remove(name: string): number {
+    const size = this.sizeOf(name)
+    if (size === null) return 0
+    rmSync(join(this.dir, name), { force: true })
+    return size
   }
 
   async read(src: string): Promise<Uint8Array | null> {

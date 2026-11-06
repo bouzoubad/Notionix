@@ -7,11 +7,12 @@ import {
   WORKSPACE_DOCUMENT,
   pageDocumentName,
   type ChangeNotice,
+  type PagesElsewhere,
   type SessionUser,
   type WorkspaceInfo
 } from '../shared/collab'
 import type { Presence, ServerSession } from '../renderer/src/platform'
-import { json, request, rpcIn } from './http'
+import { json, request, rpc, rpcIn } from './http'
 import type { PageSummary } from '../shared/types'
 import { inboxChanged } from './api'
 import { currentWorkspace, switchWorkspace } from './workspace'
@@ -134,6 +135,7 @@ export function connect(
       list: async () => (await json<{ workspaces: WorkspaceInfo[] }>('/api/workspaces')).workspaces,
       switchTo: switchWorkspace,
       pagesOf: (id) => rpcIn<PageSummary[]>(id, 'pages.list'),
+      elsewhere: () => rpc<PagesElsewhere[]>('pages.elsewhere'),
       locate: async (pageId) => {
         try {
           const { workspace } = await json<{ workspace: string }>(

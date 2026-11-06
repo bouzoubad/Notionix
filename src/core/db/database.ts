@@ -116,7 +116,15 @@ const MIGRATIONS: string[] = [
      created_by TEXT,
      created_at INTEGER NOT NULL
    );
-   CREATE INDEX recurrences_due ON recurrences(next_at);`
+   CREATE INDEX recurrences_due ON recurrences(next_at);`,
+  // Favorites of each person of a shared workspace (the app on its own keeps pages.favorite).
+  `CREATE TABLE favorites (
+     user_id TEXT NOT NULL,
+     page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+     at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, page_id)
+   );
+   CREATE INDEX favorites_page ON favorites(page_id);`
 ]
 
 /** Opens (and migrates) a workspace database: the app's local file or the server's shared one. */

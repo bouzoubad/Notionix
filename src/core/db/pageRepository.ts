@@ -265,6 +265,29 @@ export class PageRepository {
     return this.summary(id)
   }
 
+  /** The pages a person of a shared workspace marked as favorites, the oldest first. */
+  favoritesOf(userId: string): PageId[] {
+    const rows = this.db
+      .prepare('SELECT page_id FROM favorites WHERE user_id = ? ORDER BY at, rowid')
+      .all(userId) as { page_id: string }[]
+    return rows.map((r) => r.page_id)
+  }
+
+  /**
+   * Marks a page as one of a person's favorites, or not. Each person has
+   * their own: the page itself does not change (no new version).
+   */
+  setFavorite(userId: string, id: PageId, favorite: boolean): void {
+    if (!favorite) {
+      this.db.prepare('DELETE FROM favorites WHERE user_id = ? AND page_id = ?').run(userId, id)
+      return
+    }
+    this.summary(id) // throws for an unknown page
+    this.db
+      .prepare('INSERT OR IGNORE INTO favorites (user_id, page_id, at) VALUES (?, ?, ?)')
+      .run(userId, id, this.now())
+  }
+
   /** Puts back a saved state; the result is saved as a state of its own. */
   restoreVersion(id: PageId, versionId: number): void {
     const version = this.version(versionId)
@@ -601,7 +624,8 @@ export class PageRepository {
       const stmt = this.db.prepare(
         'UPDATE pages SET trashed_at = ?, favorite = 0, version = version + 1 WHERE id = ? AND trashed_at IS NULL'
       )
-      ids.forEach((x) => stmt.run(t, x))
+      const unfavorite = this.db.prepare('DELETE FROM favorites WHERE page_id = ?')
+      ids.forEach((x) => (stmt.run(t, x), unfavorite.run(x)))
     })
   }
 

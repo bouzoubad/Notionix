@@ -1,7 +1,7 @@
 import type { Appearance } from '../../shared/appearance'
 import type { ComponentType } from 'react'
 import type { Extensions } from '@tiptap/core'
-import type { CustomEmoji, SessionUser, WorkspaceInfo } from '../../shared/collab'
+import type { CustomEmoji, PagesElsewhere, SessionUser, WorkspaceInfo } from '../../shared/collab'
 import { atLeast, type PageSummary } from '../../shared/types'
 
 /** A page opened for editing together: its editor extensions, and how to close it. */
@@ -45,6 +45,8 @@ export interface ServerSession {
     switchTo: (id: string, pageId?: string | null) => void
     /** The pages of another workspace this person can open (shown in the sidebar) */
     pagesOf: (id: string) => Promise<PageSummary[]>
+    /** This person's favorites and private pages in the other workspaces */
+    elsewhere: () => Promise<PagesElsewhere[]>
     /** The workspace holding a page this person can open; null when there is none */
     locate: (pageId: string) => Promise<string | null>
   }

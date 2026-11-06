@@ -230,7 +230,11 @@ describe('workspace operations', () => {
       content: '{"type":"doc"}'
     })
     const list = (await rpc<PageSummary[]>(reader, 'pages.list')).result
-    expect(list).toMatchObject([{ id: page.id, title: 'Réunion', favorite: true }])
+    // A favorite is the person's own (sent with pages.update by apps before 1.5.0).
+    expect(list).toMatchObject([{ id: page.id, title: 'Réunion', favorite: false }])
+    expect((await rpc<PageSummary[]>(admin, 'pages.list')).result).toMatchObject([
+      { id: page.id, favorite: true }
+    ])
     // Content is edited through the page's shared document only.
     expect((await rpc<Page>(admin, 'pages.get', page.id)).result.content).toBe(page.content)
     expect((await rpc(reader, 'pages.update', page.id, { title: 'x' })).status).toBe(403)
@@ -393,6 +397,58 @@ describe('groups and workspaces', () => {
     await api(`/api/groups/${group.id}`, { token: admin, method: 'DELETE' })
     expect((await rpc(carol, 'pages.get', secret.id)).status).toBe(400)
     expect((await rpc<unknown[]>(alice, 'pages.shares', secret.id)).result).toEqual([])
+  })
+
+  it('keeps favorites per person, and shows them with private pages from the other workspaces', async () => {
+    const admin = await login(ADMIN.email, ADMIN.password)
+    const alice = await createUser(admin, 'alice@example.com', 'editor')
+    const reader = await createUser(admin, 'lecteur@example.com', 'reader')
+    const people = (await rpc<{ id: string; email: string }[]>(admin, 'people.list')).result
+    const idOf = (email: string): string => people.find((p) => p.email === email)!.id
+
+    // In the main workspace: a team page, and a private page of Alice with a sub-page.
+    const team = (await rpc<Page>(admin, 'pages.create', null)).result
+    const mine = (await rpc<Page>(alice, 'pages.create', null, 'restricted')).result
+    const sub = (await rpc<Page>(alice, 'pages.create', mine.id)).result
+    // Readers can mark favorites too; nothing changes for the others, nor for the page.
+    const before = (await rpc<PageSummary>(admin, 'pages.get', team.id)).result
+    const marked = await rpc<PageSummary>(reader, 'pages.favorite', team.id, true)
+    expect(marked.status).toBe(200)
+    expect(marked.result).toMatchObject({ id: team.id, favorite: true, version: before.version })
+    expect((await rpc<PageSummary>(reader, 'pages.get', team.id)).result.favorite).toBe(true)
+    expect((await rpc<PageSummary>(admin, 'pages.get', team.id)).result.favorite).toBe(false)
+    expect((await rpc(reader, 'pages.favorite', mine.id, true)).status).toBe(400)
+    await rpc(alice, 'pages.favorite', team.id, true)
+
+    // From another workspace, Alice sees her favorites and private pages of the main one.
+    const created = await api('/api/workspaces', {
+      token: admin,
+      json: { name: 'Projet X', memberIds: [idOf('alice@example.com')] }
+    })
+    const ws = (created.body.workspace as { id: string }).id
+    const elsewhere = await api('/api/rpc', {
+      token: alice,
+      headers: { 'X-Notionix-Workspace': ws },
+      json: { method: 'pages.elsewhere', args: [] }
+    })
+    const [main] = elsewhere.body.result as {
+      workspace: string
+      favorites: PageSummary[]
+      private: PageSummary[]
+    }[]
+    expect(main.workspace).toBe('main')
+    expect(main.favorites.map((p) => p.id)).toEqual([team.id])
+    expect(main.private.map((p) => p.id).sort()).toEqual([mine.id, sub.id].sort())
+    // Not the others' private pages, nor their favorites.
+    const forAdmin = (
+      await rpc<{ private: PageSummary[]; favorites: PageSummary[] }[]>(admin, 'pages.elsewhere')
+    ).result
+    expect(forAdmin).toMatchObject([{ workspace: ws, favorites: [], private: [] }])
+
+    // A page in the trash is no one's favorite any more.
+    await rpc(admin, 'pages.trash', team.id)
+    await rpc(admin, 'pages.restore', team.id)
+    expect((await rpc<PageSummary>(reader, 'pages.get', team.id)).result.favorite).toBe(false)
   })
 
   it('keeps the pages of each workspace apart, open to its members', async () => {

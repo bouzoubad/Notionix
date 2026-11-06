@@ -1,4 +1,4 @@
-import type { ExportSummary, ImportSummary, NotionixApi } from '../shared/types'
+import type { ExportSummary, ImportSummary, NotionixApi, PageSummary } from '../shared/types'
 import { json, request, rpc } from './http'
 import { assetNameFromSrc, assetWebPath } from '../shared/assets'
 import { t } from '../shared/i18n'
@@ -44,7 +44,15 @@ export const webApi: NotionixApi = {
     get: (id) => rpc('pages.get', id),
     create: (parentId, access, kind) => rpc('pages.create', parentId, access, kind),
     createWith: (parentId, init) => rpc('pages.createWith', parentId, init),
-    update: (id, patch) => rpc('pages.update', id, patch),
+    update: async (id, patch) => {
+      // A favorite is the person's own: it does not change the page for the others.
+      const { favorite, ...rest } = patch
+      let summary =
+        favorite === undefined ? null : await rpc<PageSummary>('pages.favorite', id, favorite)
+      if (summary === null || Object.values(rest).some((v) => v !== undefined))
+        summary = await rpc<PageSummary>('pages.update', id, rest)
+      return summary
+    },
     move: (id, parentId, index) => rpc('pages.move', id, parentId, index),
     trash: (id) => rpc('pages.trash', id),
     restore: (id) => rpc('pages.restore', id),

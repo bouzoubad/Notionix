@@ -22,6 +22,7 @@ import { resolveLevels } from '../../src/core/access'
 import { canonicalDoc } from '../../src/core/transfer/canonicalDoc'
 import { importCsvRows } from '../../src/core/transfer/csvImport'
 import type { JsonNode } from '../../src/core/transfer/markdownToDoc'
+import type { PagesElsewhere } from '../../src/shared/collab'
 import type { User } from './auth'
 import type { Workspace } from './workspace'
 
@@ -113,6 +114,7 @@ export interface ServerScope {
 /** What a call knows about its caller. */
 export class CallContext {
   private levels: Map<string, AccessLevel> | null = null
+  private favoriteIds: Set<string> | null = null
 
   constructor(
     readonly ws: Workspace,
@@ -190,21 +192,49 @@ export class CallContext {
   /** Levels change with the pages: computed again on the next question. */
   invalidate(): void {
     this.levels = null
+    this.favoriteIds = null
+  }
+
+  /** The caller's own favorites (each person has theirs). */
+  favorites(): Set<string> {
+    this.favoriteIds ??= new Set(this.ws.pages.favoritesOf(this.user.id))
+    return this.favoriteIds
   }
 
   /** A summary with the caller's level on it; null when the caller cannot see it. */
-  visible(summary: PageSummary): PageSummary | null {
+  visible<T extends PageSummary>(summary: T): T | null {
     this.invalidate()
     const level = this.level(summary.id)
-    return level === 'none' ? null : { ...summary, level }
+    return level === 'none'
+      ? null
+      : { ...summary, level, favorite: this.favorites().has(summary.id) }
   }
 
   /** Keeps the pages the caller sees, with their level. */
   filter(summaries: PageSummary[]): PageSummary[] {
+    const favorites = this.favorites()
     return summaries.flatMap((s) => {
       const level = this.level(s.id)
-      return level === 'none' ? [] : [{ ...s, level }]
+      return level === 'none' ? [] : [{ ...s, level, favorite: favorites.has(s.id) }]
     })
+  }
+
+  /** The caller's favorites and private pages in this workspace (`workspace`: its id). */
+  atHand(workspace: string): PagesElsewhere {
+    const pages = this.filter(this.ws.pages.list()).filter(
+      (p) => p.trashedAt === null && p.kind !== 'synced'
+    )
+    const byId = new Map(pages.map((p) => [p.id, p]))
+    const favorites = this.ws.pages.favoritesOf(this.user.id).flatMap((id) => byId.get(id) ?? [])
+    const mine = new Set<string>()
+    const under = (id: string): void => {
+      mine.add(id)
+      for (const p of pages) if (p.parentId === id && !mine.has(p.id)) under(p.id)
+    }
+    for (const p of pages)
+      if (p.parentId === null && p.access === 'restricted' && p.createdBy === this.user.id)
+        under(p.id)
+    return { workspace, favorites, private: pages.filter((p) => mine.has(p.id)) }
   }
 }
 
@@ -231,8 +261,18 @@ const METHODS: Record<string, Method> = {
   'pages.get': read((ctx, [p]) => {
     ctx.need(id(p), 'read')
     const page = ctx.ws.pages.get(id(p))
-    return page && { ...page, level: ctx.level(page.id) }
+    return page && ctx.visible(page)
   }),
+  // Each person's own favorites: nothing changes for the others (a read for them).
+  'pages.favorite': read((ctx, [p, flag]) => {
+    ctx.need(id(p), 'read')
+    ctx.ws.pages.setFavorite(ctx.user.id, id(p), flag === true)
+    return ctx.visible(ctx.ws.pages.summary(id(p)))
+  }),
+  // Favorites and private pages of the caller's other workspaces, for the sidebar.
+  'pages.elsewhere': read((ctx) =>
+    (ctx.server.others?.() ?? []).map(({ id: wsId, ctx: other }) => other.atHand(wsId))
+  ),
   'pages.create': write((ctx, [p, a, k]) => {
     const parentId = parent(p)
     ctx.needParent(parentId)
@@ -335,12 +375,14 @@ const METHODS: Record<string, Method> = {
   'pages.update': write((ctx, [p, patch]) => {
     ctx.need(id(p), 'edit')
     const r = record(patch)
+    // Sent here by apps before 1.5.0: the caller's own favorite, not the page's.
+    const favorite = optional(r.favorite, (v) => v === true)
+    if (favorite !== undefined) ctx.ws.pages.setFavorite(ctx.user.id, id(p), favorite)
     return ctx.visible(
       ctx.ws.pages.update(id(p), {
         title: optional(r.title, text),
         icon: optional(r.icon, nullableText),
         cover: optional(r.cover, nullableText),
-        favorite: optional(r.favorite, (v) => v === true),
         options: optional(r.options, record)
       })
     )

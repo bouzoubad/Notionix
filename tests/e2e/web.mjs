@@ -133,6 +133,13 @@ try {
   await bob.keyboard.type(' — relu par Bob')
   await admin.locator('.ProseMirror', { hasText: 'relu par Bob' }).waitFor()
 
+  // A favorite, from the star of the page bar, is the administrator's own
+  await admin.getByRole('button', { name: 'Ajouter aux favoris' }).click()
+  await admin
+    .getByRole('tree', { name: 'Favoris' })
+    .locator('.row', { hasText: 'Feuille de route' })
+    .waitFor()
+
   // Bob switches to his other workspace and works there
   // Each workspace is a section of the sidebar; another one shows its pages unfolded
   await bob.locator('.workspace-section.current', { hasText: 'Espace principal' }).waitFor()
@@ -141,6 +148,7 @@ try {
   await bob.locator('.workspace-section', { hasText: 'Projet X' }).locator('.workspace-open').click()
   await bob.locator('.workspace-section.current', { hasText: 'Projet X' }).waitFor()
   assert.equal(await bob.locator('.sidebar .row', { hasText: 'Feuille de route' }).count(), 0)
+  assert.equal(await bob.getByRole('tree', { name: 'Favoris' }).count(), 0)
   await bob.getByRole('button', { name: '+ Nouvelle page' }).click()
   await bob.locator('.page-title').fill('Plan du projet')
   await bob.locator('.page-title').press('Enter')
@@ -155,6 +163,38 @@ try {
     () => document.querySelector('.page-title')?.value === 'Plan du projet'
   )
 
+  // Favorites and private pages of the main workspace stay at hand from this one
+  await admin
+    .getByRole('tree', { name: 'Favoris' })
+    .locator('.row', { hasText: 'Feuille de route' })
+    .waitFor()
+  const elsewhere = admin
+    .getByRole('tree', { name: 'Privé' })
+    .locator('.row', { hasText: 'Feuille de route' })
+  await admin.screenshot({ path: join(tmp, 'web-sidebar.png') })
+  await elsewhere.click()
+  await admin.locator('.workspace-section.current', { hasText: 'Espace principal' }).waitFor()
+  await admin.waitForFunction(
+    () => document.querySelector('.page-title')?.value === 'Feuille de route'
+  )
+
+  // The sidebar: wider by dragging its edge, hidden and shown again, as it was
+  const edge = await admin.locator('.sidebar-resizer').boundingBox()
+  await admin.mouse.move(edge.x + 4, edge.y + 300)
+  await admin.mouse.down()
+  await admin.mouse.move(edge.x + 104, edge.y + 300, { steps: 5 })
+  await admin.mouse.up()
+  const sidebarWidth = () =>
+    admin.locator('.sidebar').evaluate((e) => Math.round(e.getBoundingClientRect().width))
+  const wide = await sidebarWidth()
+  assert.ok(wide >= 350, `sidebar width ${wide}`)
+  await admin.getByRole('button', { name: 'Masquer la barre latérale' }).click()
+  await admin.locator('.sidebar').waitFor({ state: 'hidden' })
+  await admin.reload()
+  await admin.getByRole('button', { name: 'Afficher la barre latérale' }).click()
+  await admin.locator('.sidebar').waitFor()
+  assert.equal(await sidebarWidth(), wide)
+
   // The dashboard and the audit log tell what happened
   await admin.getByRole('button', { name: 'Administration' }).click()
   await admin
@@ -167,7 +207,7 @@ try {
 
   assert.deepEqual(adminErrors, [])
   assert.deepEqual(bobErrors, [])
-  console.log(`OK web e2e, screenshot: ${join(tmp, 'web-admin.png')}`)
+  console.log(`OK web e2e, screenshots in ${tmp}`)
 } finally {
   await cleanup()
 }

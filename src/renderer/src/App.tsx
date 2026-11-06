@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useStore } from './store'
+import { sidebarShortcut, useStore } from './store'
 import { installDialogFocus } from './a11y'
 import { TabBar } from './components/TabBar'
 import { Tour } from './onboarding/Tour'
 import { Welcome } from './onboarding/Welcome'
-import { Sidebar } from './components/Sidebar'
+import { Sidebar, SidebarResizer } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
 import { TrashDialog } from './components/TrashDialog'
 import { TransferDialog } from './components/TransferDialog'
@@ -21,6 +21,9 @@ import { language, t } from '../../shared/i18n'
 
 document.documentElement.lang = language()
 
+/** The Mac app's window buttons sit over the top left corner of the window. */
+const macWindow = /Electron/.test(navigator.userAgent) && /Mac/.test(navigator.platform)
+
 export default function App(): React.JSX.Element {
   const load = useStore((s) => s.load)
   const currentId = useStore((s) => s.currentId)
@@ -36,6 +39,8 @@ export default function App(): React.JSX.Element {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
   const sidebarHidden = useStore((s) => s.sidebarHidden)
+  const sidebarWidth = useStore((s) => s.sidebarWidth)
+  const toggleSidebar = useStore((s) => s.toggleSidebar)
   const inboxOpen = useStore((s) => s.inboxOpen)
   const setInboxOpen = useStore((s) => s.setInboxOpen)
   const refreshInbox = useStore((s) => s.refreshInbox)
@@ -125,7 +130,10 @@ export default function App(): React.JSX.Element {
   }, [load, setSearchOpen])
 
   return (
-    <div className={`app${sidebarHidden ? ' sidebar-hidden' : ''}`}>
+    <div
+      className={`app${sidebarHidden ? ' sidebar-hidden' : ''}${macWindow ? ' mac-window' : ''}`}
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <a
         className="skip-link"
         href="#content"
@@ -137,6 +145,18 @@ export default function App(): React.JSX.Element {
         {t('Aller au contenu')}
       </a>
       <Sidebar />
+      {sidebarHidden ? (
+        <button
+          className="sidebar-show"
+          title={`${t('Afficher la barre latérale')} (${sidebarShortcut})`}
+          aria-label={t('Afficher la barre latérale')}
+          onClick={toggleSidebar}
+        >
+          »
+        </button>
+      ) : (
+        <SidebarResizer />
+      )}
       <main id="content" tabIndex={-1}>
         <TabBar />
         {current?.kind === 'database' ? (

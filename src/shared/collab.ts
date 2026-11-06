@@ -6,6 +6,7 @@
 import { t } from './i18n'
 
 import type { ClientSeen } from './clients'
+import type { PageSummary } from './types'
 
 export const WORKSPACE_DOCUMENT = 'workspace:main'
 
@@ -37,6 +38,15 @@ export interface WorkspaceInfo {
   memberIds: string[] | null
   /** Archived: hidden from its members until an administrator restores it */
   archived: boolean
+}
+
+/** What a person keeps at hand in another workspace, shown in the sidebar wherever they are. */
+export interface PagesElsewhere {
+  workspace: string
+  /** Their favorites there, in the order they were added */
+  favorites: PageSummary[]
+  /** Their private pages there, and the pages under them */
+  private: PageSummary[]
 }
 
 /** An entry of the administrators' audit log. */

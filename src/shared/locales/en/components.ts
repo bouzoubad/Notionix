@@ -220,6 +220,13 @@ const dictionary: Record<string, string> = {
   Privé: 'Private',
   'Vos pages visibles par vous seul.': 'Your pages, visible only to you.',
   'Partagé avec moi': 'Shared with me',
+  'Autre espace': 'Other workspace',
+  '{title} — espace {name}': '{title} — {name} workspace',
+  'Largeur de la barre latérale': 'Sidebar width',
+  'Glisser pour changer la largeur ; double-clic : largeur d’origine':
+    'Drag to change the width; double-click: original width',
+  'Masquer la barre latérale': 'Hide the sidebar',
+  'Afficher la barre latérale': 'Show the sidebar',
   Modèles: 'Templates',
   'Importer / Exporter': 'Import / Export',
   Corbeille: 'Trash',

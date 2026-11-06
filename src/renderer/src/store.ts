@@ -31,9 +31,12 @@ interface State {
   notice: string | null
   /** Increased when another person changed pages or databases (server workspace) */
   revision: number
-  /** Sidebar hidden with Cmd+\\ */
+  /** Sidebar hidden with Cmd+\\ or its button (kept on this device) */
   sidebarHidden: boolean
   toggleSidebar: () => void
+  /** Sidebar width in pixels, chosen by dragging its edge (kept on this device) */
+  sidebarWidth: number
+  setSidebarWidth: (width: number) => void
   /** Forced theme, or the system's */
   theme: 'system' | 'light' | 'dark'
   toggleTheme: () => void
@@ -260,6 +263,39 @@ function notify(set: (partial: Partial<State>) => void, message: string): void {
   noticeTimer = window.setTimeout(() => set({ notice: null }), 6000)
 }
 
+/** The shortcut hiding and showing the sidebar, as written on this computer. */
+export const sidebarShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘\\' : 'Ctrl+\\'
+
+const SIDEBAR_KEY = 'notionix.sidebar'
+export const SIDEBAR_WIDTH = 260
+export const SIDEBAR_MIN = 200
+export const SIDEBAR_MAX = 560
+const clampSidebar = (width: number): number =>
+  Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, width)))
+
+function readSidebar(): { hidden: boolean; width: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(SIDEBAR_KEY) ?? '{}') as {
+      hidden?: unknown
+      width?: unknown
+    }
+    return {
+      hidden: v.hidden === true,
+      width: typeof v.width === 'number' ? clampSidebar(v.width) : SIDEBAR_WIDTH
+    }
+  } catch {
+    return { hidden: false, width: SIDEBAR_WIDTH }
+  }
+}
+
+function saveSidebar(value: { hidden: boolean; width: number }): void {
+  try {
+    localStorage.setItem(SIDEBAR_KEY, JSON.stringify(value))
+  } catch {
+    // kept for this visit only
+  }
+}
+
 export const useStore = create<State>((set, get) => ({
   pages: [],
   people: [],
@@ -297,8 +333,18 @@ export const useStore = create<State>((set, get) => ({
   revision: 0,
   contentReload: 0,
   comments: { open: false, focus: null, draft: null },
-  sidebarHidden: false,
-  toggleSidebar: () => set({ sidebarHidden: !get().sidebarHidden }),
+  sidebarHidden: readSidebar().hidden,
+  toggleSidebar: () => {
+    const sidebarHidden = !get().sidebarHidden
+    set({ sidebarHidden })
+    saveSidebar({ hidden: sidebarHidden, width: get().sidebarWidth })
+  },
+  sidebarWidth: readSidebar().width,
+  setSidebarWidth: (width) => {
+    const sidebarWidth = clampSidebar(width)
+    set({ sidebarWidth })
+    saveSidebar({ hidden: get().sidebarHidden, width: sidebarWidth })
+  },
   theme: storedTheme(),
   toggleTheme: () => {
     // Like Notion's Cmd+Shift+L: switches to the other theme than the one shown.

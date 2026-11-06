@@ -1,6 +1,14 @@
 import { AppearanceSettings } from './AppearanceSettings'
 import { useEffect, useRef, useState } from 'react'
-import { childrenOf, openInNewTab, useStore } from '../store'
+import {
+  childrenOf,
+  openInNewTab,
+  SIDEBAR_MAX,
+  SIDEBAR_MIN,
+  SIDEBAR_WIDTH,
+  sidebarShortcut,
+  useStore
+} from '../store'
 import { Logo } from './Logo'
 import { isLocalPage, platform, type ServerSession } from '../platform'
 import { Avatars } from './PageTopBar'
@@ -8,7 +16,7 @@ import { TemplatesDialog } from './TemplatesDialog'
 import { PageIcon } from './PageIcon'
 import { iconText } from '../icons'
 import type { PageSummary } from '../../../shared/types'
-import type { WorkspaceInfo } from '../../../shared/collab'
+import type { PagesElsewhere, WorkspaceInfo } from '../../../shared/collab'
 import { LANGUAGES, language, setLanguage, t, type Language } from '../../../shared/i18n'
 
 /**
@@ -63,6 +71,8 @@ function treeKey(
 type DropTarget = { id: string; where: 'before' | 'inside' | 'after' } | null
 
 const WORKSPACES_KEY = 'notionix.sidebar.workspaces'
+/** This person's favorites and private pages in the other workspaces, kept from the last visit. */
+const ELSEWHERE_KEY = 'notionix.sidebar.elsewhere'
 
 /** Sections of the sidebar folded or unfolded by this person (this browser). */
 const FOLDED_KEY = 'notionix.sidebar.folded'
@@ -87,12 +97,73 @@ function useFolded(key: string, foldedByDefault: boolean): [boolean, () => void]
   return [folded, toggle]
 }
 
+/**
+ * The sidebar's edge: dragged to change its width (pushed far enough, it
+ * hides the sidebar), arrows with the keyboard, double-click for the width
+ * it had at first.
+ */
+export function SidebarResizer(): React.JSX.Element {
+  const width = useStore((s) => s.sidebarWidth)
+  const setWidth = useStore((s) => s.setSidebarWidth)
+  const toggleSidebar = useStore((s) => s.toggleSidebar)
+  const [dragging, setDragging] = useState(false)
+  const start = (e: React.PointerEvent<HTMLDivElement>): void => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const handle = e.currentTarget
+    handle.setPointerCapture(e.pointerId)
+    const startX = e.clientX
+    const from = width
+    setDragging(true)
+    const moveTo = (ev: PointerEvent): void => setWidth(from + ev.clientX - startX)
+    const end = (ev: PointerEvent): void => {
+      handle.removeEventListener('pointermove', moveTo)
+      handle.removeEventListener('pointerup', end)
+      handle.removeEventListener('pointercancel', end)
+      setDragging(false)
+      // Pushed well past its narrowest: hidden, keeping the width it had.
+      if (ev.type === 'pointerup' && from + ev.clientX - startX < SIDEBAR_MIN - 90) {
+        setWidth(from)
+        toggleSidebar()
+      }
+    }
+    handle.addEventListener('pointermove', moveTo)
+    handle.addEventListener('pointerup', end)
+    handle.addEventListener('pointercancel', end)
+  }
+  return (
+    <div
+      className={`sidebar-resizer${dragging ? ' dragging' : ''}`}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={t('Largeur de la barre latérale')}
+      aria-valuenow={width}
+      aria-valuemin={SIDEBAR_MIN}
+      aria-valuemax={SIDEBAR_MAX}
+      tabIndex={0}
+      title={t('Glisser pour changer la largeur ; double-clic : largeur d’origine')}
+      onPointerDown={start}
+      onDoubleClick={() => setWidth(SIDEBAR_WIDTH)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 64 : 16
+        if (e.key === 'ArrowLeft') setWidth(width - step)
+        else if (e.key === 'ArrowRight') setWidth(width + step)
+        else if (e.key === 'Home') setWidth(SIDEBAR_MIN)
+        else if (e.key === 'End') setWidth(SIDEBAR_MAX)
+        else return
+        e.preventDefault()
+      }}
+    />
+  )
+}
+
 export function Sidebar(): React.JSX.Element {
   const pages = useStore((s) => s.pages)
   const createPage = useStore((s) => s.createPage)
   const setSearchOpen = useStore((s) => s.setSearchOpen)
   const setTrashOpen = useStore((s) => s.setTrashOpen)
   const setTransferOpen = useStore((s) => s.setTransferOpen)
+  const toggleSidebar = useStore((s) => s.toggleSidebar)
   const createDatabase = useStore((s) => s.createDatabase)
   const session = platform().session
   const [drag, setDrag] = useState<string | null>(null)
@@ -135,6 +206,70 @@ export function Sidebar(): React.JSX.Element {
     }
   }, [session])
   const sections = session !== null && workspaces.length > 1
+  // Favorites and private pages are shown wherever the person is, as in Notion.
+  const [elsewhere, setElsewhere] = useState<PagesElsewhere[]>(() => {
+    try {
+      return session
+        ? (JSON.parse(localStorage.getItem(ELSEWHERE_KEY) ?? '[]') as PagesElsewhere[])
+        : []
+    } catch {
+      return []
+    }
+  })
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    const load = (): void =>
+      void session.workspaces
+        .elsewhere()
+        .then((list) => {
+          if (cancelled) return
+          setElsewhere(list)
+          try {
+            localStorage.setItem(ELSEWHERE_KEY, JSON.stringify(list))
+          } catch {
+            // kept for this visit only
+          }
+        })
+        .catch(() => {})
+    load()
+    // Changed from another window or device meanwhile.
+    window.addEventListener('focus', load)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', load)
+    }
+  }, [session])
+  const workspaceName = (id: string): string =>
+    workspaces.find((w) => w.id === id)?.name ?? t('Autre espace')
+  const goElsewhere =
+    (workspace: string) =>
+    (pageId: string | null): void =>
+      session?.workspaces.switchTo(workspace, pageId)
+  const favoritesElsewhere = elsewhere.flatMap((e) =>
+    e.favorites.map((page) => (
+      <RemoteRow
+        key={`${e.workspace}:${page.id}`}
+        page={page}
+        pages={[]}
+        depth={0}
+        go={goElsewhere(e.workspace)}
+        hint={workspaceName(e.workspace)}
+      />
+    ))
+  )
+  const privateElsewhere = elsewhere.flatMap((e) =>
+    childrenOf(e.private, null).map((page) => (
+      <RemoteRow
+        key={`${e.workspace}:${page.id}`}
+        page={page}
+        pages={e.private}
+        depth={0}
+        go={goElsewhere(e.workspace)}
+        hint={workspaceName(e.workspace)}
+      />
+    ))
+  )
 
   const favorites = pages.filter((p) => p.favorite && !p.trashedAt)
   const open = useStore((s) => s.open)
@@ -176,6 +311,14 @@ export function Sidebar(): React.JSX.Element {
       <div className="sidebar-drag" />
       <div className="sidebar-brand">
         <Logo variant="wordmark" className="logo-sidebar" />
+        <button
+          className="sidebar-hide"
+          title={`${t('Masquer la barre latérale')} (${sidebarShortcut})`}
+          aria-label={t('Masquer la barre latérale')}
+          onClick={toggleSidebar}
+        >
+          «
+        </button>
       </div>
       <div className="sidebar-actions">
         <button onClick={() => setSearchOpen(true)}>
@@ -193,7 +336,7 @@ export function Sidebar(): React.JSX.Element {
         )}
       </div>
       <div className="sidebar-sections">
-        {favorites.length > 0 && (
+        {favorites.length + favoritesElsewhere.length > 0 && (
           <section role="tree" aria-label={t('Favoris')}>
             <h4>{t('Favoris')}</h4>
             {favorites.map((p) => (
@@ -209,6 +352,7 @@ export function Sidebar(): React.JSX.Element {
                 dropOn={dropOn}
               />
             ))}
+            {favoritesElsewhere}
           </section>
         )}
         {spaces.map((space) => (
@@ -238,7 +382,7 @@ export function Sidebar(): React.JSX.Element {
                   empty={t('Aucune page. Créez-en une.')}
                 />
               ) : (
-                <OtherWorkspace key={w.id} info={w} session={session} />
+                <OtherWorkspace key={w.id} info={w} session={session} me={me} />
               )
             )}
           </>
@@ -259,6 +403,8 @@ export function Sidebar(): React.JSX.Element {
             onAdd={() => void createPage(null, 'restricted')}
             // Linked desktop app: with the pages written here without network, sent when it is back.
             pages={[...mine, ...onComputer]}
+            // Those of the other workspaces too: opening one opens its workspace.
+            extra={privateElsewhere}
             rowProps={rowProps}
             empty={t('Vos pages visibles par vous seul.')}
           />
@@ -345,6 +491,7 @@ function TreeSection({
   onTitle,
   onAdd,
   pages,
+  extra = [],
   rowProps,
   empty
 }: {
@@ -357,6 +504,8 @@ function TreeSection({
   onTitle?: () => void
   onAdd?: () => void
   pages: PageSummary[]
+  /** Rows shown after the pages (pages of other workspaces) */
+  extra?: React.JSX.Element[]
   rowProps: Omit<RowProps, 'page' | 'depth' | 'flat'>
   empty?: string
 }): React.JSX.Element {
@@ -412,7 +561,8 @@ function TreeSection({
         )}
       </h4>
       {!hidden && pages.map((p) => <Row key={p.id} page={p} depth={0} {...rowProps} />)}
-      {!hidden && pages.length === 0 && empty && <p className="empty">{empty}</p>}
+      {!hidden && extra}
+      {!hidden && pages.length + extra.length === 0 && empty && <p className="empty">{empty}</p>}
     </section>
   )
 }
@@ -423,10 +573,12 @@ function TreeSection({
  */
 function OtherWorkspace({
   info,
-  session
+  session,
+  me
 }: {
   info: WorkspaceInfo
   session: ServerSession
+  me: string | null
 }): React.JSX.Element {
   const [folded, toggleFold] = useFolded(`workspace:${info.id}`, true)
   const [pages, setPages] = useState<PageSummary[] | null>(null)
@@ -443,7 +595,12 @@ function OtherWorkspace({
     }
   }, [folded, pages, info.id, session])
   const go = (pageId: string | null): void => session.workspaces.switchTo(info.id, pageId)
-  const roots = pages ? childrenOf(pages, null).filter((p) => p.kind !== 'synced') : []
+  // This person's private pages are in the Private section.
+  const roots = pages
+    ? childrenOf(pages, null).filter(
+        (p) => p.kind !== 'synced' && !(p.access === 'restricted' && p.createdBy === me)
+      )
+    : []
   return (
     <section className="tree workspace-section" role="tree" aria-label={info.name}>
       <h4 className="tree-title">
@@ -489,12 +646,15 @@ function RemoteRow({
   page,
   pages,
   depth,
-  go
+  go,
+  hint
 }: {
   page: PageSummary
   pages: PageSummary[]
   depth: number
   go: (pageId: string) => void
+  /** The workspace it belongs to, when shown out of its section */
+  hint?: string
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const kids = childrenOf(pages, page.id)
@@ -507,7 +667,8 @@ function RemoteRow({
         tabIndex={0}
         aria-level={depth + 1}
         aria-expanded={kids.length ? expanded : undefined}
-        aria-label={label}
+        aria-label={hint ? `${label} (${hint})` : label}
+        title={hint ? t('{title} — espace {name}', { title: label, name: hint }) : undefined}
         style={{ paddingLeft: 8 + depth * 14 }}
         onClick={() => go(page.id)}
         onKeyDown={(e) => {
@@ -538,7 +699,7 @@ function RemoteRow({
       {expanded && kids.length > 0 && (
         <div role="group">
           {kids.map((k) => (
-            <RemoteRow key={k.id} page={k} pages={pages} depth={depth + 1} go={go} />
+            <RemoteRow key={k.id} page={k} pages={pages} depth={depth + 1} go={go} hint={hint} />
           ))}
         </div>
       )}

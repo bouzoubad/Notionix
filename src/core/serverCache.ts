@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
  */
 export const CACHED_CALLS: ReadonlySet<string> = new Set([
   'pages.list',
+  'pages.elsewhere',
   'pages.get',
   'pages.backlinks',
   'pages.shares',

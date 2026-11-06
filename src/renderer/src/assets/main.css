@@ -151,7 +151,7 @@ kbd {
 
 /* Sidebar */
 .sidebar {
-  width: 260px;
+  width: var(--sidebar-width, 260px);
   flex: none;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
@@ -362,6 +362,9 @@ main {
 .breadcrumbs .topbar-actions button:hover,
 .breadcrumbs .topbar-actions button.active {
   background: var(--bg-hover);
+}
+.breadcrumbs .topbar-actions button.favorite-on {
+  color: #e2a400;
 }
 .topbar-anchor {
   position: relative;
@@ -747,8 +750,75 @@ main {
 
 /* Branding */
 .sidebar-brand {
-  padding: 2px 14px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 8px 12px 14px;
   flex: none;
+}
+/* Its edge, dragged to change its width */
+.sidebar-resizer {
+  flex: none;
+  position: relative;
+  z-index: 10;
+  width: 9px;
+  margin: 0 -5px 0 -4px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 3px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer.dragging::after,
+.sidebar-resizer:focus-visible::after {
+  background: var(--accent, #2383e2);
+}
+.sidebar-resizer:focus-visible {
+  outline: none;
+}
+.sidebar-hide,
+.sidebar-show {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-muted);
+  -webkit-app-region: no-drag;
+}
+.sidebar-hide:hover,
+.sidebar-show:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+/* Hidden: a button brings it back, in the top left corner */
+.sidebar-show {
+  position: fixed;
+  top: 9px;
+  left: 10px;
+  z-index: 20;
+}
+.app.mac-window .sidebar-show {
+  left: 80px;
+}
+.app.sidebar-hidden .tab-bar,
+.app.sidebar-hidden main:not(:has(> .tab-bar)) .breadcrumbs {
+  padding-left: 44px;
+}
+.app.sidebar-hidden.mac-window .tab-bar,
+.app.sidebar-hidden.mac-window main:not(:has(> .tab-bar)) .breadcrumbs {
+  padding-left: 114px;
 }
 .logo-sidebar {
   display: block;

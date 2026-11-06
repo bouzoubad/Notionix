@@ -19,6 +19,7 @@ export function PageTopBar({
 }): React.JSX.Element {
   const pages = useStore((s) => s.pages)
   const open = useStore((s) => s.open)
+  const patch = useStore((s) => s.patch)
   const [menu, setMenu] = useState<'share' | 'history' | 'options' | null>(null)
   const presence = useStore((s) => s.presence)
   // One avatar per person, even with several tabs open.
@@ -87,6 +88,15 @@ export function PageTopBar({
             {menu === 'share' && <ShareMenu page={page} onClose={() => setMenu(null)} />}
           </span>
         )}
+        <button
+          className={page.favorite ? 'favorite-on' : ''}
+          title={page.favorite ? t('Retirer des favoris') : t('Ajouter aux favoris')}
+          aria-label={page.favorite ? t('Retirer des favoris') : t('Ajouter aux favoris')}
+          aria-pressed={page.favorite}
+          onClick={() => void patch(page.id, { favorite: !page.favorite })}
+        >
+          {page.favorite ? '★' : '☆'}
+        </button>
         <span className="topbar-anchor">
           <button
             title={t('Options de la page')}
